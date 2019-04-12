@@ -7,16 +7,24 @@
  ============================================================================
  */
 
+#define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
+
 #ifndef MEMORIA_H_
 #define MEMORIA_H_
 
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 #include <commons/config.h>
+#include <commons/log.h>
+
+#include "../libs/config.h"
 
 typedef struct {
     int puerto;
     char* ipFileSystem;
     int puertoFileSystem;
-    char** ipSeeds; // no estoy seguro si es char** ipSeeds o char* ipSeeds* para definir un array de strings
+    char** ipSeeds;
     int* puertoSeeds;
     int retardoMemoria;
     int retardoFileSystem;
@@ -26,8 +34,7 @@ typedef struct {
     int cantidadDeMemorias;
 } t_configuracion;
 
-bool existenTodasLasClavesObligatorias(t_config* archivoConfig, t_configuracion configuracion, char* clavesObligatorias[]);
-t_configuracion cargarConfiguracion();
+t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
 
 #endif /* MEMORIA_H_ */

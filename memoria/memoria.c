@@ -9,29 +9,44 @@
 
 #include "memoria.h"
 
-bool existenTodasLasClavesObligatorias(t_config* archivoConfig, t_configuracion configuracion, char* clavesObligatorias[])	{
-	for(int i = 0; sizeof(clavesObligatorias); i++)	{
-		if(!config_has_property(archivoConfig, clavesObligatorias[i]))
-			return false;
-	}
-
-	return true;
-}
-
-t_configuracion cargarConfiguracion()	{
-	t_config* archivoConfig = config_create("memoria.cfg");
+t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logger)	{
 	t_configuracion configuracion;
 
-	char* clavesObligatorias[11] = {"PUERTO", "IP_FS", "PUERTO_FS", "IP_SEEDS", "PUERTO_SEEDS", "RETARDO_MEM", "RETARDO_FS", "TAM_MEM", "RETARDO_JOURNAL", "RETARDO_GOSSIPING", "MEMORY_NUMBER"};
+	t_config* archivoConfig = abrirArchivoConfiguracion(pathArchivoConfiguracion, logger);
 
-	if(existenTodasLasClavesObligatorias(archivoConfig, configuracion, clavesObligatorias))
-		exit(1);
+    bool existenTodasLasClavesObligatorias(t_config* archivoConfig, t_configuracion configuracion)	{
+        char* clavesObligatorias[11] = {
+                "PUERTO",
+                "IP_FS",
+                "PUERTO_FS",
+                "IP_SEEDS",
+                "PUERTO_SEEDS",
+                "RETARDO_MEM",
+                "RETARDO_FS",
+                "TAM_MEM",
+                "RETARDO_JOURNAL",
+                "RETARDO_GOSSIPING",
+                "MEMORY_NUMBER"
+        };
+
+        for(int i = 0; i < COUNT_OF(clavesObligatorias); i++)	{
+            if(!config_has_property(archivoConfig, clavesObligatorias[i]))
+                return false;
+        }
+
+        return true;
+    }
+
+	if(!existenTodasLasClavesObligatorias(archivoConfig, configuracion)){
+		log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
+		exit(1); // settear algún código de error para cuando falte alguna key
+	}
 	else	{
 		configuracion.puerto = config_get_int_value(archivoConfig, "PUERTO");
 		configuracion.ipFileSystem = config_get_string_value(archivoConfig, "IP_FS");
 		configuracion.puertoFileSystem = config_get_int_value(archivoConfig, "PUERTO_FS");
 		configuracion.ipSeeds = config_get_array_value(archivoConfig, "IP_SEEDS");
-		configuracion.puertoSeeds = config_get_array_value(archivoConfig, "PUERTO_SEEDS");
+		configuracion.puertoSeeds = (int*) config_get_array_value(archivoConfig, "PUERTO_SEEDS");
 		configuracion.retardoMemoria = config_get_int_value(archivoConfig, "RETARDO_MEM");
 		configuracion.retardoFileSystem = config_get_int_value(archivoConfig, "RETARDO_FS");
 		configuracion.tamanioMemoria = config_get_int_value(archivoConfig, "TAM_MEM");
@@ -44,11 +59,11 @@ t_configuracion cargarConfiguracion()	{
 }
 
 int main(void) {
-	puts("¡Hola! Soy Memory!");
+    t_log* logger = log_create("memoria.log", "memoria", false, LOG_LEVEL_INFO);
 
-	t_configuracion configuracion = cargarConfiguracion();
+	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
 
-	puts(configuracion.ipFileSystem);
+	printf("IP FileSystem: %s", configuracion.ipFileSystem);
 
-	return 1;
+	return 0;
 }

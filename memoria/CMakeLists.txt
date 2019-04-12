@@ -7,7 +7,7 @@ set(PROYECTO_SRC
 set(LIBRERIAS
         "commons")
 
-project(PROYECTO)
+project(${PROYECTO})
 
 set(CMAKE_C_STANDARD 99)
 

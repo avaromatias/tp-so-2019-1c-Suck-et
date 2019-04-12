@@ -11,6 +11,23 @@
 #ifndef KERNEL_H_
 #define KERNEL_H_
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <commons/config.h>
 
+typedef struct {
+    char* ipMemoria;
+    int puertoMemoria;
+    int quantum;
+    int multiprocesamiento;
+    int refreshMetadata;
+    int retardoEjecucion;
+} t_configuracion;
+
+bool existenTodasLasClavesObligatorias(t_config* archivoConfig, t_configuracion configuracion, char* clavesObligatorias[]);
+t_configuracion cargarConfiguracion();
+
+void levantarAPI();
 
 #endif /* KERNEL_H_ */

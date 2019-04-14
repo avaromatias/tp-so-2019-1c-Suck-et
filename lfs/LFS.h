@@ -12,5 +12,23 @@
 #define LFS_H_
 
 
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <commons/config.h>
+#include <commons/log.h>
+
+#include "../libs/config.h"
+
+typedef struct {
+    int puertoEscucha;
+    char* puntoMontaje;
+    int retardo;
+    int tamanioValue;
+    int tiempoDump;
+} t_configuracion;
+
+t_configuracion cargarConfiguracion(char* path, t_log* logger);
+
 
 #endif /* LFS_H_ */

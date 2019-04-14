@@ -7,10 +7,51 @@
  ============================================================================
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+#include "LFS.h"
+
+t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logger)	{
+	t_configuracion configuracion;
+
+	t_config* archivoConfig = abrirArchivoConfiguracion(pathArchivoConfiguracion, logger);
+
+    bool existenTodasLasClavesObligatorias(t_config* archivoConfig, t_configuracion configuracion)	{
+        char* clavesObligatorias[11] = {
+                "PUERTO_ESCUCHA",
+                "PUNTO_MONTAJE",
+                "RETARDO",
+                "TAMAÑO_VALUE",
+                "TIEMPO_DUMP",
+        };
+
+        for(int i = 0; i < COUNT_OF(clavesObligatorias); i++)	{
+            if(!config_has_property(archivoConfig, clavesObligatorias[i]))
+                return false;
+        }
+
+        return true;
+    }
+
+	if(!existenTodasLasClavesObligatorias(archivoConfig, configuracion)){
+		log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
+		exit(1); // settear algún código de error para cuando falte alguna key
+	}
+	else	{
+		configuracion.puertoEscucha = config_get_int_value(archivoConfig, "PUERTO_ESUCHA");
+		configuracion.puntoMontaje = config_get_string_value(archivoConfig, "PUNTO_MONTAJE");
+		configuracion.retardo = config_get_int_value(archivoConfig, "RETARDO");
+		configuracion.tamanioValue = config_get_array_value(archivoConfig, "TAMAÑO_VALUE");
+		configuracion.tiempoDump = (int*) config_get_array_value(archivoConfig, "TIEMPO_DUMP");
+
+		return configuracion;
+	}
+}
 
 int main(void) {
-	puts("¡Hola! Soy Lissandra!");
-	return EXIT_SUCCESS;
+    t_log* logger = log_create("lfs.log", "lfs", false, LOG_LEVEL_INFO);
+
+	t_configuracion configuracion = cargarConfiguracion("lfs.cfg", logger);
+
+	printf("Puerto Escucha: %s", configuracion.puertoEscucha);
+
+	return 0;
 }

@@ -7,7 +7,7 @@
  ============================================================================
  */
 
-#include "LFS.h"
+#include "lfs.h"
 
 t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logger)	{
 	t_configuracion configuracion;
@@ -39,8 +39,8 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 		configuracion.puertoEscucha = config_get_int_value(archivoConfig, "PUERTO_ESUCHA");
 		configuracion.puntoMontaje = config_get_string_value(archivoConfig, "PUNTO_MONTAJE");
 		configuracion.retardo = config_get_int_value(archivoConfig, "RETARDO");
-		configuracion.tamanioValue = config_get_array_value(archivoConfig, "TAMAÑO_VALUE");
-		configuracion.tiempoDump = (int*) config_get_array_value(archivoConfig, "TIEMPO_DUMP");
+		configuracion.tamanioValue = config_get_int_value(archivoConfig, "TAMAÑO_VALUE");
+		configuracion.tiempoDump = config_get_int_value(archivoConfig, "TIEMPO_DUMP");
 
 		return configuracion;
 	}
@@ -51,7 +51,7 @@ int main(void) {
 
 	t_configuracion configuracion = cargarConfiguracion("lfs.cfg", logger);
 
-	printf("Puerto Escucha: %s", configuracion.puertoEscucha);
+	printf("Puerto Escucha: %i", configuracion.puertoEscucha);
 
 	return 0;
 }

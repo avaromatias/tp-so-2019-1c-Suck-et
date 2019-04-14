@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.5)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ".")
 set(PROYECTO lfs)
 set(PROYECTO_SRC
-        "LFS.c")
+        "lfs.c"
+        "../libs/config.c")
 set(LIBRERIAS
         "commons")
 

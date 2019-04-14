@@ -50,3 +50,9 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# General
+kernel/.settings/
+lfs/.settings/
+memoria/.settings/
+

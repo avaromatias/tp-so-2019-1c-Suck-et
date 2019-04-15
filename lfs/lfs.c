@@ -15,12 +15,12 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	t_config* archivoConfig = abrirArchivoConfiguracion(pathArchivoConfiguracion, logger);
 
     bool existenTodasLasClavesObligatorias(t_config* archivoConfig, t_configuracion configuracion)	{
-        char* clavesObligatorias[11] = {
+        char* clavesObligatorias[5] = {
                 "PUERTO_ESCUCHA",
                 "PUNTO_MONTAJE",
                 "RETARDO",
                 "TAMAÑO_VALUE",
-                "TIEMPO_DUMP",
+                "TIEMPO_DUMP"
         };
 
         for(int i = 0; i < COUNT_OF(clavesObligatorias); i++)	{
@@ -36,7 +36,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 		exit(1); // settear algún código de error para cuando falte alguna key
 	}
 	else	{
-		configuracion.puertoEscucha = config_get_int_value(archivoConfig, "PUERTO_ESUCHA");
+		configuracion.puertoEscucha = config_get_int_value(archivoConfig, "PUERTO_ESCUCHA");
 		configuracion.puntoMontaje = config_get_string_value(archivoConfig, "PUNTO_MONTAJE");
 		configuracion.retardo = config_get_int_value(archivoConfig, "RETARDO");
 		configuracion.tamanioValue = config_get_int_value(archivoConfig, "TAMAÑO_VALUE");

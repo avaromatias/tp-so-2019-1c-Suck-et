@@ -10,24 +10,45 @@
 #include "kernel.h"
 
 int main(void) {
-	puts("¡Hola! Soy Kernel!");
-	t_configuracion configuracion = cargarConfiguracion();
-	puts(configuracion.ipMemoria);
+    puts("¡Hola! Soy Kernel!");
+	t_log* logger = log_create("kernel.log", "kernel", false, LOG_LEVEL_INFO);
+
+	t_configuracion configuracion = cargarConfiguracion("kernel.cfg", logger);
+
+	printf("IP Memoria:%s", configuracion.ipMemoria);
 
 	//conectar con memoria y luego el paso de abajo
 	//levantarAPI();
 
 	return EXIT_SUCCESS;
 }
-
-t_configuracion cargarConfiguracion()	{
-	t_config* archivoConfig = config_create("kernel.cfg");
+t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logger)	{
 	t_configuracion configuracion;
 
-	char* clavesObligatorias[6] = {"IP_MEMORIA", "PUERTO_MEMORIA", "QUANTUM", "MULTIPROCESAMIENTO", "METADATA_REFRESH", "RETARDO_EJECUCION"};
+	t_config* archivoConfig = abrirArchivoConfiguracion(pathArchivoConfiguracion, logger); //nos devuelve un archivoConfig
 
-	if(existenTodasLasClavesObligatorias(archivoConfig, configuracion, clavesObligatorias))
-		exit(1);
+	bool existenTodasLasClavesObligatorias(t_config* archivoConfig, t_configuracion configuracion)	{
+		char* clavesObligatorias[6] = {
+				"IP_MEMORIA",
+				"PUERTO_MEMORIA",
+				"QUANTUM",
+				"MULTIPROCESAMIENTO",
+				"METADATA_REFRESH",
+				"RETARDO_EJECUCION"
+		};
+
+		for(int i = 0; i < COUNT_OF(clavesObligatorias); i++)	{
+			if(!config_has_property(archivoConfig, clavesObligatorias[i]))
+				return false;
+		}
+
+		return true;
+	}
+
+	if(!existenTodasLasClavesObligatorias(archivoConfig, configuracion)){
+		log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
+		exit(1); // settear algún código de error para cuando falte alguna key
+	}
 	else	{
 		configuracion.ipMemoria = config_get_int_value(archivoConfig, "IP_MEMORIA");
 		configuracion.puertoMemoria = config_get_string_value(archivoConfig, "PUERTO_MEMORIA");
@@ -38,16 +59,6 @@ t_configuracion cargarConfiguracion()	{
 
 		return configuracion;
 	}
-}
-
-bool existenTodasLasClavesObligatorias(t_config* archivoConfig, t_configuracion configuracion, char* clavesObligatorias[])	{
-	for(int i = 0; sizeof(clavesObligatorias); i++)	{
-		//vamos a ir recorriendo el array con las configuraciones del archivoConfig
-		if(!config_has_property(archivoConfig, clavesObligatorias[i]))
-			return false;
-	}
-
-	return true;
 }
 
 void levantarAPI()	{

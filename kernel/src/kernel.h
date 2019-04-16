@@ -15,6 +15,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <commons/config.h>
+#include <commons/log.h>
+#include "../libs/config.h"
 
 typedef struct {
     char* ipMemoria;
@@ -25,7 +27,7 @@ typedef struct {
     int retardoEjecucion;
 } t_configuracion;
 
-bool existenTodasLasClavesObligatorias(t_config* archivoConfig, t_configuracion configuracion, char* clavesObligatorias[]);
+//Funciones propias de Kernel
 t_configuracion cargarConfiguracion();
 
 void levantarAPI();

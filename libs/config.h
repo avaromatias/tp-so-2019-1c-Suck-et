@@ -1,7 +1,3 @@
-//
-// Created by utnso on 12/04/19.
-//
-
 #ifndef SUCKET_CONFIG_H
 #define SUCKET_CONFIG_H
 

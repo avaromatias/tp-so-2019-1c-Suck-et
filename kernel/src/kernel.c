@@ -48,8 +48,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	if(!existenTodasLasClavesObligatorias(archivoConfig, configuracion)){
 		log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
 		exit(1); // settear algún código de error para cuando falte alguna key
-	}
-	else	{
+	}	else	{
 		configuracion.ipMemoria = config_get_int_value(archivoConfig, "IP_MEMORIA");
 		configuracion.puertoMemoria = config_get_string_value(archivoConfig, "PUERTO_MEMORIA");
 		configuracion.quantum = config_get_int_value(archivoConfig, "QUANTUM");

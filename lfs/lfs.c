@@ -10,7 +10,6 @@
 #include "lfs.h"
 
 t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logger)	{
-	t_configuracion configuracion;
 
 	t_config* archivoConfig = abrirArchivoConfiguracion(pathArchivoConfiguracion, logger);
 
@@ -22,7 +21,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
                 "TAMAÑO_VALUE",
                 "TIEMPO_DUMP"
         };
-
+        
         for(int i = 0; i < COUNT_OF(clavesObligatorias); i++)	{
             if(!config_has_property(archivoConfig, clavesObligatorias[i]))
                 return false;
@@ -35,7 +34,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 		log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
 		exit(1); // settear algún código de error para cuando falte alguna key
 	}
-	else	{
+	else{
 		configuracion.puertoEscucha = config_get_int_value(archivoConfig, "PUERTO_ESCUCHA");
 		configuracion.puntoMontaje = config_get_string_value(archivoConfig, "PUNTO_MONTAJE");
 		configuracion.retardo = config_get_int_value(archivoConfig, "RETARDO");
@@ -47,11 +46,17 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 }
 
 int main(void) {
-    t_log* logger = log_create("lfs.log", "lfs", false, LOG_LEVEL_INFO);
+    t_log* logger = log_create("../lfs.log", "lfs", true, LOG_LEVEL_INFO);
 
-	t_configuracion configuracion = cargarConfiguracion("lfs.cfg", logger);
+    log_info(logger, "Iniciando proceso Lissandra File System");
 
-	printf("Puerto Escucha: %i", configuracion.puertoEscucha);
+	configuracion = cargarConfiguracion("../lfs.cfg", logger);
+
+    log_info(logger, "Puerto Escucha: %i", configuracion.puertoEscucha);
+    log_info(logger, "Punto Montaje: %s", configuracion.puntoMontaje);
+    log_info(logger, "Retardo: %i", configuracion.retardo);
+    log_info(logger, "Tamaño value: %i", configuracion.tamanioValue);
+    log_info(logger, "Tiempo dump: %i", configuracion.tiempoDump);
 
 	return 0;
 }

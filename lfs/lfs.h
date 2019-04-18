@@ -11,8 +11,6 @@
 #ifndef LFS_H_
 #define LFS_H_
 
-#define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
-
 
 #include <stdio.h>
 #include <string.h>
@@ -22,6 +20,8 @@
 
 #include "../libs/config.h"
 
+
+//Variables y estructuras
 typedef struct {
     int puertoEscucha;
     char* puntoMontaje;
@@ -30,6 +30,10 @@ typedef struct {
     int tiempoDump;
 } t_configuracion;
 
+t_configuracion configuracion;
+
+
+//Header de funciones
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
 

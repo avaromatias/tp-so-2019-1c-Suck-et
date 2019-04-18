@@ -7,6 +7,7 @@
  ============================================================================
  */
 
+#include <sockets.h>
 #include "memoria.h"
 
 t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logger)	{
@@ -58,12 +59,23 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	}
 }
 
+void atenderMensajes(Header header, char* mensaje)    {
+    printf("Estoy recibiendo un mensaje del file descriptor %i: %s", header.fdRemitente, mensaje);
+}
+char** parser(char* input){
+    //char* separador = ;
+    return string_split(input, " ");
+}
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", false, LOG_LEVEL_INFO);
 
 	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
 
-	printf("IP FileSystem: %s", configuracion.ipFileSystem);
+//	crearSocketEscucha(configuracion.puerto);
+
+	crearHiloServidor(configuracion.puerto, &atenderMensajes, NULL, NULL);
+
+	while(1);
 
 	return 0;
 }

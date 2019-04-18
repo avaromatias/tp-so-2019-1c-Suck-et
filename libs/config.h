@@ -1,5 +1,6 @@
 #ifndef SUCKET_CONFIG_H
 #define SUCKET_CONFIG_H
+#define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
 #include <unistd.h>
 #include <commons/config.h>

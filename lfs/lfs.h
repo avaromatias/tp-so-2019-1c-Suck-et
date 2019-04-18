@@ -11,8 +11,6 @@
 #ifndef LFS_H_
 #define LFS_H_
 
-#define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
-
 
 #include <stdio.h>
 #include <string.h>

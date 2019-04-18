@@ -21,9 +21,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
                 "TAMAÑO_VALUE",
                 "TIEMPO_DUMP"
         };
-
-
-        //TODO Preguntar si podemos meter el COUNT_OF en las libs
+        
         for(int i = 0; i < COUNT_OF(clavesObligatorias); i++)	{
             if(!config_has_property(archivoConfig, clavesObligatorias[i]))
                 return false;

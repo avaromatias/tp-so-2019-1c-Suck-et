@@ -22,6 +22,8 @@
 
 #include "../libs/config.h"
 
+
+//Variables y estructuras
 typedef struct {
     int puertoEscucha;
     char* puntoMontaje;
@@ -30,6 +32,10 @@ typedef struct {
     int tiempoDump;
 } t_configuracion;
 
+t_configuracion configuracion;
+
+
+//Header de funciones
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
 

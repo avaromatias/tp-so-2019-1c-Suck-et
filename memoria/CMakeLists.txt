@@ -1,17 +1,20 @@
 cmake_minimum_required(VERSION 3.5)
+set(CMAKE_C_STANDARD 99)
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ".")
 set(PROYECTO memoria)
 set(PROYECTO_SRC
         "memoria.c"
-        "../libs/config.c")
+        "../libs/config.c"
+        "../libs/sockets.c")
 set(LIBRERIAS
-        "commons")
+        "commons"
+        "pthread")
 
 project(${PROYECTO})
 
-set(CMAKE_C_STANDARD 99)
-
-include_directories(.)
+include_directories(.
+        ../libs)
 
 add_executable(${PROYECTO} ${PROYECTO_SRC})
 

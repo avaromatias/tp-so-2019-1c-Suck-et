@@ -18,6 +18,11 @@ int main(void) {
 	printf("IP Memoria:%s", configuracion.ipMemoria);
 
 	//conectar con memoria y luego el paso de abajo
+	crearSocketCliente(configuracion.ipMemoria, configuracion.puertoMemoria);
+
+	while(1)	{
+
+	}
 	//levantarAPI();
 
 	return EXIT_SUCCESS;
@@ -34,7 +39,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 				"QUANTUM",
 				"MULTIPROCESAMIENTO",
 				"METADATA_REFRESH",
-				"RETARDO_EJECUCION"
+				"SLEEP_EJECUCION"
 		};
 
 		for(int i = 0; i < COUNT_OF(clavesObligatorias); i++)	{
@@ -49,12 +54,12 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 		log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
 		exit(1); // settear algún código de error para cuando falte alguna key
 	}	else	{
-		configuracion.ipMemoria = config_get_int_value(archivoConfig, "IP_MEMORIA");
-		configuracion.puertoMemoria = config_get_string_value(archivoConfig, "PUERTO_MEMORIA");
+		configuracion.ipMemoria = config_get_string_value(archivoConfig, "IP_MEMORIA");
+		configuracion.puertoMemoria = config_get_int_value(archivoConfig, "PUERTO_MEMORIA");
 		configuracion.quantum = config_get_int_value(archivoConfig, "QUANTUM");
-		configuracion.multiprocesamiento = config_get_array_value(archivoConfig, "MULTIPROCESAMIENTO");
-		configuracion.refreshMetadata = config_get_array_value(archivoConfig, "METADATA_REFRESH");
-		configuracion.retardoEjecucion = config_get_int_value(archivoConfig, "RETARDO_EJECUCION");
+		configuracion.multiprocesamiento = config_get_int_value(archivoConfig, "MULTIPROCESAMIENTO");
+		configuracion.refreshMetadata = config_get_int_value(archivoConfig, "METADATA_REFRESH");
+		configuracion.retardoEjecucion = config_get_int_value(archivoConfig, "SLEEP_EJECUCION");
 
 		return configuracion;
 	}

@@ -3,9 +3,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ".")
 set(PROYECTO kernel)
 set(PROYECTO_SRC
         "../src/kernel.c"
-        "../libs/config.c")
+        "../libs/config.c"
+        "../libs/sockets.c")
 set(LIBRERIAS
-        "commons")
+        "commons"
+        "pthread")
 
 project(${PROYECTO})
 

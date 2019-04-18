@@ -17,6 +17,7 @@
 #include <commons/config.h>
 #include <commons/log.h>
 #include "../libs/config.h"
+#include "../libs/sockets.h"
 
 typedef struct {
     char* ipMemoria;

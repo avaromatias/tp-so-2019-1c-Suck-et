@@ -56,3 +56,6 @@ kernel/.settings/
 lfs/.settings/
 memoria/.settings/
 
+.idea
+lfs/cmake-build-debug/
+

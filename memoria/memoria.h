@@ -18,6 +18,8 @@
 
 #include "../libs/config.h"
 #include "../libs/sockets.h"
+#include "../libs/generales.h"
+
 
 typedef struct {
     int puerto;

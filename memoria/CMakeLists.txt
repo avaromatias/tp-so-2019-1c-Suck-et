@@ -6,6 +6,7 @@ set(PROYECTO memoria)
 set(PROYECTO_SRC
         "memoria.c"
         "../libs/config.c"
+        "../libs/generales.c"
         "../libs/sockets.c")
 set(LIBRERIAS
         "commons"

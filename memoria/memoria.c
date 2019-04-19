@@ -85,15 +85,25 @@ void atenderMensajes(Header header, char* mensaje)    {
     printf("\n");
     fflush(stdout);
 }
+
 int main(void) {
     t_log* logger = log_create("../memoria.log", "memoria", false, LOG_LEVEL_INFO);
 
 	t_configuracion configuracion = cargarConfiguracion("../memoria.cfg", logger);
 
 
-	crearHiloServidor(configuracion.puerto, &atenderMensajes, NULL, NULL);
+	//pthread_t* hiloConexiones = crearHiloServidor(configuracion.puerto, &atenderMensajes, NULL, NULL);
+    int cliente = crearSocketCliente("127.0.0.1", 5003);
+    enviarPaquete(cliente, "Hola, soy la memoria");
+    Header *header = (Header*)malloc(sizeof(Header));
+    recv(cliente, header, sizeof(Header), NULL);
+    char* mensaje = malloc(header->tamanioMensaje);
+    recv(cliente, mensaje, header->tamanioMensaje, NULL);
+    printf("%s", mensaje);
+    fflush(stdout);
 
-	while(1);
+    //pthread_join(*hiloConexiones, NULL);
+    while(1);
 
 	return 0;
 }

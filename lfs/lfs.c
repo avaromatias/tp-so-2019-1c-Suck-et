@@ -46,6 +46,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 }
 
 void atenderMensajes(Header header, char* mensaje)    {
+    enviarPaquete(header.fdRemitente, "Hola, soy Lissandra");
     printf("Estoy recibiendo un mensaje del File Descriptor %i: %s", header.fdRemitente, mensaje);
     fflush(stdout);
 }
@@ -64,6 +65,9 @@ int main(void) {
     log_info(logger, "Tiempo dump: %i", configuracion.tiempoDump);
 
     crearHiloServidor(configuracion.puertoEscucha, &atenderMensajes, NULL, NULL);
+    //int cliente = crearSocketCliente("192.168.0.30", 8000);
 
-	return 0;
+    while(1);
+
+    return 0;
 }

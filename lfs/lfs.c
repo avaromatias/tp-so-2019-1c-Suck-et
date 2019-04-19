@@ -46,7 +46,8 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 }
 
 void atenderMensajes(Header header, char* mensaje)    {
-    printf("Estoy recibiendo un mensaje del file descriptor %i: %s", header.fdRemitente, mensaje);
+    printf("Estoy recibiendo un mensaje del File Descriptor %i: %s", header.fdRemitente, mensaje);
+    fflush(stdout);
 }
 
 int main(void) {

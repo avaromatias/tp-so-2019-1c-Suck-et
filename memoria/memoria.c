@@ -87,11 +87,11 @@ void atenderMensajes(Header header, char* mensaje)    {
 }
 int main(void) {
     t_log* logger = log_create("../memoria.log", "memoria", false, LOG_LEVEL_INFO);
+
 	t_configuracion configuracion = cargarConfiguracion("../memoria.cfg", logger);
 
 
 	crearHiloServidor(configuracion.puerto, &atenderMensajes, NULL, NULL);
-
 
 	while(1);
 

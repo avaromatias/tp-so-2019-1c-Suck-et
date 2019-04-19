@@ -61,14 +61,37 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 
 void atenderMensajes(Header header, char* mensaje)    {
     printf("Estoy recibiendo un mensaje del file descriptor %i: %s", header.fdRemitente, mensaje);
+
+    char** arrayMensaje = parser(mensaje);
+
+    //char** arrayMensaje = parser("SELECT amigues");
+
+
+    if (strcmp(arrayMensaje[0], "SELECT") == 0){
+        printf("Recibi un select");
+    }else if (strcmp(arrayMensaje[0], "INSERT") == 0){
+        printf("Recibi un insert");
+    }else if (strcmp(arrayMensaje[0], "CREATE") == 0){
+        printf("Recibi un create");
+    }else if (strcmp(arrayMensaje[0], "DESCRIBE") == 0){
+        printf("Recibi un describe");
+    }else if (strcmp(arrayMensaje[0], "DROP") == 0){
+        printf("Recibi un drop");
+    }else if (strcmp(arrayMensaje[0], "JOURNAL") == 0){
+        printf("Recibi un journal");
+    }else{
+        printf("No entendi tu mensaje bro");
+    }
+    printf("\n");
+    fflush(stdout);
 }
 int main(void) {
     t_log* logger = log_create("../memoria.log", "memoria", false, LOG_LEVEL_INFO);
-
 	t_configuracion configuracion = cargarConfiguracion("../memoria.cfg", logger);
 
 
 	crearHiloServidor(configuracion.puerto, &atenderMensajes, NULL, NULL);
+
 
 	while(1);
 

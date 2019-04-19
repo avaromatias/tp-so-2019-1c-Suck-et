@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <commons/config.h>
 #include <commons/log.h>
-
+#include <readline/readline.h>
 #include "../libs/config.h"
 #include "../libs/sockets.h"
 #include "../libs/generales.h"

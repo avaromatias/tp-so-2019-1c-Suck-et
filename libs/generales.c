@@ -26,3 +26,6 @@ int tamanioDeArrayDeStrings(char** arrayDeString){
     printf("Cantidad: %i\n", count);
 }
 
+char** parser(char* input){
+    return string_split(input, " ");
+}

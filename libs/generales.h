@@ -10,5 +10,6 @@
 
 void printArrayDeStrings(char** arrayDeStrings);
 int tamanioDeArrayDeStrings(char** arrayDeString);
+char** parser(char* input);
 
 #endif //TP_2019_1C_SUCK_ET_ARRAYDESTRING_H

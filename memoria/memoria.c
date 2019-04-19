@@ -10,6 +10,8 @@
 #include <sockets.h>
 #include "memoria.h"
 
+
+
 t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logger)	{
 	t_configuracion configuracion;
 
@@ -93,7 +95,17 @@ int main(void) {
 
 	crearHiloServidor(configuracion.puerto, &atenderMensajes, NULL, NULL);
 
-	while(1);
+	char* linea;
+	while(1){
+	    /* Imprimo lo que ingreso por pantalla
+	     * queda comentado porque el crearHiloServido me bloquea el proceso
+	    linea = readline(">");
+        if (!linea) {
+            break;
+        }
+        printf("%s\n", linea);
+        free(linea);*/
+	};
 
 	return 0;
 }

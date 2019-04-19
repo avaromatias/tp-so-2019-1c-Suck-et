@@ -10,7 +10,8 @@ set(PROYECTO_SRC
         "../libs/sockets.c")
 set(LIBRERIAS
         "commons"
-        "pthread")
+        "pthread"
+        "readline")
 
 project(${PROYECTO})
 

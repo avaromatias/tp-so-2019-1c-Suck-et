@@ -45,6 +45,10 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	}
 }
 
+void atenderMensajes(Header header, char* mensaje)    {
+    printf("Estoy recibiendo un mensaje del file descriptor %i: %s", header.fdRemitente, mensaje);
+}
+
 int main(void) {
     t_log* logger = log_create("../lfs.log", "lfs", true, LOG_LEVEL_INFO);
 
@@ -57,6 +61,8 @@ int main(void) {
     log_info(logger, "Retardo: %i", configuracion.retardo);
     log_info(logger, "Tamaño value: %i", configuracion.tamanioValue);
     log_info(logger, "Tiempo dump: %i", configuracion.tiempoDump);
+
+    crearHiloServidor(configuracion.puertoEscucha, &atenderMensajes, NULL, NULL);
 
 	return 0;
 }

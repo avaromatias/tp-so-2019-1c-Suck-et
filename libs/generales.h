@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <commons/string.h>
 
 void printArrayDeStrings(char** arrayDeStrings);
 int tamanioDeArrayDeStrings(char** arrayDeString);

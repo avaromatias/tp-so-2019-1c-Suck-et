@@ -63,11 +63,10 @@ void atenderMensajes(Header header, char* mensaje)    {
     printf("Estoy recibiendo un mensaje del file descriptor %i: %s", header.fdRemitente, mensaje);
 }
 int main(void) {
-    t_log* logger = log_create("memoria.log", "memoria", false, LOG_LEVEL_INFO);
+    t_log* logger = log_create("../memoria.log", "memoria", false, LOG_LEVEL_INFO);
 
-	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
+	t_configuracion configuracion = cargarConfiguracion("../memoria.cfg", logger);
 
-//	crearSocketEscucha(configuracion.puerto);
 
 	crearHiloServidor(configuracion.puerto, &atenderMensajes, NULL, NULL);
 

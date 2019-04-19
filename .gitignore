@@ -58,4 +58,4 @@ memoria/.settings/
 
 .idea
 lfs/cmake-build-debug/
-
+*.log

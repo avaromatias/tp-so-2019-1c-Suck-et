@@ -3,9 +3,12 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ".")
 set(PROYECTO lfs)
 set(PROYECTO_SRC
         "lfs.c"
-        "../libs/config.c")
+        "../libs/config.c"
+        "../libs/generales.c"
+        "../libs/sockets.c")
 set(LIBRERIAS
-        "commons")
+        "commons"
+        "pthread")
 
 project(PROYECTO)
 

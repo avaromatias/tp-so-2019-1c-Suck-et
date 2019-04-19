@@ -19,6 +19,8 @@
 #include <commons/log.h>
 
 #include "../libs/config.h"
+#include "../libs/sockets.h"
+#include "../libs/generales.h"
 
 
 //Variables y estructuras

@@ -1,6 +1,6 @@
 /*
  ============================================================================
- Name        : Config.h
+ Name        : Config.c
  Author      : Suck et
  	 UTN FRBA - Sistemas Operativos
  	 	 TP-1C-2019-Lissandra

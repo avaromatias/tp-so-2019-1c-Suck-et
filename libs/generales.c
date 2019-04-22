@@ -1,7 +1,11 @@
-//
-// Created by utnso on 18/04/19.
-// Funciones de uso general - abstracciones utiles
-//
+/*
+ ============================================================================
+ Name        : Generales.c
+ Author      : Suck et
+ 	 UTN FRBA - Sistemas Operativos
+ 	 	 TP-1C-2019-Lissandra
+ ============================================================================
+ */
 
 #include "generales.h"
 

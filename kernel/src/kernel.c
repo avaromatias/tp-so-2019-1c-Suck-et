@@ -18,10 +18,11 @@ int main(void) {
 	printf("IP Memoria:%s", configuracion.ipMemoria);
 
 	//conectar con memoria y luego el paso de abajo
-	crearSocketCliente(configuracion.ipMemoria, configuracion.puertoMemoria);
+	int fdDestinatario = crearSocketCliente(configuracion.ipMemoria, configuracion.puertoMemoria);
 
 	while(1)	{
-
+    enviarPaquete(fdDestinatario, "DESCRIBE TABLE 2\n");
+    sleep(3);
 	}
 	//levantarAPI();
 

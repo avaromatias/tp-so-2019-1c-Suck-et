@@ -1,6 +1,6 @@
 /*
  ============================================================================
- Name        : Sockets.h
+ Name        : Sockets.c
  Author      : Suck et
  	 UTN FRBA - Sistemas Operativos
  	 	 TP-1C-2019-Lissandra

@@ -37,13 +37,13 @@ typedef struct {
             char* nombreTabla;
             char* key;
             char** valor;
-            timestamp timestamp;
+            //timestamp timestamp;
         } INSERT;
         struct {
             char* nombreTabla;
         } DROP;
     } argumentos;
-} tipoRequest
+} tipoRequest;
 
 void printArrayDeStrings(char** arrayDeStrings);
 int tamanioDeArrayDeStrings(char** arrayDeString);

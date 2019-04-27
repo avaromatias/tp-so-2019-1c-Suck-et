@@ -15,12 +15,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 #include <commons/config.h>
 #include <commons/log.h>
 
 #include "../libs/config.h"
 #include "../libs/sockets.h"
-#include "../libs/generales.h"
+#include "../libs/consola.h"
 
 
 //Variables y estructuras

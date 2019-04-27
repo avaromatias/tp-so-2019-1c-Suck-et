@@ -5,9 +5,11 @@ set(PROYECTO_SRC
         "lfs.c"
         "../libs/config.c"
         "../libs/generales.c"
+        "../libs/consola.c"
         "../libs/sockets.c")
 set(LIBRERIAS
         "commons"
+        "readline"
         "pthread")
 
 project(PROYECTO)

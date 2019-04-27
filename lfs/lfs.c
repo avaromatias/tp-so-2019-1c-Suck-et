@@ -55,7 +55,7 @@ void insert(char* nombreTabla,char* key, char*valor,char* nuevoTimestamp){
     printf("Valor: %s\n", valor);
     time_t timestamp;
     if(nuevoTimestamp){
-        timestamp=(time_t)time(nuevoTimestamp);
+        timestamp=(time_t) strtol(nuevoTimestamp, NULL, 10);
     }else{
         timestamp=(time_t)time(NULL);
     }

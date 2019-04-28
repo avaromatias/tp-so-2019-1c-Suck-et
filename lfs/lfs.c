@@ -50,27 +50,30 @@ void atenderMensajes(Header header, char *mensaje) {
     fflush(stdout);
 }
 
-char* obtenerPathTabla(char* nombreTabla){
+char *obtenerPathTabla(char *nombreTabla) {
     char *basePath = "../tables/";
     char *tablePath = string_new();
     string_append(&tablePath, basePath);
     string_append(&tablePath, nombreTabla);
     return tablePath;
 }
-void lfsInsert(char *nombreTabla, char *key, char *valor, char *nuevoTimestamp) {
-    printf("Starting Insert..\n");
-    char* tablePath=obtenerPathTabla(nombreTabla);
-    printf("Table Path: %s\n", tablePath);
+
+char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
     char *path = string_new();
+    char *tablePath = obtenerPathTabla(nombreTabla);
     string_append(&path, tablePath);
     string_append(&path, "/Metadata");
+    return path;
+}
 
+void lfsInsert(char *nombreTabla, char *key, char *valor, char *nuevoTimestamp) {
+    printf("Starting Insert..\n");
+    char *path = obtenerPathArchivo(nombreTabla, "/Metadata");
     if (existeElArchivo(path)) {
-        printf("Existe metadata\n", path);
+        printf("Existe metadata en %s\n", path);
     } else {
-        printf("No existe metadata\n", path);
+        printf("No existe metadata en %s\n", path);
     }
-    free(tablePath);
     free(path);
 }
 

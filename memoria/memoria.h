@@ -57,5 +57,11 @@ typedef struct{
     t_registro* registros;
 }t_tablaDePaginas;
 
+typedef struct{
+    char* direcciones;
+}t_memoria;
 
+//Instancia global de la memoria
+t_memoria memoria;
+int FD_FS;
 #endif /* MEMORIA_H_ */

@@ -1,5 +1,42 @@
 #include "consola.h"
 
+bool validarComandosComunes(char** comando){
+    char *tipoDeRequest = comando[0];
+    char *nombreTabla = comando[1];
+    char *param1 = comando[2];
+    char *param2 = comando[3];
+    char *param3 = comando[4];
+    string_to_upper(tipoDeRequest);
+    if (strcmp(tipoDeRequest, "SELECT") == 0) {
+        if(nombreTabla == NULL || param1 == NULL|| param2 != NULL|| param3 != NULL){
+            printf("Número de parámetros inválido.\n");
+            return false;
+        }
+
+    } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
+        if(nombreTabla == NULL || param1 == NULL || param2 == NULL){
+            printf("Número de parámetros inválido.\n");
+            return 0;
+        }
+
+    } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
+        if (nombreTabla == NULL || param1 == NULL || param2 == NULL || param3 == NULL) {
+            printf("Número de parámetros inválido.\n");
+            return 0;
+        }
+    } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {
+       if(param1 != NULL || param2 != NULL || param3 != NULL){
+           printf("Número de parámetros inválido.\n");
+           return 0;
+       }
+
+    } else if (strcmp(tipoDeRequest, "DROP") == 0) {
+        if(nombreTabla == NULL || param1 != NULL || param2 != NULL || param3 != NULL){
+            printf("Número de parámetros inválido.\n");
+            return 0;
+        }
+    }
+}
 void ejecutarConsola(void (*gestionarComando)(char**), char* nombreDelProceso) {
     char* comando;
     char* nombreDelGrupo = "@suck-ets:~$ ";
@@ -12,7 +49,9 @@ void ejecutarConsola(void (*gestionarComando)(char**), char* nombreDelProceso) {
         memcpy(comando, leido, strlen(leido));
         comando[strlen(leido)] = '\0';
         char** comandoParseado = parser(comando);
-        gestionarComando(comandoParseado);
+        if(validarComandosComunes(comandoParseado)){
+            gestionarComando(comandoParseado);
+        }
         string_to_lower(comando);
     } while(strcmp(comando, "exit") != 0);
     free(comando);

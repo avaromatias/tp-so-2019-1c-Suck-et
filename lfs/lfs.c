@@ -50,7 +50,11 @@ void atenderMensajes(Header header, char *mensaje) {
     fflush(stdout);
 }
 
-void insert(char* nombreTabla,char* key, char*valor,char* nuevoTimestamp){
+void lfsInsert(char* nombreTabla,char* key, char*valor,char* nuevoTimestamp){
+
+}
+
+void lfsSelect(char* nombreTabla,char* key){
 
 }
 
@@ -63,16 +67,17 @@ void gestionarRequest(char **request) {
     string_to_upper(tipoDeRequest);
 
     if (strcmp(tipoDeRequest, "SELECT") == 0) {
-        if(nombreTabla == NULL || param1 == NULL){
+        if(nombreTabla == NULL || param1 == NULL|| param2 != NULL|| param3 != NULL){
             printf("Número de parámetros inválido.\n");
             return 0;
         }
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
         printf("Key: %s\n", param1);
+        lfsSelect(nombreTabla,param1);
 
     } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
-        if(nombreTabla == NULL || param1 == NULL || param2 == NULL){
+        if(nombreTabla == NULL || param1 == NULL || param2 == NULL || param3 != NULL){
             printf("Número de parámetros inválido.\n");
             return 0;
         }
@@ -87,7 +92,7 @@ void gestionarRequest(char **request) {
             timestamp=(time_t)time(NULL);
         }
         printf("Timestamp: %i\n", (int)timestamp);
-        insert(nombreTabla,param1,param2,param3);
+        lfsInsert(nombreTabla,param1,param2,param3);
 
     } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
         if(nombreTabla == NULL || param1 == NULL || param2 == NULL || param3 == NULL){
@@ -103,9 +108,9 @@ void gestionarRequest(char **request) {
     } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {
         printf("Tipo de Request: %s\n", tipoDeRequest);
         if(nombreTabla == NULL){
-            printf("Tabla: %s\n", nombreTabla);
             // Hacer describe global
         } else {
+            printf("Tabla: %s\n", nombreTabla);
             // Hacer describe de una tabla especifica
         }
 
@@ -117,9 +122,7 @@ void gestionarRequest(char **request) {
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
 
-    } else if (strcmp(tipoDeRequest, "EXIT") == 0) {
-
-    } else if (strcmp(tipoDeRequest, "HELP") == 0) {
+    }  else if (strcmp(tipoDeRequest, "HELP") == 0) {
         printf("************ Comandos disponibles ************\n");
         printf("- SELECT [NOMBRE_TABLA] [KEY]\n");
         printf("- INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp](Opcional)\n");

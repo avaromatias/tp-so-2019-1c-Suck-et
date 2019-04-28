@@ -88,6 +88,15 @@ void atenderMensajes(Header header, char* mensaje)    {
     fflush(stdout);
 }
 
+void startUp(){
+    int FD_FS = crearSocketCliente(configuracion.ipFileSystem, configuracion.puertoFileSystem);
+    //TODO Pedirle el TAMAÑO_VALUE al FS
+    enviarPaquete(FD_FS, "DAME EL TAM_VALUE");
+    printf("Reservo bloque de memoria ");
+    //Este es el bloque de memoria
+   char* bloqueDeMemoria = (char*) malloc(configuracion.tamanioMemoria);
+
+}
 int main(void) {
     t_log* logger = log_create("../memoria.log", "memoria", false, LOG_LEVEL_INFO);
 

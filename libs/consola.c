@@ -1,6 +1,6 @@
 #include "consola.h"
 
-bool validarComandosComunes(char** comando){
+int validarComandosComunes(char** comando){
     char *tipoDeRequest = comando[0];
     char *nombreTabla = comando[1];
     char *param1 = comando[2];
@@ -10,7 +10,7 @@ bool validarComandosComunes(char** comando){
     if (strcmp(tipoDeRequest, "SELECT") == 0) {
         if(nombreTabla == NULL || param1 == NULL|| param2 != NULL|| param3 != NULL){
             printf("Número de parámetros inválido.\n");
-            return false;
+            return 0;
         }
 
     } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
@@ -36,6 +36,7 @@ bool validarComandosComunes(char** comando){
             return 0;
         }
     }
+    return 1;
 }
 void ejecutarConsola(void (*gestionarComando)(char**), char* nombreDelProceso) {
     char* comando;
@@ -49,7 +50,7 @@ void ejecutarConsola(void (*gestionarComando)(char**), char* nombreDelProceso) {
         memcpy(comando, leido, strlen(leido));
         comando[strlen(leido)] = '\0';
         char** comandoParseado = parser(comando);
-        if(validarComandosComunes(comandoParseado)){
+        if(validarComandosComunes(comandoParseado)==1){
             gestionarComando(comandoParseado);
         }
         string_to_lower(comando);

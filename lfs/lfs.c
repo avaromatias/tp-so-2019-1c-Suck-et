@@ -50,11 +50,31 @@ void atenderMensajes(Header header, char *mensaje) {
     fflush(stdout);
 }
 
-void lfsInsert(char* nombreTabla,char* key, char*valor,char* nuevoTimestamp){
+char* obtenerPathTabla(char* nombreTabla){
+    char *basePath = "../tables/";
+    char *tablePath = string_new();
+    string_append(&tablePath, basePath);
+    string_append(&tablePath, nombreTabla);
+    return tablePath;
+}
+void lfsInsert(char *nombreTabla, char *key, char *valor, char *nuevoTimestamp) {
+    printf("Starting Insert..\n");
+    char* tablePath=obtenerPathTabla(nombreTabla);
+    printf("Table Path: %s\n", tablePath);
+    char *path = string_new();
+    string_append(&path, tablePath);
+    string_append(&path, "/Metadata");
 
+    if (existeElArchivo(path)) {
+        printf("Existe metadata\n", path);
+    } else {
+        printf("No existe metadata\n", path);
+    }
+    free(tablePath);
+    free(path);
 }
 
-void lfsSelect(char* nombreTabla,char* key){
+void lfsSelect(char *nombreTabla, char *key) {
 
 }
 
@@ -67,50 +87,36 @@ int gestionarRequest(char **request) {
     string_to_upper(tipoDeRequest);
 
     if (strcmp(tipoDeRequest, "SELECT") == 0) {
-        if(nombreTabla == NULL || param1 == NULL|| param2 != NULL|| param3 != NULL){
-            printf("Número de parámetros inválido.\n");
-            return -1;
-        }
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
         printf("Key: %s\n", param1);
-        lfsSelect(nombreTabla,param1);
+        lfsSelect(nombreTabla, param1);
         return 0;
-
     } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
-        if(nombreTabla == NULL || param1 == NULL || param2 == NULL || param3 != NULL){
-            printf("Número de parámetros inválido.\n");
-            return -1;
-        }
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
         printf("Key: %s\n", param1);
         printf("Valor: %s\n", param2);
         time_t timestamp;
-        if(param3 != NULL){
-            timestamp=(time_t) strtol(param3, NULL, 10);
-        }else{
-            timestamp=(time_t)time(NULL);
+        if (param3 != NULL) {
+            timestamp = (time_t) strtol(param3, NULL, 10);
+        } else {
+            timestamp = (time_t) time(NULL);
         }
-        printf("Timestamp: %i\n", (int)timestamp);
-        lfsInsert(nombreTabla,param1,param2,param3);
+        printf("Timestamp: %i\n", (int) timestamp);
+        lfsInsert(nombreTabla, param1, param2, param3);
         return 0;
-
     } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
-        if(nombreTabla == NULL || param1 == NULL || param2 == NULL || param3 == NULL){
-            printf("Número de parámetros inválido.\n");
-            return 0;
-        }
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
         printf("TIpo de consistencia: %s\n", param1);
         printf("Numero de particiones: %s\n", param2);
         printf("Tiempo de compactacion: %s\n", param3);
-        return -1;
+        return 0;
 
     } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {
         printf("Tipo de Request: %s\n", tipoDeRequest);
-        if(nombreTabla == NULL){
+        if (nombreTabla == NULL) {
             // Hacer describe global
         } else {
             printf("Tabla: %s\n", nombreTabla);
@@ -119,15 +125,11 @@ int gestionarRequest(char **request) {
         return 0;
 
     } else if (strcmp(tipoDeRequest, "DROP") == 0) {
-        if(nombreTabla == NULL){
-            printf("Número de parámetros inválido.\n");
-            return -1;
-        }
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
         return 0;
 
-    }  else if (strcmp(tipoDeRequest, "HELP") == 0) {
+    } else if (strcmp(tipoDeRequest, "HELP") == 0) {
         printf("************ Comandos disponibles ************\n");
         printf("- SELECT [NOMBRE_TABLA] [KEY]\n");
         printf("- INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp](Opcional)\n");
@@ -144,13 +146,13 @@ int gestionarRequest(char **request) {
 
 }
 
-int existeTabla(char* tabla) {
+int existeTabla(char *tabla) {
     char *rutaTabla = string_new();
     string_append(&rutaTabla, rutaTablas);
     string_append(&rutaTabla, tabla);
     FILE *fd = fopen(rutaTabla, "r");
-    if (fd == NULL){
-        log_error(log_mdj, "No se encontro o no se pudo acceder a la tabla %s", tabla);
+    if (fd == NULL) {
+        log_error(logger, "No se encontro o no se pudo acceder a la tabla %s", tabla);
         return -1;
     }
     fclose(fd);

@@ -11,20 +11,27 @@
 
 int main(void) {
     puts("¡Hola! Soy Kernel!");
-	t_log* logger = log_create("kernel.log", "kernel", false, LOG_LEVEL_INFO);
 
-	t_configuracion configuracion = cargarConfiguracion("kernel.cfg", logger);
+    logger = log_create("../kernel.log", "kernel", false, LOG_LEVEL_INFO);
+    log_info(logger, "Iniciando el proceso Kernel...");
 
-	printf("IP Memoria:%s", configuracion.ipMemoria);
+	configuracion = cargarConfiguracion("kernel.cfg", logger);
+
+    log_info(logger, "IP Memoria: %s", configuracion.ipMemoria;
+    log_info(logger, "Puerto Memoria: %i", configuracion.puertoMemoria);
+    log_info(logger, "Quantum: %i", configuracion.quantum);
+    log_info(logger, "Multiprocesamiento: %i", configuracion.multiprocesamiento);
+    log_info(logger, "Refresh Metadata: %i", configuracion.refreshMetadata);
+    log_info(logger, "Retardo de Ejecución : %i", configuracion.refreshMetadata);
+
+   	ejecutarConsola(&gestionarComando,"kernel");
 
 	//conectar con memoria y luego el paso de abajo
 	int fdDestinatario = crearSocketCliente(configuracion.ipMemoria, configuracion.puertoMemoria);
 
-	while(1)	{
+	/*while(1)	{
     enviarPaquete(fdDestinatario, "DESCRIBE TABLE 2\n");
-    sleep(3);
-	}
-	//levantarAPI();
+    sleep(3);}*/
 
 	return EXIT_SUCCESS;
 }
@@ -66,6 +73,3 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	}
 }
 
-void levantarAPI()	{
-
-}

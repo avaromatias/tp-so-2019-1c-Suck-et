@@ -16,8 +16,10 @@
 #include <stdbool.h>
 #include <commons/config.h>
 #include <commons/log.h>
+#include <commons/collections/queue.h>
 #include "../libs/config.h"
 #include "../libs/sockets.h"
+#include "../libs/consola.h"
 
 typedef struct {
     char* ipMemoria;
@@ -27,6 +29,17 @@ typedef struct {
     int refreshMetadata;
     int retardoEjecucion;
 } t_configuracion;
+
+//******Vars locales******
+t_configuracion configuracion;
+t_log* logger;
+
+//Para Planificador
+t_queue* colaDeNew;
+t_queue* colaDeReady;
+t_queue* colaDeExecute;
+t_list* finalizados;
+
 
 //Funciones propias de Kernel
 t_configuracion cargarConfiguracion();

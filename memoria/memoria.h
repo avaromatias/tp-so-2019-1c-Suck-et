@@ -41,5 +41,21 @@ t_configuracion configuracion; //Declaro mi instancia de t_configuracion como gl
 
 void atenderMensajes(Header, char*);
 
+typedef struct {
+    int timestamps;
+    u_int16_t key;
+    char* value;
+}t_pagina;
+
+typedef struct {
+    t_pagina* pagina;
+    int numeroDePagina;
+    int flagDeModificado;
+}t_registro;
+
+typedef struct{
+    t_registro** registros;
+}t_tablaDePaginas;
+
 
 #endif /* MEMORIA_H_ */

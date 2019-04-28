@@ -107,13 +107,13 @@ int main(void) {
 	char* linea;
 	while(1){
 	    /* Imprimo lo que ingreso por pantalla
-	     * queda comentado porque el crearHiloServido me bloquea el proceso
+	     * queda comentado porque el crearHiloServido me bloquea el proceso*/
 	    linea = readline(">");
         if (!linea) {
             break;
         }
         printf("%s\n", linea);
-        free(linea);*/
+        free(linea);
 	};
 
 	return 0;

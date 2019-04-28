@@ -34,10 +34,39 @@ typedef struct {
 } t_configuracion;
 
 t_configuracion configuracion;
+t_log *logger;
+char* rutaTablas;
 
 
 //Header de funciones
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
+
+void atenderMensajes(Header header, char *mensaje);
+
+void lfsInsert(char* nombreTabla,char* key, char*valor,char* nuevoTimestamp);
+
+void lfsSelect(char* nombreTabla,char* key);
+
+/**
+* @NAME: gestionarRequest
+* @DESC: Gestiona los comandos recibidos por consola y decide como proceder
+*
+* @RETURN:
+* -2: Comando invalido
+* -1: Numero de parametros invalido
+* 0: Ejecucion exitosa
+*/
+int gestionarRequest(char **request);
+
+/**
+* @NAME: existeTabla
+* @DESC: Valida si existe el directorio de la tabla especificada por parametro
+*
+* @RETURN:
+* -1: No se encontro o no se pudo acceder a la tabla especificada
+* 0: Existe el directorio especificado
+*/
+int existeTabla(char* path);
 
 
 #endif /* LFS_H_ */

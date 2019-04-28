@@ -58,7 +58,7 @@ void lfsSelect(char* nombreTabla,char* key){
 
 }
 
-void gestionarRequest(char **request) {
+int gestionarRequest(char **request) {
     char *tipoDeRequest = request[0];
     char *nombreTabla = request[1];
     char *param1 = request[2];
@@ -69,17 +69,18 @@ void gestionarRequest(char **request) {
     if (strcmp(tipoDeRequest, "SELECT") == 0) {
         if(nombreTabla == NULL || param1 == NULL|| param2 != NULL|| param3 != NULL){
             printf("Número de parámetros inválido.\n");
-            return 0;
+            return -1;
         }
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
         printf("Key: %s\n", param1);
         lfsSelect(nombreTabla,param1);
+        return 0;
 
     } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
         if(nombreTabla == NULL || param1 == NULL || param2 == NULL || param3 != NULL){
             printf("Número de parámetros inválido.\n");
-            return 0;
+            return -1;
         }
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
@@ -93,6 +94,7 @@ void gestionarRequest(char **request) {
         }
         printf("Timestamp: %i\n", (int)timestamp);
         lfsInsert(nombreTabla,param1,param2,param3);
+        return 0;
 
     } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
         if(nombreTabla == NULL || param1 == NULL || param2 == NULL || param3 == NULL){
@@ -104,6 +106,7 @@ void gestionarRequest(char **request) {
         printf("TIpo de consistencia: %s\n", param1);
         printf("Numero de particiones: %s\n", param2);
         printf("Tiempo de compactacion: %s\n", param3);
+        return -1;
 
     } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {
         printf("Tipo de Request: %s\n", tipoDeRequest);
@@ -113,14 +116,16 @@ void gestionarRequest(char **request) {
             printf("Tabla: %s\n", nombreTabla);
             // Hacer describe de una tabla especifica
         }
+        return 0;
 
     } else if (strcmp(tipoDeRequest, "DROP") == 0) {
         if(nombreTabla == NULL){
             printf("Número de parámetros inválido.\n");
-            return 0;
+            return -1;
         }
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
+        return 0;
 
     }  else if (strcmp(tipoDeRequest, "HELP") == 0) {
         printf("************ Comandos disponibles ************\n");
@@ -130,16 +135,31 @@ void gestionarRequest(char **request) {
         printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
         printf("- DROP [NOMBRE_TABLA]\n");
         printf("- EXIT\n");
+        return 0;
 
     } else {
         printf("Ingrese un comando valido.");
+        return -2;
     }
 
 }
 
+int existeTabla(char* tabla) {
+    char *rutaTabla = string_new();
+    string_append(&rutaTabla, rutaTablas);
+    string_append(&rutaTabla, tabla);
+    FILE *fd = fopen(rutaTabla, "r");
+    if (fd == NULL){
+        log_error(log_mdj, "No se encontro o no se pudo acceder a la tabla %s", tabla);
+        return -1;
+    }
+    fclose(fd);
+    return 0;
+}
+
 
 int main(void) {
-    t_log *logger = log_create("../lfs.log", "lfs", true, LOG_LEVEL_INFO);
+    logger = log_create("../lfs.log", "lfs", true, LOG_LEVEL_INFO);
 
     log_info(logger, "Iniciando proceso Lissandra File System");
 

@@ -49,43 +49,87 @@ void atenderMensajes(Header header, char *mensaje) {
     printf("Estoy recibiendo un mensaje del File Descriptor %i: %s", header.fdRemitente, mensaje);
     fflush(stdout);
 }
+
 void insert(char* nombreTabla,char* key, char*valor,char* nuevoTimestamp){
-    printf("Tabla: %s\n", nombreTabla);
-    printf("Key: %s\n", key);
-    printf("Valor: %s\n", valor);
-    time_t timestamp;
-    if(nuevoTimestamp){
-        timestamp=(time_t) strtol(nuevoTimestamp, NULL, 10);
-    }else{
-        timestamp=(time_t)time(NULL);
-    }
-    printf("Timestamp: %i\n", (int)timestamp);
+
 }
+
 void gestionarRequest(char **request) {
     char *tipoDeRequest = request[0];
     char *nombreTabla = request[1];
     char *param1 = request[2];
     char *param2 = request[3];
     char *param3 = request[4];
-    printf("Interpretando request...\n");
     string_to_upper(tipoDeRequest);
 
-    if (strcmp(tipoDeRequest,"SELECT")==0) {
+    if (strcmp(tipoDeRequest, "SELECT") == 0) {
+        if(nombreTabla == NULL || param1 == NULL){
+            printf("Número de parámetros inválido.\n");
+            return 0;
+        }
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
         printf("Key: %s\n", param1);
-    } else if (strcmp(tipoDeRequest,"INSERT")==0) {
+
+    } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
+        if(nombreTabla == NULL || param1 == NULL || param2 == NULL){
+            printf("Número de parámetros inválido.\n");
+            return 0;
+        }
         printf("Tipo de Request: %s\n", tipoDeRequest);
+        printf("Tabla: %s\n", nombreTabla);
+        printf("Key: %s\n", param1);
+        printf("Valor: %s\n", param2);
+        time_t timestamp;
+        if(param3 != NULL){
+            timestamp=(time_t) strtol(param3, NULL, 10);
+        }else{
+            timestamp=(time_t)time(NULL);
+        }
+        printf("Timestamp: %i\n", (int)timestamp);
         insert(nombreTabla,param1,param2,param3);
 
-    } else if (strcmp(tipoDeRequest,"CREATE")==0) {
+    } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
+        if(nombreTabla == NULL || param1 == NULL || param2 == NULL || param3 == NULL){
+            printf("Número de parámetros inválido.\n");
+            return 0;
+        }
         printf("Tipo de Request: %s\n", tipoDeRequest);
+        printf("Tabla: %s\n", nombreTabla);
+        printf("TIpo de consistencia: %s\n", param1);
+        printf("Numero de particiones: %s\n", param2);
+        printf("Tiempo de compactacion: %s\n", param3);
 
-    } else if (strcmp(tipoDeRequest,"DESCRIBE")==0) {
+    } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {
         printf("Tipo de Request: %s\n", tipoDeRequest);
+        if(nombreTabla == NULL){
+            printf("Tabla: %s\n", nombreTabla);
+            // Hacer describe global
+        } else {
+            // Hacer describe de una tabla especifica
+        }
 
-    } else if (strcmp(tipoDeRequest,"DROP")==0) {
+    } else if (strcmp(tipoDeRequest, "DROP") == 0) {
+        if(nombreTabla == NULL){
+            printf("Número de parámetros inválido.\n");
+            return 0;
+        }
         printf("Tipo de Request: %s\n", tipoDeRequest);
+        printf("Tabla: %s\n", nombreTabla);
+
+    } else if (strcmp(tipoDeRequest, "EXIT") == 0) {
+
+    } else if (strcmp(tipoDeRequest, "HELP") == 0) {
+        printf("************ Comandos disponibles ************\n");
+        printf("- SELECT [NOMBRE_TABLA] [KEY]\n");
+        printf("- INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp](Opcional)\n");
+        printf("- CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n");
+        printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
+        printf("- DROP [NOMBRE_TABLA]\n");
+        printf("- EXIT\n");
+
+    } else {
+        printf("Ingrese un comando valido.");
     }
 
 }
@@ -104,7 +148,7 @@ int main(void) {
     log_info(logger, "Tamaño value: %i", configuracion.tamanioValue);
     log_info(logger, "Tiempo dump: %i", configuracion.tiempoDump);
 
-    ejecutarConsola(&gestionarRequest);
+    ejecutarConsola(&gestionarRequest, "lissandra");
     // crearHiloServidor(configuracion.puertoEscucha, &atenderMensajes, NULL, NULL);
     //int cliente = crearSocketCliente("192.168.0.30", 8000);
 

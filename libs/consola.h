@@ -12,6 +12,6 @@
 #include <readline/readline.h>
 
 
-void ejecutarConsola(void (*gestionarComando)(char**));
+void ejecutarConsola(void (*gestionarComando)(char**), char* nombreDelProceso);
 
 #endif //LIBS_CONSOLA_H

@@ -71,6 +71,18 @@ void atenderMensajes(Header header, char* mensaje)    {
 
     if (strcmp(arrayMensaje[0], "SELECT") == 0){
         printf("Recibi un select");
+
+        //Todo chequear que las queries traigan la cantidad correcta de parámetros
+        //TODO crear un segmento y una página
+        //TODO buscar dentro del segmento lo que se pidió ELSE
+
+        enviarPaquete(FD_FS, mensaje);
+        Header *header = (Header*)malloc(sizeof(Header));
+        recv(FD_CLIENTE, header, sizeof(Header), NULL);
+        char* respuesta = malloc(header->tamanioMensaje);
+        recv(FD_CLIENTE, respuesta, header->tamanioMensaje, NULL);
+        printf("%s", mensaje);
+
     }else if (strcmp(arrayMensaje[0], "INSERT") == 0){
         printf("Recibi un insert");
     }else if (strcmp(arrayMensaje[0], "CREATE") == 0){
@@ -91,10 +103,17 @@ void atenderMensajes(Header header, char* mensaje)    {
 void startUp(){
     FD_FS = crearSocketCliente(configuracion.ipFileSystem, configuracion.puertoFileSystem);
     //TODO Pedirle el TAMAÑO_VALUE al FS
-    //enviarPaquete(FD_FS, "DAME EL TAM_VALUE");
+    /*enviarPaquete(FD_FS, "DAME EL TAM_VALUE");
+    Header *header = (Header*)malloc(sizeof(Header));
+    recv(cliente, header, sizeof(Header), NULL);
+    char* mensaje = malloc(header->tamanioMensaje);
+    recv(cliente, mensaje, header->tamanioMensaje, NULL);
+    printf("%s", mensaje);*/
+    
     printf("Reservo bloque de memoria ");
 
     memoria.direcciones = (void*) malloc(configuracion.tamanioMemoria);
+    memoria.tamanioMemoria = configuracion.tamanioMemoria;
 
 }
 int main(void) {
@@ -104,12 +123,12 @@ int main(void) {
 
 
 	//pthread_t* hiloConexiones = crearHiloServidor(configuracion.puerto, &atenderMensajes, NULL, NULL);
-    int cliente = crearSocketCliente("127.0.0.1", 5003);
-    enviarPaquete(cliente, "Hola, soy la memoria");
+    FD_CLIENTE = crearSocketCliente("127.0.0.1", 5003);
+    enviarPaquete(FD_CLIENTE, "Hola, soy la memoria");
     Header *header = (Header*)malloc(sizeof(Header));
-    recv(cliente, header, sizeof(Header), NULL);
+    recv(FD_CLIENTE, header, sizeof(Header), NULL);
     char* mensaje = malloc(header->tamanioMensaje);
-    recv(cliente, mensaje, header->tamanioMensaje, NULL);
+    recv(FD_CLIENTE, mensaje, header->tamanioMensaje, NULL);
     printf("%s", mensaje);
     fflush(stdout);
 

@@ -66,7 +66,19 @@ char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
     return path;
 }
 
-void lfsInsert(char *nombreTabla, char *key, char *valor, char *nuevoTimestamp) {
+char *armarLinea(char *key, char *valor, time_t timestamp) {
+    char *linea = string_new();
+    char *timestampString;
+    sprintf(timestampString, "%d", timestamp);
+    string_append(&linea, timestampString);
+    string_append(&linea, ";");
+    string_append(&linea, key);
+    string_append(&linea, ";");
+    string_append(&linea, valor);
+    return linea;
+}
+
+void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
     printf("Starting Insert..\n");
     char *path = obtenerPathArchivo(nombreTabla, "/Metadata");
     if (existeElArchivo(path)) {
@@ -74,6 +86,9 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, char *nuevoTimestamp) 
     } else {
         printf("No existe metadata en %s\n", path);
     }
+    char *linea = armarLinea(key, valor, timestamp);
+
+    printf("Linea: %s\n", linea);
     free(path);
 }
 
@@ -107,7 +122,7 @@ int gestionarRequest(char **request) {
             timestamp = (time_t) time(NULL);
         }
         printf("Timestamp: %i\n", (int) timestamp);
-        lfsInsert(nombreTabla, param1, param2, param3);
+        lfsInsert(nombreTabla, param1, param2, timestamp);
         return 0;
     } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
         printf("Tipo de Request: %s\n", tipoDeRequest);

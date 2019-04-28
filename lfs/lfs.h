@@ -27,7 +27,7 @@
 //Variables y estructuras
 typedef struct {
     int puertoEscucha;
-    char* puntoMontaje;
+    char *puntoMontaje;
     int retardo;
     int tamanioValue;
     int tiempoDump;
@@ -35,17 +35,23 @@ typedef struct {
 
 t_configuracion configuracion;
 t_log *logger;
-char* rutaTablas;
+char *rutaTablas;
 
 
 //Header de funciones
-t_configuracion cargarConfiguracion(char* path, t_log* logger);
+t_configuracion cargarConfiguracion(char *path, t_log *logger);
 
 void atenderMensajes(Header header, char *mensaje);
 
-void lfsInsert(char* nombreTabla,char* key, char*valor,char* nuevoTimestamp);
+void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
-void lfsSelect(char* nombreTabla,char* key);
+void lfsSelect(char *nombreTabla, char *key);
+
+char *obtenerPathTabla(char *nombreTabla);
+
+char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo);
+
+char *armarLinea(char *key, char *valor, time_t timestamp);
 
 /**
 * @NAME: gestionarRequest
@@ -66,7 +72,7 @@ int gestionarRequest(char **request);
 * -1: No se encontro o no se pudo acceder a la tabla especificada
 * 0: Existe el directorio especificado
 */
-int existeTabla(char* path);
+int existeTabla(char *path);
 
 
 #endif /* LFS_H_ */

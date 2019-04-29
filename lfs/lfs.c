@@ -62,7 +62,7 @@ char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
 char *armarLinea(char *key, char *valor, time_t timestamp) {
     char *linea = string_new();
     char *timestampString;
-    sprintf(timestampString, "%d", timestamp);
+    sprintf(timestampString, "%ld", timestamp);
     string_append(&linea, timestampString);
     string_append(&linea, ";");
     string_append(&linea, key);
@@ -73,7 +73,7 @@ char *armarLinea(char *key, char *valor, time_t timestamp) {
 }
 
 void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
-    if (existeTabla(nombreTabla)==0) {
+    if (existeTabla(nombreTabla)) {
         char *path = obtenerPathArchivo(nombreTabla, "Metadata");
         if (existeElArchivo(path)) {
             printf("Existe metadata en %s\n", path);
@@ -89,6 +89,8 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
 }
 
 void lfsSelect(char* nombreTabla, char* key){
+    char ch;
+
     //1. Verificar que la tabla exista en el File System
     existeTabla(nombreTabla);
 
@@ -100,10 +102,13 @@ void lfsSelect(char* nombreTabla, char* key){
     int particion = calcularParticion(key, meta);
 
     //4. Escanear la partición objetivo, todos los archivos temporales y la memoria temporal de dicha tabla (si existe) buscando la key deseada
-    char *nombreArchivo = ("%i.bin", particion);
+    char *nombreArchivo = string_new();
+    char* p = string_itoa(particion);
+    string_append(&nombreArchivo, p);
+    string_append(&nombreArchivo, ".bin");
     char *archivePath = obtenerPathArchivo(nombreTabla, nombreArchivo);
     FILE *fd = fopen(archivePath, "r");
-    log_info(logger, "El contenido de %s es:\n", archivePath);
+    log_info(logger, (char*) ("El contenido de %s es:\n", archivePath));
 
     while((ch = fgetc(fd)) != EOF) {
         printf("%c", ch);
@@ -184,11 +189,13 @@ int gestionarRequest(char **request) {
 
 }
 
-void existeTabla(char *tabla) {
-    char *rutaTabla = obtenerPathTabla(tabla);
-    if (!existeElArchivo(tabla)){
+int existeTabla(char *tabla) {
+    char *tablePath = obtenerPathTabla(tabla);
+    if (!existeElArchivo(tablePath)){
         log_error(logger, "No se encontro o no tiene permisos para acceder a la tabla %s", tabla);
+        return -1;
     }
+    return 0;
 }
 
 void obtenerMetadata(char* tabla) {
@@ -220,7 +227,9 @@ void obtenerMetadata(char* tabla) {
 }
 
 int calcularParticion(char* key, t_metadata* metadata) {
-    return atoi(key) % metadata->blocks;
+    int k = atoi(key);
+    int b = metadata->blocks;
+    return k % b;
 }
 
 
@@ -238,7 +247,7 @@ int main(void) {
     log_info(logger, "Tamaño value: %i", configuracion.tamanioValue);
     log_info(logger, "Tiempo dump: %i", configuracion.tiempoDump);
 
-    ejecutarConsola(&gestionarRequest, "lissandra");
+    ejecutarConsola(&gestionarRequest, "lissandra", logger);
     // crearHiloServidor(configuracion.puertoEscucha, &atenderMensajes, NULL, NULL);
     //int cliente = crearSocketCliente("192.168.0.30", 8000);
 

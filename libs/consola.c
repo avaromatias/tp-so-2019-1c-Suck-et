@@ -8,7 +8,7 @@ int validarComandosComunes(char** comando){
     char *param3 = comando[4];
     string_to_upper(tipoDeRequest);
     if (strcmp(tipoDeRequest, "SELECT") == 0) {
-        if(nombreTabla == NULL || param1 == NULL|| param2 != NULL|| param3 != NULL){
+        if(nombreTabla == NULL || param1 == NULL){
             printf("Número de parámetros inválido.\n");
             return 0;
         }
@@ -38,7 +38,7 @@ int validarComandosComunes(char** comando){
     }
     return 1;
 }
-void ejecutarConsola(void (*gestionarComando)(char**), char* nombreDelProceso) {
+void ejecutarConsola(int (*gestionarComando)(char**), char* nombreDelProceso, t_log *logger) {
     char* comando;
     char* nombreDelGrupo = "@suck-ets:~$ ";
     char* prompt = string_new();
@@ -51,7 +51,11 @@ void ejecutarConsola(void (*gestionarComando)(char**), char* nombreDelProceso) {
         comando[strlen(leido)] = '\0';
         char** comandoParseado = parser(comando);
         if(validarComandosComunes(comandoParseado)==1){
-            gestionarComando(comandoParseado);
+            if(gestionarComando(comandoParseado) == 0){
+                log_info(logger, "Request procesada correctamente.");
+            } else {
+                log_error(logger, "No se pudo procesar la request solicitada.");
+            };
         }
         string_to_lower(comando);
     } while(strcmp(comando, "exit") != 0);
@@ -68,7 +72,7 @@ char *obtenerPathTabla(char *nombreTabla) {
 }
 
 char *obtenerPathMetadata(char *nombreTabla) {
-    char *tablePath = obtenerPathTabla(tabla);
+    char *tablePath = obtenerPathTabla(nombreTabla);
     string_append(&tablePath, "/Metadata");
     return tablePath;
 }

@@ -62,7 +62,7 @@ char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
     char *path = string_new();
     char *tablePath = obtenerPathTabla(nombreTabla);
     string_append(&path, tablePath);
-    string_append(&path, "/Metadata");
+    string_append(&path, nombreArchivo);
     return path;
 }
 
@@ -75,21 +75,24 @@ char *armarLinea(char *key, char *valor, time_t timestamp) {
     string_append(&linea, key);
     string_append(&linea, ";");
     string_append(&linea, valor);
+    string_append(&linea, "\n");
     return linea;
 }
 
 void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
-    printf("Starting Insert..\n");
-    char *path = obtenerPathArchivo(nombreTabla, "/Metadata");
-    if (existeElArchivo(path)) {
-        printf("Existe metadata en %s\n", path);
-    } else {
-        printf("No existe metadata en %s\n", path);
+    if (existeTabla(nombreTabla)==0) {
+        char *path = obtenerPathArchivo(nombreTabla, "/Metadata");
+        if (existeElArchivo(path)) {
+            printf("Existe metadata en %s\n", path);
+        } else {
+            printf("No existe metadata en %s\n", path);
+        }
+        char *linea = armarLinea(key, valor, timestamp);
+        FILE *f = fopen(obtenerPathArchivo(nombreTabla, "/1.bin"), "a");
+        fwrite(linea, sizeof(char *), sizeof(linea), f);
+        fclose(f);
+        free(path);
     }
-    char *linea = armarLinea(key, valor, timestamp);
-
-    printf("Linea: %s\n", linea);
-    free(path);
 }
 
 void lfsSelect(char *nombreTabla, char *key) {
@@ -165,9 +168,7 @@ int gestionarRequest(char **request) {
 }
 
 int existeTabla(char *tabla) {
-    char *rutaTabla = string_new();
-    string_append(&rutaTabla, rutaTablas);
-    string_append(&rutaTabla, tabla);
+    char *rutaTabla = obtenerPathTabla(tabla);
     FILE *fd = fopen(rutaTabla, "r");
     if (fd == NULL) {
         log_error(logger, "No se encontro o no se pudo acceder a la tabla %s", tabla);

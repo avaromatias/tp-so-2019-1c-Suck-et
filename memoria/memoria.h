@@ -58,10 +58,17 @@ typedef struct{
 }t_tablaDePaginas;
 
 typedef struct{
+    int tamanioMemoria;
     char* direcciones;
+
 }t_memoria;
 
 //Instancia global de la memoria
 t_memoria memoria;
+//Instancia global del File Descriptor del File System
 int FD_FS;
+//Instancia global del Tamaño maximo del value (viene del FS)
+int TAM_VALUE;
+//Instancia global del File Descriptor de mi instancia de memoria
+int FD_CLIENTE;
 #endif /* MEMORIA_H_ */

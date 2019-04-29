@@ -11,7 +11,9 @@
 #include "../libs/generales.h"
 #include <readline/readline.h>
 
-
+int validarComandosComunes(char** comando);
 void ejecutarConsola(void (*gestionarComando)(char**), char* nombreDelProceso);
+char *obtenerPathTabla(char *nombreTabla);
+char *obtenerPathMetadata(char *nombreTabla);
 
 #endif //LIBS_CONSOLA_H

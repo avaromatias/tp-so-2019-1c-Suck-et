@@ -18,6 +18,7 @@
 #include <time.h>
 #include <commons/config.h>
 #include <commons/log.h>
+#include <commons/collections/dictionary.h>
 
 #include "../libs/config.h"
 #include "../libs/sockets.h"
@@ -33,9 +34,15 @@ typedef struct {
     int tiempoDump;
 } t_configuracion;
 
+typedef struct {
+    int block_size;
+    int blocks;
+    char *magic_number;
+} t_metadata;
+
 t_configuracion configuracion;
 t_log *logger;
-char *rutaTablas;
+t_dictionary *metadatas;
 
 
 //Header de funciones
@@ -46,12 +53,6 @@ void atenderMensajes(Header header, char *mensaje);
 void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
 void lfsSelect(char *nombreTabla, char *key);
-
-char *obtenerPathTabla(char *nombreTabla);
-
-char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo);
-
-char *armarLinea(char *key, char *valor, time_t timestamp);
 
 /**
 * @NAME: gestionarRequest
@@ -73,6 +74,18 @@ int gestionarRequest(char **request);
 * 0: Existe el directorio especificado
 */
 int existeTabla(char *path);
+
+/**
+* @NAME: obtenerMetadata
+* @DESC: Almacena o actualiza la metadata de una tabla en el diccionario de metadatas
+*/
+void obtenerMetadata(char* tabla);
+
+/**
+* @NAME: calcularParticion
+* @DESC: Retorna el numero de particion asignado a una key especifica
+*/
+int calcularParticion(char* key, t_metadata* metadata);
 
 
 #endif /* LFS_H_ */

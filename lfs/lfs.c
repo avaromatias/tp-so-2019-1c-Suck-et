@@ -50,18 +50,11 @@ void atenderMensajes(Header header, char *mensaje) {
     fflush(stdout);
 }
 
-char *obtenerPathTabla(char *nombreTabla) {
-    char *basePath = "../tables/";
-    char *tablePath = string_new();
-    string_append(&tablePath, basePath);
-    string_append(&tablePath, nombreTabla);
-    return tablePath;
-}
-
 char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
     char *path = string_new();
     char *tablePath = obtenerPathTabla(nombreTabla);
     string_append(&path, tablePath);
+    string_append(&path, "/");
     string_append(&path, nombreArchivo);
     return path;
 }
@@ -81,22 +74,44 @@ char *armarLinea(char *key, char *valor, time_t timestamp) {
 
 void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
     if (existeTabla(nombreTabla)==0) {
-        char *path = obtenerPathArchivo(nombreTabla, "/Metadata");
+        char *path = obtenerPathArchivo(nombreTabla, "Metadata");
         if (existeElArchivo(path)) {
             printf("Existe metadata en %s\n", path);
         } else {
             printf("No existe metadata en %s\n", path);
         }
         char *linea = armarLinea(key, valor, timestamp);
-        FILE *f = fopen(obtenerPathArchivo(nombreTabla, "/1.bin"), "a");
+        FILE *f = fopen(obtenerPathArchivo(nombreTabla, "1.bin"), "a");
         fwrite(linea, sizeof(char *), sizeof(linea), f);
         fclose(f);
         free(path);
     }
 }
 
-void lfsSelect(char *nombreTabla, char *key) {
+void lfsSelect(char* nombreTabla, char* key){
+    //1. Verificar que la tabla exista en el File System
+    existeTabla(nombreTabla);
 
+    //2. Obtener la metadata asociada a dicha tabla
+    obtenerMetadata(nombreTabla);
+    t_metadata* meta = dictionary_get(metadatas, nombreTabla);
+
+    //3. Calcular cual es la partición que contiene dicho KEY
+    int particion = calcularParticion(key, meta);
+
+    //4. Escanear la partición objetivo, todos los archivos temporales y la memoria temporal de dicha tabla (si existe) buscando la key deseada
+    char *nombreArchivo = ("%i.bin", particion);
+    char *archivePath = obtenerPathArchivo(nombreTabla, nombreArchivo);
+    FILE *fd = fopen(archivePath, "r");
+    log_info(logger, "El contenido de %s es:\n", archivePath);
+
+    while((ch = fgetc(fd)) != EOF) {
+        printf("%c", ch);
+    }
+
+    fclose(fd);
+
+    //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
 }
 
 int gestionarRequest(char **request) {
@@ -113,6 +128,7 @@ int gestionarRequest(char **request) {
         printf("Key: %s\n", param1);
         lfsSelect(nombreTabla, param1);
         return 0;
+
     } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
@@ -127,6 +143,7 @@ int gestionarRequest(char **request) {
         printf("Timestamp: %i\n", (int) timestamp);
         lfsInsert(nombreTabla, param1, param2, timestamp);
         return 0;
+
     } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
@@ -167,15 +184,43 @@ int gestionarRequest(char **request) {
 
 }
 
-int existeTabla(char *tabla) {
+void existeTabla(char *tabla) {
     char *rutaTabla = obtenerPathTabla(tabla);
-    FILE *fd = fopen(rutaTabla, "r");
-    if (fd == NULL) {
-        log_error(logger, "No se encontro o no se pudo acceder a la tabla %s", tabla);
-        return -1;
+    if (!existeElArchivo(tabla)){
+        log_error(logger, "No se encontro o no tiene permisos para acceder a la tabla %s", tabla);
     }
-    fclose(fd);
-    return 0;
+}
+
+void obtenerMetadata(char* tabla) {
+    char *metadataPath = obtenerPathMetadata(tabla);
+    t_config* config = config_create(metadataPath);
+    t_metadata metadata;
+
+    if(config == NULL) {
+        log_error(logger, "No se pudo obtener el archivo Metadata.");
+        exit(1);
+    }
+
+    if (config_has_property(config, "BLOCK_SIZE")) {
+        metadata.block_size = config_get_int_value(config, "BLOCK_SIZE");
+    }
+
+    if (config_has_property(config, "BLOCKS")) {
+        metadata.blocks = config_get_int_value(config, "BLOCKS");
+    }
+
+    if (config_has_property(config, "MAGIC_NUMBER")) {
+        char* magic_num = config_get_string_value(config, "MAGIC_NUMBER");
+        metadata.magic_number = malloc(strlen(magic_num) + 1);
+        memcpy(metadata.magic_number, magic_num, strlen(magic_num) + 1);
+    }
+
+    dictionary_put(metadatas, tabla, &metadata);
+    config_destroy(config);
+}
+
+int calcularParticion(char* key, t_metadata* metadata) {
+    return atoi(key) % metadata->blocks;
 }
 
 
@@ -185,6 +230,7 @@ int main(void) {
     log_info(logger, "Iniciando proceso Lissandra File System");
 
     configuracion = cargarConfiguracion("../lfs.cfg", logger);
+    metadatas = dictionary_create();
 
     log_info(logger, "Puerto Escucha: %i", configuracion.puertoEscucha);
     log_info(logger, "Punto Montaje: %s", configuracion.puntoMontaje);

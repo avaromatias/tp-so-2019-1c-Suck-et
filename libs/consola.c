@@ -58,3 +58,17 @@ void ejecutarConsola(void (*gestionarComando)(char**), char* nombreDelProceso) {
     free(comando);
     printf("Ya analizamos todo lo solicitado.\n");
 }
+
+char *obtenerPathTabla(char *nombreTabla) {
+    char *basePath = "../tables/";
+    char *tablePath = string_new();
+    string_append(&tablePath, basePath);
+    string_append(&tablePath, nombreTabla);
+    return tablePath;
+}
+
+char *obtenerPathMetadata(char *nombreTabla) {
+    char *tablePath = obtenerPathTabla(tabla);
+    string_append(&tablePath, "/Metadata");
+    return tablePath;
+}

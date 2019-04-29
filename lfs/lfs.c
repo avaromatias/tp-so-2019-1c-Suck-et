@@ -74,7 +74,7 @@ char *armarLinea(char *key, char *valor, time_t timestamp) {
 
 void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
     if (existeTabla(nombreTabla)) {
-        char *path = obtenerPathArchivo(nombreTabla, "Metadata");
+        char *path = obtenerPathMetadata(nombreTabla);
         if (existeElArchivo(path)) {
             printf("Existe metadata en %s\n", path);
         } else {

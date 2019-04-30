@@ -73,3 +73,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	}
 }
 
+int gestionarComando(char **request) {
+   //Comportamiento similar a las otras consolas, se diferencia en entender Journal, ADD, Metrics y RUN
+
+}

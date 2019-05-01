@@ -13,6 +13,7 @@
 #include <readline/readline.h>
 
 int validarComandosComunes(char** comando);
+int validarComandosKernel(char** comando);
 void ejecutarConsola(int (*gestionarComando)(char**), char* nombreDelProceso, t_log *logger);
 char *obtenerPathTabla(char *nombreTabla);
 char *obtenerPathMetadata(char *nombreTabla);

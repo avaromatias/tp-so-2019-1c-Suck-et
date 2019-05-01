@@ -35,9 +35,18 @@ int validarComandosComunes(char** comando){
             printf("Número de parámetros inválido.\n");
             return 0;
         }
+    } else if ((strcmp(tipoDeRequest, "ADD") == 0) || (strcmp(tipoDeRequest, "RUN") == 0) ||
+                (strcmp(tipoDeRequest, "JOURNAL") || (strcmp(tipoDeRequest, "METRICS"))) {
+        validarComandosKernel(char** comando);
     }
     return 1;
 }
+
+int validarComandosKernel(char** comando){
+    char *tipoDeRequest = comando[0];
+    
+}
+
 void ejecutarConsola(int (*gestionarComando)(char**), char* nombreDelProceso, t_log *logger) {
     char* comando;
     char* nombreDelGrupo = "@suck-ets:~$ ";

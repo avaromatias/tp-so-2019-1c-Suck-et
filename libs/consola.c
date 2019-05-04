@@ -36,8 +36,8 @@ int validarComandosComunes(char** comando){
             return 0;
         }
     } else if ((strcmp(tipoDeRequest, "ADD") == 0) || (strcmp(tipoDeRequest, "RUN") == 0) ||
-                (strcmp(tipoDeRequest, "JOURNAL") || (strcmp(tipoDeRequest, "METRICS"))) {
-        validarComandosKernel(char** comando);
+                (strcmp(tipoDeRequest, "JOURNAL") || (strcmp(tipoDeRequest, "METRICS")))) {
+        validarComandosKernel(comando);
     }
     return 1;
 }

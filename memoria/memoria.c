@@ -63,44 +63,45 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	}
 }
 
-//void atenderMensajes(Header header, char* mensaje)    {
-//    printf("Estoy recibiendo un mensaje del file descriptor %i: %s", header.fdRemitente, mensaje);
-//
-//    char** arrayMensaje = parser(mensaje);
-//
-//    //char** arrayMensaje = parser("SELECT amigues");
-//
-//
-//    if (strcmp(arrayMensaje[0], "SELECT") == 0){
-//        printf("Recibi un select");
-//
-//        //Todo chequear que las queries traigan la cantidad correcta de parámetros
-//        //TODO crear un segmento y una página
-//        //TODO buscar dentro del segmento lo que se pidió ELSE
-//
-//        enviarPaquete(FD_FS, mensaje);
-//        Header *header = (Header*)malloc(sizeof(Header));
-//        recv(FD_CLIENTE, header, sizeof(Header), NULL);
-//        char* respuesta = malloc(header->tamanioMensaje);
-//        recv(FD_CLIENTE, respuesta, header->tamanioMensaje, NULL);
-//        printf("%s", mensaje);
-//
-//    }else if (strcmp(arrayMensaje[0], "INSERT") == 0){
-//        printf("Recibi un insert");
-//    }else if (strcmp(arrayMensaje[0], "CREATE") == 0){
-//        printf("Recibi un create");
-//    }else if (strcmp(arrayMensaje[0], "DESCRIBE") == 0){
-//        printf("Recibi un describe");
-//    }else if (strcmp(arrayMensaje[0], "DROP") == 0){
-//        printf("Recibi un drop");
-//    }else if (strcmp(arrayMensaje[0], "JOURNAL") == 0){
-//        printf("Recibi un journal");
-//    }else{
-//        printf("No entendi tu mensaje bro");
-//    }
-//    printf("\n");
-//    fflush(stdout);
-//}
+void atenderMensajes(Header header, char* mensaje)    {
+    printf("Estoy recibiendo un mensaje del file descriptor %i: %s", header.fdRemitente, mensaje);
+    fflush(stdout);
+
+    char** arrayMensaje = parser(mensaje);
+
+    //char** arrayMensaje = parser("SELECT amigues");
+
+
+    if (strcmp(arrayMensaje[0], "SELECT") == 0){
+        printf("Recibi un select");
+
+        //Todo chequear que las queries traigan la cantidad correcta de parámetros
+        //TODO crear un segmento y una página
+        //TODO buscar dentro del segmento lo que se pidió ELSE
+
+        enviarPaquete(FD_FS, mensaje);
+        Header *header = (Header*)malloc(sizeof(Header));
+        recv(FD_CLIENTE, header, sizeof(Header), NULL);
+        char* respuesta = malloc(header->tamanioMensaje);
+        recv(FD_CLIENTE, respuesta, header->tamanioMensaje, NULL);
+        printf("%s", mensaje);
+
+    }else if (strcmp(arrayMensaje[0], "INSERT") == 0){
+        printf("Recibi un insert");
+    }else if (strcmp(arrayMensaje[0], "CREATE") == 0){
+        printf("Recibi un create");
+    }else if (strcmp(arrayMensaje[0], "DESCRIBE") == 0){
+        printf("Recibi un describe");
+    }else if (strcmp(arrayMensaje[0], "DROP") == 0){
+        printf("Recibi un drop");
+    }else if (strcmp(arrayMensaje[0], "JOURNAL") == 0){
+        printf("Recibi un journal");
+    }else{
+        printf("No entendi tu mensaje bro");
+    }
+    printf("\n");
+    fflush(stdout);
+}
 
 //void startUp(){
 //    FD_FS = crearSocketCliente(configuracion.ipFileSystem, configuracion.puertoFileSystem);
@@ -119,10 +120,6 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 //
 //}
 
-void atenderNuevosClientes(int fdNuevoCliente)	{
-	enviarPaquete(fdNuevoCliente, "Qué hacés, nuevo cliente");
-}
-
 // funciones propias de cada módulo para las conexiones
 
 pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_log* logger)    {
@@ -133,12 +130,12 @@ pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_log* logger)    
 	parametros->conexion = unaConexion;
 	parametros->logger = logger;
 
-	pthread_create(hiloConexiones, NULL, &atenderConexionesNuevo, parametros);
+	pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
 	return hiloConexiones;
 }
 
-void* atenderConexionesNuevo(void* parametrosThread)    {
+void* atenderConexiones(void* parametrosThread)    {
     parametros_thread* parametros = (parametros_thread*) parametrosThread;
     GestorConexiones* unaConexion = parametros->conexion;
     t_log* logger = parametros->logger;
@@ -171,7 +168,7 @@ void* atenderConexionesNuevo(void* parametrosThread)    {
                             Header header = deserializarHeader(&headerSerializado);
                             header.fdRemitente = fdConectado;
                             int pesoMensaje = header.tamanioMensaje * sizeof(char);
-                            void* mensaje = (void*) malloc(pesoMensaje);
+                            char* mensaje = (char*) malloc(pesoMensaje);
                             int n = strlen(mensaje);
                             bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
                             if(bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
@@ -185,7 +182,7 @@ void* atenderConexionesNuevo(void* parametrosThread)    {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
                                 int tamanioMensaje = strlen(mensaje);
-                                atenderMensajesNuevos(header, mensaje);
+                                atenderMensajes(header, mensaje);
                             }
                             break;
                     }
@@ -208,18 +205,10 @@ void* atenderConexionesNuevo(void* parametrosThread)    {
     }
 }
 
-void atenderMensajesNuevos(Header header, void* mensaje)    {
-    mensaje = (char*) mensaje;
-    printf("Tamaño mensaje recibido: %i\n", header.tamanioMensaje);
-    printf("Tamaño del mensaje posta: %i\n", strlen(mensaje));
-    printf("Recibí un nuevo mensaje proveniente del socket %i: %s\n", header.fdRemitente, mensaje);
-    fflush(stdout);
-}
-
 int main(void) {
-    t_log* logger = log_create("../memoria.log", "memoria", true, LOG_LEVEL_INFO);
+    t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
 
-	t_configuracion configuracion = cargarConfiguracion("../memoria.cfg", logger);
+	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
 
 	GestorConexiones* misConexiones = inicializarConexion();
 

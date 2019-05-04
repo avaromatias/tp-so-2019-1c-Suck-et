@@ -77,6 +77,6 @@ int TAM_VALUE;
 int FD_CLIENTE;
 #endif /* MEMORIA_H_ */
 
-void* atenderConexionesNuevo(void* parametrosThread);
+void* atenderConexiones(void* parametrosThread);
 
-void atenderMensajesNuevos(Header, void*);
+void atenderMensajesNuevos(Header, char*);

@@ -126,21 +126,7 @@ void cerrarSocket(int fd_socket, t_log* logger) {
         log_error(logger, "No se pudo cerrar el file descriptor del socket: %d", fd_socket);
 }
 
-//void cargarListaClientes(t_conexion* unaConexion, fd_set* solicitantes, fd_set* respondidos)	{
-//    FD_ZERO(solicitantes);
-//    FD_ZERO(respondidos);
-//
-//    FD_SET(unaConexion->servidor, solicitantes);
-//    t_link_element * unCliente = (unaConexion->clientes)->head;
-//
-//    while(unCliente != NULL)	{
-//        int fdCliente = *((int*) unCliente->data);
-//        FD_SET(fdCliente, solicitantes);
-//        unCliente = unCliente->next;
-//    }
-//}
-
-void cargarListaClientesNuevo(GestorConexiones* unaConexion, fd_set* emisores)	{
+void cargarListaClientes(GestorConexiones* unaConexion, fd_set* emisores)	{
     FD_ZERO(emisores);
     FD_SET(unaConexion->servidor, emisores);
 
@@ -152,7 +138,7 @@ void cargarListaClientesNuevo(GestorConexiones* unaConexion, fd_set* emisores)	{
 
 bool hayNuevoMensaje(GestorConexiones* unaConexion, fd_set* emisores)    {
     // inicializo las colas de clientes
-    cargarListaClientesNuevo(unaConexion, emisores);
+    cargarListaClientes(unaConexion, emisores);
     return select(unaConexion->descriptorMaximo + 1, emisores, NULL, NULL, NULL) > 0;
 }
 
@@ -195,14 +181,14 @@ void desconectarCliente(int fdCliente, GestorConexiones* unaConexion, t_log* log
 }
 
 void enviarPaquete(int fdDestinatario, char* mensaje)  {
-    Header header = armarHeader(fdDestinatario, strlen(mensaje));
-    void* headerSerializado = serializarHeader(header);
     int pesoMensaje = (strlen(mensaje) + 1) * sizeof(char);
+    Header header = armarHeader(fdDestinatario, pesoMensaje);
+    void* headerSerializado = serializarHeader(header);
     int pesoPaquete = sizeof(Header) + pesoMensaje;
     void* paquete = empaquetar(headerSerializado, mensaje);
-    send(fdDestinatario, paquete, sizeof(Header) + pesoMensaje, MSG_DONTWAIT);
-//    free(headerSerializado);
-//    free(paquete);
+    send(fdDestinatario, paquete, pesoPaquete, MSG_DONTWAIT);
+    free(headerSerializado);
+    free(paquete);
 }
 
 void* empaquetar(void* headerSerializado, char* mensaje)   {

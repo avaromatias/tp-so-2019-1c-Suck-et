@@ -64,7 +64,7 @@ bool hayNuevoMensaje(GestorConexiones* unaConexion, fd_set* emisores);
 
 void setDescriptorMaximo(GestorConexiones* conexion);
 
-void cargarListaClientesNuevo(GestorConexiones* unaConexion, fd_set* solicitantes);
+void cargarListaClientes(GestorConexiones* unaConexion, fd_set* solicitantes);
 
 GestorConexiones* inicializarConexion();
 

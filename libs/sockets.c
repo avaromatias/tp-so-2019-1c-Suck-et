@@ -63,7 +63,9 @@ void escucharSocketsEn(int fd_socket){
     if(valorListen == ERROR) {
         puts("El servidor no pudo recibir escuchar conexiones de clientes.\n");
     } else	{
-        puts("¡Hola, estoy escuchando!");
+        printf("¡Hola, estoy escuchando!");
+        fflush(stdout);
+        sleep(1);
     }
 }
 
@@ -77,16 +79,16 @@ int crearSocketEscucha (int puerto) {
     return socketDeEscucha;
 }
 
-int aceptarCliente(int fd_socket){
+int aceptarCliente(int fd_socket, t_log* logger){
 
     struct sockaddr_in unCliente;
     unsigned int addres_size = sizeof(unCliente);
 
     int fd_Cliente = accept(fd_socket, (struct sockaddr*) &unCliente, &addres_size);
     if(fd_Cliente == ERROR)  {
-        puts("El servidor no pudo aceptar la conexión entrante.\n");
+        log_error(logger, "El servidor no pudo aceptar la conexión entrante.");
     } else	{
-        puts("¡Estamos conectados!");
+        log_info(logger, "Se abrió una conexión con el file descriptor %i.", fd_Cliente);
     }
 
     return fd_Cliente;
@@ -94,7 +96,7 @@ int aceptarCliente(int fd_socket){
 }
 
 //Creamos un Socket Cliente -ya que tenemos antes el Servidor-
-int crearSocketCliente(char *ipServidor, int puerto) {
+int crearSocketCliente(char *ipServidor, int puerto, t_log* logger) {
 
     int cliente;
     struct sockaddr_in direccionServidor;
@@ -108,172 +110,120 @@ int crearSocketCliente(char *ipServidor, int puerto) {
     int valorConnect = connect(cliente, (struct sockaddr *) &direccionServidor, sizeof(direccionServidor));
 
     if(valorConnect == ERROR)  {
-        perror("No se pudo establecer conexión entre el socket y el servidor.\n");
+        log_error(logger, "No se pudo establecer conexión entre el socket y el servidor.");
         return ERROR;
     }
     else {
-        puts("¡Socket conectado a Servidor!");
+        log_info(logger, "¡Socket conectado a Servidor!");
         return cliente;
     }
 }
 
-void cerrarSocket(int fd_socket) {
+void cerrarSocket(int fd_socket, t_log* logger) {
 
     int cerrar = close(fd_socket);
-    if (cerrar == ERROR) {
-        printf("No se pudo cerrar el file descriptor del socket: %d\n",fd_socket);
+    if (cerrar == ERROR)
+        log_error(logger, "No se pudo cerrar el file descriptor del socket: %d", fd_socket);
+}
+
+//void cargarListaClientes(t_conexion* unaConexion, fd_set* solicitantes, fd_set* respondidos)	{
+//    FD_ZERO(solicitantes);
+//    FD_ZERO(respondidos);
+//
+//    FD_SET(unaConexion->servidor, solicitantes);
+//    t_link_element * unCliente = (unaConexion->clientes)->head;
+//
+//    while(unCliente != NULL)	{
+//        int fdCliente = *((int*) unCliente->data);
+//        FD_SET(fdCliente, solicitantes);
+//        unCliente = unCliente->next;
+//    }
+//}
+
+void cargarListaClientesNuevo(GestorConexiones* unaConexion, fd_set* emisores)	{
+    FD_ZERO(emisores);
+    FD_SET(unaConexion->servidor, emisores);
+
+    for(int i=0; i < list_size(unaConexion->conexiones); i++)   {
+        int fdConexion = *((int*) list_get(unaConexion->conexiones, i));
+        FD_SET(fdConexion, emisores);
     }
 }
 
-void crearHiloServidor(int puerto, void (*gestionarMensajes)(Header, char*), void (*gestionarDesconexiones)(int), void (*gestionarConexiones)(int))    {
-    int socketServidor = crearSocketEscucha(puerto);
-
-    t_conexion unaConexion;
-    unaConexion.servidor = socketServidor;
-    unaConexion.descriptorMaximo = socketServidor;
-    unaConexion.clientes = list_create();
-
-    pthread_t* hiloConexiones = malloc(sizeof(pthread_t));
-
-    parametros_thread parametros = {.conexion = unaConexion, .funcionRecepcionMensajes = gestionarMensajes, .funcionDesconexionClientes = gestionarDesconexiones, .funcionConexionClientes = gestionarConexiones};
-
-    pthread_create(hiloConexiones, NULL, &atenderConexiones, &parametros);
-
-    pthread_join(*hiloConexiones, NULL);
+bool hayNuevoMensaje(GestorConexiones* unaConexion, fd_set* emisores)    {
+    // inicializo las colas de clientes
+    cargarListaClientesNuevo(unaConexion, emisores);
+    return select(unaConexion->descriptorMaximo + 1, emisores, NULL, NULL, NULL) > 0;
 }
 
-void cargarListaClientes(t_conexion* unaConexion, fd_set* solicitantes, fd_set* respondidos)	{
-    FD_ZERO(solicitantes);
-    FD_ZERO(respondidos);
+int conectarseAServidor(char* ip, int puerto, GestorConexiones* conexion, t_log* logger)  {
+    int* fdNuevoServidor = (int*) malloc(sizeof(int));
+    *fdNuevoServidor = crearSocketCliente(ip, puerto, logger);
+    list_add(conexion->conexiones, fdNuevoServidor);
+    conexion->descriptorMaximo = getFdMaximo(conexion);
 
-    FD_SET(unaConexion->servidor, solicitantes);
-    t_link_element * unCliente = (unaConexion->clientes)->head;
-
-    while(unCliente != NULL)	{
-        int fdCliente = *((int*) unCliente->data);
-        FD_SET(fdCliente, solicitantes);
-        unCliente = unCliente->next;
-    }
+    return *fdNuevoServidor;
 }
 
-// esta función se puede modularizar más... definiendo funciones para cuando recibimos mensajes, cuando se conecta alguien, cuando se desconecta alguien...
-void * atenderConexiones(void* parametrosThread)	{
-    parametros_thread* parametros = (parametros_thread*) parametrosThread;
-    t_conexion unaConexion = parametros->conexion;
-
-    fd_set solicitantes;
-    fd_set respondidos;
-
-    while(1){
-        // inicializo las colas de clientes
-        cargarListaClientes(&unaConexion, &solicitantes, &respondidos);
-
-        // cuando haga el select, el thread / programa se va a quedar colgado, y cuando salga, será con alguna solicitud (o error)
-        int cambios = select(unaConexion.descriptorMaximo + 1, &solicitantes, &respondidos, NULL, NULL);
-
-        // si hay nuevos mensajes, conexiones, o lo que sea, lo trato
-        if(cambios > 0)	{
-            // recorro todos los clientes
-            t_link_element * unCliente = unaConexion.clientes->head;
-            while(unCliente != NULL)	{
-                void* headerSerializado = malloc(sizeof(Header));
-                int fdCliente = *((int*) unCliente->data);
-
-                // me fijo si hay algún cliente enviándome un mensaje
-                if(FD_ISSET(fdCliente, &solicitantes))	{
-                    // recibo el header
-                    int bytesRecibidos = recv(fdCliente, headerSerializado, sizeof(Header), MSG_DONTWAIT);
-                    switch(bytesRecibidos)  {
-                        // hubo un error al recibir los datos
-                        case -1:
-                            printf("Hubo un error al recibir el header proveniente del socket %i\n", fdCliente);
-                            fflush(stdout);// quizás sea mejor retornar un código de error definido por nosotros, y que cada proceso se encargue de manejarlo como más le parezca
-                            break;
-                            // se desconectó
-                        case 0:
-                            if(parametros->funcionDesconexionClientes != NULL)
-                                parametros->funcionDesconexionClientes(fdCliente);
-                            desconectarCliente(fdCliente, unaConexion);
-                            break;
-                            // recibí algún mensaje
-                        default: ; // esto es lo más raro que vi pero tuve que hacerlo
-                            Header header = deserializarHeader(headerSerializado);
-                            header.fdRemitente = fdCliente;
-                            void* mensaje = (void*) malloc(header.tamanioMensaje);
-                            bytesRecibidos = recv(fdCliente, mensaje, header.tamanioMensaje, MSG_DONTWAIT);
-                            if(bytesRecibidos == -1 || bytesRecibidos < header.tamanioMensaje)	{
-                                printf("Hubo un error al recibir el mensaje proveniente del socket %i\n", fdCliente);
-                                fflush(stdout);// quizás sea mejor retornar un código de error definido por nosotros, y que cada proceso se encargue de manejarlo como más le parezca
-                            }
-                            else if(bytesRecibidos == 0)	{
-                                if(parametros->funcionDesconexionClientes != NULL)
-                                    parametros->funcionDesconexionClientes(fdCliente);
-                                desconectarCliente(fdCliente, unaConexion);
-                            }
-                            else	{
-                                if(parametros->funcionRecepcionMensajes != NULL)
-                                    parametros->funcionRecepcionMensajes(header, mensaje);
-                            }
-                            break;
-                    }
-                }
-
-                unCliente = unCliente->next;
-
-                free(headerSerializado);
-            }
-
-            // si hay un nuevo cliente esperando conectarse con el servidor, lo acepto
-            if(FD_ISSET(unaConexion.servidor, &solicitantes))	{
-                int* fdNuevoCliente = malloc(sizeof(int));
-                *fdNuevoCliente = aceptarCliente(unaConexion.servidor);
-                list_add(unaConexion.clientes, fdNuevoCliente);
-
-                //me fijo si hay que actualizar el file descriptor máximo con el del nuevo cliente
-                if(unaConexion.descriptorMaximo < *fdNuevoCliente)
-                    unaConexion.descriptorMaximo = *fdNuevoCliente;
-
-                if(parametros->funcionConexionClientes != NULL)
-                    parametros->funcionConexionClientes(*fdNuevoCliente);
-            }
-        }
-    }
-
+void levantarServidor(int puerto, GestorConexiones* conexion) {
+    int fdServidor = crearSocketEscucha(puerto);
+    conexion->servidor = fdServidor;
+    conexion->descriptorMaximo = getFdMaximo(conexion);
 }
 
-void desconectarCliente(int fdCliente, t_conexion unaConexion)	{
-    printf("El socket %i ha cerrado la conexión (posiblemente haya sido terminado).\n", fdCliente);
-    fflush(stdout);// quizás sea mejor retornar un código de error definido por nosotros, y que cada proceso se encargue de manejarlo como más le parezca
-    bool esElClienteDesconectado(int* cliente)	{
-        return *cliente == fdCliente;
+int getFdMaximo(GestorConexiones* conexion) {
+    int maximo = conexion->servidor;
+    int tamanioLista = list_size(conexion->conexiones);
+
+    for(int i=0; i < tamanioLista; i++) {
+        int* fdConexion = (int*) list_get(conexion->conexiones, i);
+        if(*fdConexion > maximo)
+            maximo = *fdConexion;
     }
-    list_remove_and_destroy_by_condition(unaConexion.clientes, (void*) esElClienteDesconectado, free);
+
+    return maximo;
+}
+
+void desconectarCliente(int fdCliente, GestorConexiones* unaConexion, t_log* logger)	{
+    cerrarSocket(fdCliente, logger);
+    bool esElClienteDesconectado(void* cliente)	{
+        return *((int*) cliente) == fdCliente;
+    }
+    list_remove_and_destroy_by_condition(unaConexion->conexiones, esElClienteDesconectado, free);
+    unaConexion->descriptorMaximo = getFdMaximo(unaConexion);
+    log_info(logger, "El socket %i ha cerrado la conexión (posiblemente haya sido terminado).", fdCliente);
 }
 
 void enviarPaquete(int fdDestinatario, char* mensaje)  {
-    int tamanioDelMensaje = strlen(mensaje) * sizeof(char);
-    Header header = armarHeader(tamanioDelMensaje);
+    Header header = armarHeader(fdDestinatario, strlen(mensaje));
     void* headerSerializado = serializarHeader(header);
+    int pesoMensaje = (strlen(mensaje) + 1) * sizeof(char);
+    int pesoPaquete = sizeof(Header) + pesoMensaje;
     void* paquete = empaquetar(headerSerializado, mensaje);
-    send(fdDestinatario, paquete, sizeof(Header) + strlen(mensaje), MSG_DONTWAIT);
+    send(fdDestinatario, paquete, sizeof(Header) + pesoMensaje, MSG_DONTWAIT);
+//    free(headerSerializado);
+//    free(paquete);
 }
 
 void* empaquetar(void* headerSerializado, char* mensaje)   {
-    void* paquete = (void*) malloc(sizeof(Header) + strlen(mensaje));
+    int pesoMensaje = (strlen(mensaje) + 1) * sizeof(char);
+    void* paquete = (void*) malloc(sizeof(Header) + pesoMensaje);
     void* puntero = paquete;
     memcpy(puntero, headerSerializado, sizeof(Header));
     puntero += sizeof(Header);
-    memcpy(puntero, mensaje, strlen(mensaje));
+    memcpy(puntero, mensaje, pesoMensaje);
     return paquete;
 }
 
 void* serializarHeader(Header header)    {
-    void* headerSerializado = (void*) malloc(sizeof(Header));
+    void* headerSerializado = malloc(sizeof(Header));
     void* puntero = headerSerializado;
     int tamanioSize = sizeof(typeof(header.tamanioMensaje));
+    int pesoTipoRemitente = sizeof(typeof(header.fdRemitente));
 
     memcpy(puntero, &(header.tamanioMensaje), tamanioSize);
     puntero += tamanioSize;
+    memcpy(puntero, &(header.fdRemitente), pesoTipoRemitente);
 
     return headerSerializado;
 }
@@ -282,26 +232,27 @@ Header deserializarHeader(void* headerSerializado)	{
     Header header;
     void* puntero = headerSerializado;
     int tamanioSize = sizeof(typeof(header.tamanioMensaje));
+    int pesoTipoRemitente = sizeof(typeof(header.fdRemitente));
 
     memcpy(&(header.tamanioMensaje), puntero, tamanioSize);
     puntero += tamanioSize;
 
+    memcpy(&(header.fdRemitente), puntero, pesoTipoRemitente);
+
     return header;
 }
 
-Header armarHeader(int tamanioDelMensaje)    {
-    Header header = {.tamanioMensaje = tamanioDelMensaje};
+Header armarHeader(int fdDestinatario, int tamanioDelMensaje)    {
+    Header header = {.tamanioMensaje = tamanioDelMensaje, .fdRemitente = fdDestinatario};
     return header;
 }
 
-//Message* empaquetarTexto(char* texto, unsigned int length){
-//    if (texto == NULL || length < 1)
-//        return NULL;
-//    Message *msg = malloc(sizeof(Message));
-//    msg->header = malloc(sizeof(Header));
-//    msg->header->size = length + 1;
-//    msg->contenido = malloc(length + 1);
-//    memcpy(msg->contenido, texto, length);
-//    ((char*) msg->contenido)[length] = '\0';
-//    return msg;
-//}
+GestorConexiones* inicializarConexion() {
+    GestorConexiones* nuevaConexion = (GestorConexiones*) malloc(sizeof(GestorConexiones));
+
+    nuevaConexion->descriptorMaximo = 0;
+    nuevaConexion->servidor = 0;
+    nuevaConexion->conexiones = list_create();
+
+    return nuevaConexion;
+}

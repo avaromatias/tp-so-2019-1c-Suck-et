@@ -17,45 +17,59 @@
 #include <commons/log.h>
 #include <pthread.h>
 #include <commons/collections/list.h>
+#include <stdarg.h>
 
 typedef struct {
     int tamanioMensaje;
     int fdRemitente;
 } __attribute__((packed)) Header;
 
-typedef struct {
+//typedef struct {
+//    int descriptorMaximo;
+//    int servidor;
+//    t_list * clientes;
+//} t_conexion;
+
+typedef struct  {
     int descriptorMaximo;
     int servidor;
-    t_list * clientes;
-
-} t_conexion;
+    t_list* conexiones;
+} GestorConexiones;
 
 typedef struct	{
-    t_conexion conexion;
-    void (*funcionRecepcionMensajes)(Header, char*);
-    void (*funcionDesconexionClientes)(int);
-    void (*funcionConexionClientes)(int);
+    t_log* logger;
+    GestorConexiones* conexion;
 } parametros_thread;
 
 int crearSocketServidor(int);
 int crearSocketEscucha (int);
 void escucharSocketsEn(int);
-int aceptarCliente(int);
+int aceptarCliente(int, t_log*);
 
 //Funciones Sockets Clientes
-int crearSocketCliente(char*, int);
-void cerrarSocket(int);
+int crearSocketCliente(char*, int, t_log*);
+void cerrarSocket(int, t_log*);
 
-Header armarHeader(int tamanioDelMensaje);
+Header armarHeader(int fdDestinatario, int tamanioDelMensaje);
 void* serializarHeader(Header header);
 Header deserializarHeader(void* headerSerializado);
 void* empaquetar(void* headerSerializado, char* mensaje);
 void enviarPaquete(int fdDestinatario, char* mensaje);
 
-void desconectarCliente(int, t_conexion);
+void desconectarCliente(int fdCliente, GestorConexiones* unaConexion, t_log* logger);
 
-void* atenderConexiones(void*);
+void levantarServidor(int puerto, GestorConexiones* conexion);
 
-void crearHiloServidor(int puerto, void (*gestionarMensajes)(Header, char*), void (*gestionarDesconexiones)(int), void (*gestionarConexiones)(int));
+bool hayNuevoMensaje(GestorConexiones* unaConexion, fd_set* emisores);
+
+void setDescriptorMaximo(GestorConexiones* conexion);
+
+void cargarListaClientesNuevo(GestorConexiones* unaConexion, fd_set* solicitantes);
+
+GestorConexiones* inicializarConexion();
+
+int conectarseAServidor(char* ip, int puerto, GestorConexiones* conexion, t_log* logger);
+
+int getFdMaximo(GestorConexiones* conexion);
 
 #endif //LIBS_SOCKETS_H

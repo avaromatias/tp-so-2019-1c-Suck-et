@@ -39,7 +39,9 @@ t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
 t_configuracion configuracion; //Declaro mi instancia de t_configuracion como global
 
-void atenderMensajes(Header, char*);
+pthread_t* crearHiloServidor(int puerto, GestorConexiones* conexion, t_log* logger);
+
+void* atenderConexionesNuevo(void* parametros);
 
 typedef struct {
     int timestamp;
@@ -63,6 +65,8 @@ typedef struct{
 
 }t_memoria;
 
+
+// no usar variables globales
 //Instancia global de la memoria
 t_memoria memoria;
 //Instancia global del File Descriptor del File System
@@ -72,3 +76,7 @@ int TAM_VALUE;
 //Instancia global del File Descriptor de mi instancia de memoria
 int FD_CLIENTE;
 #endif /* MEMORIA_H_ */
+
+void* atenderConexionesNuevo(void* parametrosThread);
+
+void atenderMensajesNuevos(Header, void*);

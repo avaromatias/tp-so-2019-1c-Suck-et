@@ -72,6 +72,10 @@ char *armarLinea(char *key, char *valor, time_t timestamp) {
     return linea;
 }
 
+char **desarmarLinea(char *linea) {
+    return string_split(linea, ";");
+}
+
 void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
     if (existeTabla(nombreTabla)) {
         char *path = obtenerPathMetadata(nombreTabla);
@@ -108,13 +112,33 @@ void lfsSelect(char* nombreTabla, char* key){
     string_append(&nombreArchivo, ".bin");
     char *archivePath = obtenerPathArchivo(nombreTabla, nombreArchivo);
     FILE *fd = fopen(archivePath, "r");
-    log_info(logger, (char*) ("El contenido de %s es:\n", archivePath));
+    char *contenido = string_new();
+    string_append(&contenido, "El contenido de ");
+    string_append(&contenido, archivePath);
+    string_append(&contenido, " es:");
+    log_info(logger, contenido);
 
-    while((ch = fgetc(fd)) != EOF) {
-        printf("%c", ch);
+    int i = 0;
+    char *linea = string_new();
+    char str[2];
+    str[1] = '\0';
+    char **entradas;
+    while(!feof(fd)) {
+        while((ch = fgetc(fd)) != '\r') {
+            str[0] = ch;
+            string_append(&linea, str);
+            printf("%c", ch);
+        }
+        char **dato = desarmarLinea(linea);
+        if(dato[1] == key){
+            entradas[i] = armarLinea(dato[0], dato[1], (time_t) dato[2]);
+            i++;
+        }
     }
 
     fclose(fd);
+
+    log_info(logger, entradas[0]);
 
     //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
 }

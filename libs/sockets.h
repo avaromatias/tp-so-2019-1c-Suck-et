@@ -41,9 +41,9 @@ typedef struct	{
     GestorConexiones* conexion;
 } parametros_thread;
 
-int crearSocketServidor(int);
-int crearSocketEscucha (int);
-void escucharSocketsEn(int);
+int crearSocketServidor(int, t_log*);
+int crearSocketEscucha (int, t_log*);
+void escucharSocketsEn(int, t_log*);
 int aceptarCliente(int, t_log*);
 
 //Funciones Sockets Clientes
@@ -58,7 +58,7 @@ void enviarPaquete(int fdDestinatario, char* mensaje);
 
 void desconectarCliente(int fdCliente, GestorConexiones* unaConexion, t_log* logger);
 
-void levantarServidor(int puerto, GestorConexiones* conexion);
+void levantarServidor(int puerto, GestorConexiones* conexion, t_log* logger);
 
 bool hayNuevoMensaje(GestorConexiones* unaConexion, fd_set* emisores);
 

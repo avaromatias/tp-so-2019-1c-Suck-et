@@ -11,22 +11,20 @@
 
 //Creamos un socket!
 
-int crearSocket() {
+int crearSocket(t_log* logger) {
     int fileDescriptor = socket(AF_INET, SOCK_STREAM, 0);//usa protocolo TCP/IP
     if (fileDescriptor == ERROR) {
-        perror("No se pudo crear el file descriptor.\n");
+        log_error(logger, "No se pudo crear el file descriptor.");
     }
-
-    //Hay que mejorarlo para el caso en el que escucha muchas conexiones
 
     return fileDescriptor;
 }
 
 //Creamos ahora un Socket Servidor
 
-int crearSocketServidor(int puerto)	{
+int crearSocketServidor(int puerto, t_log* logger)	{
     struct sockaddr_in miDireccionServidor;
-    int socketDeEscucha = crearSocket();
+    int socketDeEscucha = crearSocket(logger);
 
     miDireccionServidor.sin_family = AF_INET;			//Protocolo de conexion
     miDireccionServidor.sin_addr.s_addr = INADDR_ANY;	//INADDR_ANY = 0 y significa que usa la IP actual de la maquina
@@ -38,7 +36,7 @@ int crearSocketServidor(int puerto)	{
     int puertoYaAsociado = setsockopt(socketDeEscucha, SOL_SOCKET, SO_REUSEADDR, (char*) &puertoEnUso, sizeof(puertoEnUso));
 
     if (puertoYaAsociado == ERROR) {
-        perror("El puerto asignado ya está siendo utilizado.\n");
+        log_error(logger, "El puerto asignado ya está siendo utilizado.");
     }
     //Turno del bind
     int activado = 1;
@@ -48,33 +46,31 @@ int crearSocketServidor(int puerto)	{
     int valorBind = bind(socketDeEscucha,(void*) &miDireccionServidor, sizeof(miDireccionServidor));
 
     if ( valorBind !=0) {
-        perror("El bind no funcionó, el socket no se pudo asociar al puerto");
+        log_error(logger, "El bind no funcionó, el socket no se pudo asociar al puerto");
         return 1;
     }
 
     return socketDeEscucha;
 }
 
-void escucharSocketsEn(int fd_socket){
+void escucharSocketsEn(int fd_socket, t_log* logger){
 
     int valorListen;
     valorListen = listen(fd_socket, conexionesMaximasPermitidas);/*Le podríamos poner al listen
 				SOMAXCONN como segundo parámetro, y significaría el máximo tamaño de la cola*/
     if(valorListen == ERROR) {
-        puts("El servidor no pudo recibir escuchar conexiones de clientes.\n");
+        log_error(logger, "El servidor no pudo recibir escuchar conexiones de clientes.");
     } else	{
-        printf("¡Hola, estoy escuchando!");
-        fflush(stdout);
-        sleep(1);
+        log_info(logger, "El servidor está escuchando conexiones a través del socket %i.", fd_socket);
     }
 }
 
-int crearSocketEscucha (int puerto) {
+int crearSocketEscucha (int puerto, t_log* logger) {
 
-    int socketDeEscucha = crearSocketServidor(puerto);
+    int socketDeEscucha = crearSocketServidor(puerto, logger);
 
     //Escuchar conexiones
-    escucharSocketsEn(socketDeEscucha);
+    escucharSocketsEn(socketDeEscucha, logger);
 
     return socketDeEscucha;
 }
@@ -106,7 +102,7 @@ int crearSocketCliente(char *ipServidor, int puerto, t_log* logger) {
     direccionServidor.sin_port = htons(puerto);			// short, Ordenación de bytes de la red
     memset(&(direccionServidor.sin_zero), '\0', 8); 	// Pone cero al resto de la estructura
 
-    cliente = crearSocket(); //Creamos socket
+    cliente = crearSocket(logger); //Creamos socket
     int valorConnect = connect(cliente, (struct sockaddr *) &direccionServidor, sizeof(direccionServidor));
 
     if(valorConnect == ERROR)  {
@@ -151,8 +147,8 @@ int conectarseAServidor(char* ip, int puerto, GestorConexiones* conexion, t_log*
     return *fdNuevoServidor;
 }
 
-void levantarServidor(int puerto, GestorConexiones* conexion) {
-    int fdServidor = crearSocketEscucha(puerto);
+void levantarServidor(int puerto, GestorConexiones* conexion, t_log* logger) {
+    int fdServidor = crearSocketEscucha(puerto, logger);
     conexion->servidor = fdServidor;
     conexion->descriptorMaximo = getFdMaximo(conexion);
 }

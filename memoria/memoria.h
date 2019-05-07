@@ -18,7 +18,7 @@
 #include <readline/readline.h>
 #include "../libs/config.h"
 #include "../libs/sockets.h"
-#include "../libs/generales.h"
+#include "conexiones.h"
 
 
 typedef struct {
@@ -39,9 +39,7 @@ t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
 t_configuracion configuracion; //Declaro mi instancia de t_configuracion como global
 
-pthread_t* crearHiloServidor(int puerto, GestorConexiones* conexion, t_log* logger);
 
-void* atenderConexionesNuevo(void* parametros);
 
 typedef struct {
     int timestamp;
@@ -76,7 +74,3 @@ int TAM_VALUE;
 //Instancia global del File Descriptor de mi instancia de memoria
 int FD_CLIENTE;
 #endif /* MEMORIA_H_ */
-
-void* atenderConexiones(void* parametrosThread);
-
-void atenderMensajesNuevos(Header, char*);

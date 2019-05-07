@@ -7,7 +7,8 @@ set(PROYECTO_SRC
         "memoria.c"
         "../libs/config.c"
         "../libs/generales.c"
-        "../libs/sockets.c")
+        "../libs/sockets.c"
+        "conexiones.c")
 set(LIBRERIAS
         "commons"
         "pthread"

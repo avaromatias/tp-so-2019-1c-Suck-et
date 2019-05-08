@@ -2,11 +2,13 @@ cmake_minimum_required(VERSION 3.5)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ".")
 set(PROYECTO kernel)
 set(PROYECTO_SRC
-        "../src/kernel.c"
+        "kernel.c"
         "../libs/config.c"
-        "../libs/sockets.c")
+        "../libs/sockets.c"
+        "../libs/generales.c")
 set(LIBRERIAS
         "commons"
+        "realine"
         "pthread")
 
 project(${PROYECTO})

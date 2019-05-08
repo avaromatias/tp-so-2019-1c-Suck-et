@@ -17,17 +17,17 @@ int main(void) {
 
 	configuracion = cargarConfiguracion("kernel.cfg", logger);
 
-    log_info(logger, "IP Memoria: %s", configuracion.ipMemoria;
+    log_info(logger, "IP Memoria: %s", configuracion.ipMemoria);
     log_info(logger, "Puerto Memoria: %i", configuracion.puertoMemoria);
     log_info(logger, "Quantum: %i", configuracion.quantum);
     log_info(logger, "Multiprocesamiento: %i", configuracion.multiprocesamiento);
     log_info(logger, "Refresh Metadata: %i", configuracion.refreshMetadata);
     log_info(logger, "Retardo de Ejecución : %i", configuracion.refreshMetadata);
 
-   	ejecutarConsola(&gestionarComando,"kernel");
+//   	ejecutarConsola(&gestionarComando,"kernel");
 
 	//conectar con memoria y luego el paso de abajo
-	int fdDestinatario = crearSocketCliente(configuracion.ipMemoria, configuracion.puertoMemoria);
+	//int fdDestinatario = crearSocketCliente(configuracion.ipMemoria, configuracion.puertoMemoria);
 
 	/*while(1)	{
     enviarPaquete(fdDestinatario, "DESCRIBE TABLE 2\n");

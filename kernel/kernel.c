@@ -24,14 +24,16 @@ int main(void) {
     log_info(logger, "Refresh Metadata: %i", configuracion.refreshMetadata);
     log_info(logger, "Retardo de Ejecución : %i", configuracion.refreshMetadata);
 
-//   	ejecutarConsola(&gestionarComando,"kernel");
+//   ejecutarConsola(&gestionarComando,"kernel",logger);
 
+    GestorConexiones* conexion = inicializarConexion();
 	//conectar con memoria y luego el paso de abajo
 	//int fdDestinatario = crearSocketCliente(configuracion.ipMemoria, configuracion.puertoMemoria);
+    int fdMemoria = conectarseAServidor(configuracion.ipMemoria, configuracion.puertoMemoria, conexion, logger);
 
-	/*while(1)	{
-    enviarPaquete(fdDestinatario, "DESCRIBE TABLE 2\n");
-    sleep(3);}*/
+	while(1)	{
+    enviarPaquete(fdMemoria, "DESCRIBE TABLE 2\n");
+    sleep(3);}
 
 	return EXIT_SUCCESS;
 }
@@ -60,6 +62,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 
 	if(!existenTodasLasClavesObligatorias(archivoConfig, configuracion)){
 		log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
+        config_destroy(archivoConfig);
 		exit(1); // settear algún código de error para cuando falte alguna key
 	}	else	{
 		configuracion.ipMemoria = config_get_string_value(archivoConfig, "IP_MEMORIA");
@@ -69,11 +72,93 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 		configuracion.refreshMetadata = config_get_int_value(archivoConfig, "METADATA_REFRESH");
 		configuracion.retardoEjecucion = config_get_int_value(archivoConfig, "SLEEP_EJECUCION");
 
+        config_destroy(archivoConfig);
+
 		return configuracion;
 	}
 }
 
 int gestionarComando(char **request) {
-   //Comportamiento similar a las otras consolas, se diferencia en entender Journal, ADD, Metrics y RUN
+    char *tipoDeRequest = request[0];
+    char *nombreTabla = request[1];
+    char *param1 = request[2];
+    char *param2 = request[3];
+    char *param3 = request[4];
+    string_to_upper(tipoDeRequest);
 
+    if (strcmp(tipoDeRequest, "SELECT") == 0) {
+        printf("Tipo de Request: %s\n", tipoDeRequest);
+        printf("Tabla: %s\n", nombreTabla);
+        printf("Key: %s\n", param1);
+        //kernelSelect(nombreTabla, param1);
+        return 0;
+
+    } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
+        printf("Tipo de Request: %s\n", tipoDeRequest);
+        printf("Tabla: %s\n", nombreTabla);
+        printf("Key: %s\n", param1);
+        printf("Valor: %s\n", param2);
+        time_t timestamp;
+        if (param3 != NULL) {
+            timestamp = (time_t) strtol(param3, NULL, 10);
+        } else {
+            timestamp = (time_t) time(NULL);
+        }
+        printf("Timestamp: %i\n", (int) timestamp);
+        //kernelInsert(nombreTabla, param1, param2, timestamp);
+        return 0;
+
+    } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
+        printf("Tipo de Request: %s\n", tipoDeRequest);
+        printf("Tabla: %s\n", nombreTabla);
+        printf("TIpo de consistencia: %s\n", param1);
+        printf("Numero de particiones: %s\n", param2);
+        printf("Tiempo de compactacion: %s\n", param3);
+        //kernelCreate(nombreTabla, param1, param2, param3)
+        return 0;
+
+    } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {
+        printf("Tipo de Request: %s\n", tipoDeRequest);
+        if (nombreTabla == NULL) {
+            // Hacer describe global
+        } else {
+            printf("Tabla: %s\n", nombreTabla);
+            // Hacer describe de una tabla especifica
+        }
+        return 0;
+
+    } else if (strcmp(tipoDeRequest, "DROP") == 0) {
+        printf("Tipo de Request: %s\n", tipoDeRequest);
+        printf("Tabla: %s\n", nombreTabla);
+        //kernelDrop(nombreTabla);
+        return 0;
+
+    } else if (strcmp(tipoDeRequest, "ADD") == 0) {
+        printf("Tipo de Request: %s %s %s", tipoDeRequest, nombreTabla, param1); //nombreTabla en realidad vien
+        printf("To: %s", param3);
+        return 0;
+
+    } else if (strcmp(tipoDeRequest, "RUN") == 0) {
+        printf("Tipo de Request: %s", tipoDeRequest); //nombreTabla en realidad vien
+        printf("Path: %s\n", nombreTabla);
+        return 0;
+    }
+    else if (strcmp(tipoDeRequest, "HELP") == 0) {
+        printf("************ Comandos disponibles ************\n");
+        printf("- SELECT [NOMBRE_TABLA] [KEY]\n");
+        printf("- INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp](Opcional)\n");
+        printf("- CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n");
+        printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
+        printf("- DROP [NOMBRE_TABLA]\n");
+        printf("- ADD MEMORY [NUMERO_MEMORIA] TO [TIPO_CONSISTENCIA]\n");
+        printf("- RUN [PATH]\n");
+        printf("- JOURNAL\n");
+        printf("- METRICS\n");
+        printf("- EXIT\n");
+        return 0;
+
+    } else {
+        printf("Ingrese un comando válido.");
+        return -2;
+    }
 }

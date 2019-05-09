@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <commons/config.h>
 #include <commons/log.h>
 #include <commons/collections/queue.h>
@@ -42,8 +43,10 @@ t_list* finalizados;
 
 
 //Funciones propias de Kernel
-t_configuracion cargarConfiguracion();
+t_configuracion cargarConfiguracion(char*, t_log*);
 
-void levantarAPI();
+int gestionarComando(char **);
+
+        void levantarAPI();
 
 #endif /* KERNEL_H_ */

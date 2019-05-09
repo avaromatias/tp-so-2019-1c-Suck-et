@@ -5,10 +5,11 @@ set(PROYECTO_SRC
         "kernel.c"
         "../libs/config.c"
         "../libs/sockets.c"
+        "../libs/consola.c"
         "../libs/generales.c")
 set(LIBRERIAS
         "commons"
-        "realine"
+        "readline"
         "pthread")
 
 project(${PROYECTO})

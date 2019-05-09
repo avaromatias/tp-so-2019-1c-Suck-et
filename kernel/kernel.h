@@ -44,9 +44,11 @@ t_list* finalizados;
 
 //Funciones propias de Kernel
 t_configuracion cargarConfiguracion(char*, t_log*);
-
 int gestionarComando(char **);
 
-        void levantarAPI();
+//Conexión con Memoria
+pthread_t* crearHiloConexiones(GestorConexiones*, t_log*);
+void atenderMensajes(Header header, char* mensaje);
+void* atenderConexiones(void* parametrosThread);
 
 #endif /* KERNEL_H_ */

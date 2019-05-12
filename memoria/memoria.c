@@ -81,7 +81,86 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 //    memoria.tamanioMemoria = configuracion.tamanioMemoria;
 //
 //}
+int gestionarRequest(char **request) {
+    char *tipoDeRequest = request[0];
+    char *nombreTabla = request[1];
+    char *param1 = request[2];
+    char *param2 = request[3];
+    char *param3 = request[4];
+    string_to_upper(tipoDeRequest);
 
+    if (strcmp(tipoDeRequest, "SELECT") == 0) {
+        printf("Tipo de Request: %s\n", tipoDeRequest);
+        printf("Tabla: %s\n", nombreTabla);
+        printf("Key: %s\n", param1);
+        //lfsSelect(nombreTabla, param1);
+        return 0;
+
+    } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
+        printf("Tipo de Request: %s\n", tipoDeRequest);
+        printf("Tabla: %s\n", nombreTabla);
+        printf("Key: %s\n", param1);
+        printf("Valor: %s\n", param2);
+        time_t timestamp;
+        if (param3 != NULL) {
+            timestamp = (time_t) strtol(param3, NULL, 10);
+        } else {
+            timestamp = (time_t) time(NULL);
+        }
+        printf("Timestamp: %i\n", (int) timestamp);
+        //lfsInsert(nombreTabla, param1, param2, timestamp);
+        return 0;
+
+    } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
+        printf("Tipo de Request: %s\n", tipoDeRequest);
+        printf("Tabla: %s\n", nombreTabla);
+        printf("TIpo de consistencia: %s\n", param1);
+        printf("Numero de particiones: %s\n", param2);
+        printf("Tiempo de compactacion: %s\n", param3);
+        return 0;
+
+    } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {
+        printf("Tipo de Request: %s\n", tipoDeRequest);
+        if (nombreTabla == NULL) {
+            // Hacer describe global
+        } else {
+            printf("Tabla: %s\n", nombreTabla);
+            // Hacer describe de una tabla especifica
+        }
+        return 0;
+
+    } else if (strcmp(tipoDeRequest, "DROP") == 0) {
+        printf("Tipo de Request: %s\n", tipoDeRequest);
+        printf("Tabla: %s\n", nombreTabla);
+        return 0;
+
+    } else if (strcmp(tipoDeRequest, "HELP") == 0) {
+        printf("************ Comandos disponibles ************\n");
+        printf("- SELECT [NOMBRE_TABLA] [KEY]\n");
+        printf("- INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp](Opcional)\n");
+        printf("- CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n");
+        printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
+        printf("- DROP [NOMBRE_TABLA]\n");
+        printf("- EXIT\n");
+        return 0;
+
+    } else {
+        printf("Ingrese un comando valido.");
+        return -2;
+    }
+
+}
+pthread_t crearHiloConsola(t_log* logger){
+    pthread_t* hiloConsola = malloc(sizeof(pthread_t));
+    parametros_thread_consola* parametros = (parametros_thread_consola*) malloc(sizeof(parametros_thread_consola));
+
+    parametros->logger = logger;
+    parametros->unComponente = MEMORIA;
+    parametros->gestionarComando = gestionarRequest;
+
+    pthread_create(hiloConsola, NULL, &ejecutarConsola, parametros);
+    return hiloConsola;
+}
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
 
@@ -98,6 +177,7 @@ int main(void) {
 	sem_init(&kernelConectado, 0, 0);
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
+    pthread_t* hiloConsola = crearHiloConsola(logger);
 
     while(1)	{
 		sem_wait(&kernelConectado);
@@ -130,6 +210,7 @@ int main(void) {
 //        free(linea);
 //	};
     pthread_join(*hiloConexiones, NULL);
+    pthread_join(*hiloConsola, NULL);
 
 	return 0;
 }

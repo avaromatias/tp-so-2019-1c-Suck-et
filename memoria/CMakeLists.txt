@@ -8,6 +8,7 @@ set(PROYECTO_SRC
         "../libs/config.c"
         "../libs/generales.c"
         "../libs/sockets.c"
+        "../libs/sockets.c"
         "conexiones.c")
 set(LIBRERIAS
         "commons"

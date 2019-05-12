@@ -10,11 +10,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../libs/generales.h"
+#include "../libs/sockets.h"
 #include <readline/readline.h>
 
 int validarComandosComunes(char** comando);
 int validarComandosKernel(char** comando);
-void ejecutarConsola(int (*gestionarComando)(char**), char* nombreDelProceso, t_log *logger);
+void ejecutarConsola(int (*gestionarComando)(char**), Componente* nombreDelProceso, t_log *logger);
 char *obtenerPathTabla(char *nombreTabla);
 char *obtenerPathMetadata(char *nombreTabla);
 

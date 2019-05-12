@@ -36,7 +36,7 @@ int validarComandosComunes(char** comando){
             return 0;
         }
     } else if ((strcmp(tipoDeRequest, "ADD") == 0) || (strcmp(tipoDeRequest, "RUN") == 0) ||
-                (strcmp(tipoDeRequest, "JOURNAL") || (strcmp(tipoDeRequest, "METRICS")))) {
+                (strcmp(tipoDeRequest, "JOURNAL") == 0|| (strcmp(tipoDeRequest, "METRICS") == 0))) {
         validarComandosKernel(comando);
     }
     return 1;
@@ -75,11 +75,12 @@ int validarComandosKernel(char** comando){
           }
     }
 }
-void ejecutarConsola(int (*gestionarComando)(char**), char* nombreDelProceso, t_log *logger) {
+void ejecutarConsola(int (*gestionarComando)(char**), Componente* nombreDelProceso, t_log *logger) {
     char* comando;
     char* nombreDelGrupo = "@suck-ets:~$ ";
     char* prompt = string_new();
-    string_append(&prompt, nombreDelProceso);
+    string_append(&prompt, (char*) &nombreDelProceso);
+
     string_append(&prompt, nombreDelGrupo);
     do {
         char* leido = readline(prompt);

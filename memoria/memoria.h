@@ -41,6 +41,7 @@ t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
 t_configuracion configuracion; //Declaro mi instancia de t_configuracion como global
 
+int gestionarComando(char **request);
 
 
 typedef struct {

@@ -81,7 +81,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 //    memoria.tamanioMemoria = configuracion.tamanioMemoria;
 //
 //}
-int gestionarRequest(char **request) {
+int gestionarComando(char **request) {
     char *tipoDeRequest = request[0];
     char *nombreTabla = request[1];
     char *param1 = request[2];
@@ -156,7 +156,7 @@ pthread_t crearHiloConsola(t_log* logger){
 
     parametros->logger = logger;
     parametros->unComponente = MEMORIA;
-    parametros->gestionarComando = gestionarRequest;
+    parametros->gestionarComando = gestionarComando;
 
     pthread_create(hiloConsola, NULL, &ejecutarConsola, parametros);
     return hiloConsola;

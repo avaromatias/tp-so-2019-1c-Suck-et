@@ -21,4 +21,6 @@ pthread_t* crearHiloConexiones(GestorConexiones* conexion, int* fdKernel, sem_t*
 
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros);
 
+char* recibirMensaje(int* fdEmisor);
+
 #endif //MEMORIA_CONEXIONES_H

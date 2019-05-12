@@ -81,8 +81,6 @@ int getFdMaximo(GestorConexiones* conexion);
 
 void eliminarFdDeListaDeConexiones(int fdCliente, GestorConexiones* unaConexion);
 
-void enviarRequest(int fdDestinatario, char* mensaje);
-
 void hacerHandshake(int fdDestinatario, Componente componente);
 
 #endif //LIBS_SOCKETS_H

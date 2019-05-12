@@ -141,3 +141,24 @@ void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* pa
 //    printf("\n");
 //    fflush(stdout);
 }
+
+char* recibirMensaje(int* fdEmisor)    {
+    Header header;
+    int bytesRecibidos = recv(*fdEmisor, &header, sizeof(Header), MSG_WAITALL);
+    if(bytesRecibidos == 0) {
+        *fdEmisor = 0;
+        return NULL;
+    }
+    else    {
+        header = deserializarHeader(&header);
+        char* respuesta = (char*) malloc(header.tamanioMensaje);
+        bytesRecibidos = recv(*fdEmisor, &respuesta, header.tamanioMensaje, MSG_WAITALL);
+        if(bytesRecibidos == 0) {
+            *fdEmisor = 0;
+            return NULL;
+        }
+        else    {
+            return respuesta;
+        }
+    }
+}

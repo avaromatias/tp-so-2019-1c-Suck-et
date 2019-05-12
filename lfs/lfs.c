@@ -46,8 +46,8 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 }
 
-void atenderMensajes(Header header, char *mensaje) {
-    enviarPaquete(header.fdRemitente, "Hola, soy Lissandra");
+void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs* parametros) {
+    enviarPaquete(header.fdRemitente, REQUEST, "Hola, soy Lissandra");
     printf("Estoy recibiendo un mensaje del File Descriptor %i: %s", header.fdRemitente, mensaje);
     fflush(stdout);
 }
@@ -227,7 +227,7 @@ int existeTabla(char *tabla) {
 void obtenerMetadata(char* tabla) {
     char *metadataPath = obtenerPathMetadata(tabla);
     t_config* config = config_create(metadataPath);
-    t_metadata metadata;
+    t_metadata *metadata = (t_metadata*) malloc(sizeof(t_metadata));
 
     if(config == NULL) {
         log_error(logger, "No se pudo obtener el archivo Metadata.");
@@ -235,20 +235,20 @@ void obtenerMetadata(char* tabla) {
     }
 
     if (config_has_property(config, "BLOCK_SIZE")) {
-        metadata.block_size = config_get_int_value(config, "BLOCK_SIZE");
+        metadata->block_size = config_get_int_value(config, "BLOCK_SIZE");
     }
 
     if (config_has_property(config, "BLOCKS")) {
-        metadata.blocks = config_get_int_value(config, "BLOCKS");
+        metadata->blocks = config_get_int_value(config, "BLOCKS");
     }
 
     if (config_has_property(config, "MAGIC_NUMBER")) {
         char* magic_num = config_get_string_value(config, "MAGIC_NUMBER");
-        metadata.magic_number = malloc(strlen(magic_num) + 1);
-        memcpy(metadata.magic_number, magic_num, strlen(magic_num) + 1);
+        metadata->magic_number = malloc(strlen(magic_num) + 1);
+        memcpy(metadata->magic_number, magic_num, strlen(magic_num) + 1);
     }
 
-    dictionary_put(metadatas, tabla, &metadata);
+    dictionary_put(metadatas, tabla, metadata);
     config_destroy(config);
 }
 
@@ -256,6 +256,94 @@ int calcularParticion(char* key, t_metadata* metadata) {
     int k = atoi(key);
     int b = metadata->blocks;
     return k % b;
+}
+
+pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, int* fdMemoria, sem_t* kernelConectado, t_log* logger) {
+    pthread_t* hiloConexiones = malloc(sizeof(pthread_t));
+
+    parametros_thread_lfs* parametros = (parametros_thread_lfs*) malloc(sizeof(parametros_thread_lfs));
+
+    parametros->conexion = unaConexion;
+    parametros->logger = logger;
+    parametros->fdMemoria = fdMemoria;
+    parametros->memoriaConectada = kernelConectado;
+
+    pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
+
+    return hiloConexiones;
+}
+
+void* atenderConexiones(void* parametrosThread) {
+    parametros_thread_lfs* parametros = (parametros_thread_lfs*) parametrosThread;
+    GestorConexiones* unaConexion = parametros->conexion;
+    t_log* logger = parametros->logger;
+    int* fdMemoria = parametros->fdMemoria;
+    sem_t* memoriaConectada = parametros->memoriaConectada;
+
+    fd_set emisores;
+
+    while(1) {
+        if(hayNuevoMensaje(unaConexion, &emisores)) {
+            // voy a recorrer todos los FD a los cuales estoy conectado para saber cuál de todos es el que tiene un nuevo mensaje
+            for(int i=0; i < list_size(unaConexion->conexiones); i++) {
+                Header headerSerializado;
+                int fdConectado = *((int*) list_get(unaConexion->conexiones, i));
+
+                if(FD_ISSET(fdConectado, &emisores)) {
+                    int bytesRecibidos = recv(fdConectado, &headerSerializado, sizeof(Header), MSG_DONTWAIT);
+
+                    switch(bytesRecibidos) {
+                        // hubo un error al recibir los datos
+                        case -1:
+                            log_warning(logger, "Hubo un error al recibir el header proveniente del socket %i", fdConectado);
+                            break;
+                            // se desconectó
+                        case 0:
+                            // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
+                            // nombre_maravillosa_funcion();
+                            desconectarCliente(fdConectado, unaConexion, logger);
+                            break;
+                            // recibí algún mensaje
+                        default: ; // esto es lo más raro que vi pero tuve que hacerlo
+                            Header header = deserializarHeader(&headerSerializado);
+                            header.fdRemitente = fdConectado;
+                            int pesoMensaje = header.tamanioMensaje * sizeof(char);
+                            void* mensaje = (void*) malloc(pesoMensaje);
+                            bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
+                            if(bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
+                                log_warning(logger, "Hubo un error al recibir el mensaje proveniente del socket %i", fdConectado);
+                            else if(bytesRecibidos == 0) {
+                                // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
+                                // nombre_maravillosa_funcion();
+                                desconectarCliente(fdConectado, unaConexion, logger);
+                            }
+                            else {
+                                // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
+                                // nombre_maravillosa_funcion();
+                                atenderMensajes(header, mensaje, parametrosThread);
+                            }
+                            break;
+                    }
+                }
+            }
+
+            // me fijo si hay algún nuevo conectado
+            if(FD_ISSET(unaConexion->servidor, &emisores))	{
+                int* fdNuevoCliente = malloc(sizeof(int));
+                *fdNuevoCliente = aceptarCliente(unaConexion->servidor, logger);
+                list_add(unaConexion->conexiones, fdNuevoCliente);
+
+                //me fijo si hay que actualizar el file descriptor máximo con el del nuevo cliente
+                unaConexion->descriptorMaximo = getFdMaximo(unaConexion);
+
+                // hacemos handshake
+                hacerHandshake(*fdNuevoCliente, KERNEL);
+
+                // acá cada uno setea una maravillosa función que hace cada uno cuando se le conecta un nuevo cliente
+                // nombre_maravillosa_funcion();
+            }
+        }
+    }
 }
 
 
@@ -273,11 +361,38 @@ int main(void) {
     log_info(logger, "Tamaño value: %i", configuracion.tamanioValue);
     log_info(logger, "Tiempo dump: %i", configuracion.tiempoDump);
 
+    GestorConexiones* misConexiones = inicializarConexion();
+
+    levantarServidor(configuracion.puertoEscucha, misConexiones, logger);
+
+    int fdMemoria = 0;
+
+    sem_t memoriaConectada;
+
+    sem_init(&memoriaConectada, 0, 0);
+
+    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdMemoria, &memoriaConectada, logger);
+
     ejecutarConsola(&gestionarRequest, "lissandra", logger);
     // crearHiloServidor(configuracion.puertoEscucha, &atenderMensajes, NULL, NULL);
     //int cliente = crearSocketCliente("192.168.0.30", 8000);
 
-    while (1);
+    while(1) {
+        sem_wait(&memoriaConectada);
+        if(fdMemoria > 0) {
+            Header header;
+            int bytesRecibidos = recv(fdMemoria, &header, sizeof(Header), MSG_WAITALL);
+            if(bytesRecibidos == 0)
+                fdMemoria = 0;
+            else {
+                header = deserializarHeader(&header);
+                char* request = (char*) malloc(header.tamanioMensaje);
+                bytesRecibidos = recv(fdMemoria, &request, header.tamanioMensaje, MSG_WAITALL);
+                printf("Request recibida: %s\n", request);
+                fflush(stdout);
+            }
+        }
+    }
 
     return 0;
 }

@@ -19,6 +19,7 @@
 #include <commons/config.h>
 #include <commons/log.h>
 #include <commons/collections/dictionary.h>
+#include <semaphore.h>
 
 #include "../libs/config.h"
 #include "../libs/sockets.h"
@@ -40,6 +41,13 @@ typedef struct {
     char *magic_number;
 } t_metadata;
 
+typedef struct {
+    GestorConexiones* conexion;
+    t_log* logger;
+    sem_t* memoriaConectada;
+    int* fdMemoria;
+} parametros_thread_lfs;
+
 t_configuracion configuracion;
 t_log *logger;
 t_dictionary *metadatas;
@@ -48,7 +56,7 @@ t_dictionary *metadatas;
 //Header de funciones
 t_configuracion cargarConfiguracion(char *path, t_log *logger);
 
-void atenderMensajes(Header header, char *mensaje);
+void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs* parametros);
 
 void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
@@ -86,6 +94,7 @@ void obtenerMetadata(char* tabla);
 * @DESC: Retorna el numero de particion asignado a una key especifica
 */
 int calcularParticion(char* key, t_metadata* metadata);
+void* atenderConexiones(void* parametrosThread);
 
 
 #endif /* LFS_H_ */

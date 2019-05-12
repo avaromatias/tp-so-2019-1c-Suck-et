@@ -28,7 +28,8 @@ typedef enum  {
 
 typedef enum {
     KERNEL,
-    MEMORIA
+    MEMORIA,
+    LISSANDRA
 } Componente;
 
 typedef struct {

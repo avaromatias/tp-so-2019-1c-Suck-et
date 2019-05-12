@@ -35,7 +35,9 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
         exit(1); // settear algún código de error para cuando falte alguna key
     } else {
         configuracion.puertoEscucha = config_get_int_value(archivoConfig, "PUERTO_ESCUCHA");
-        configuracion.puntoMontaje = config_get_string_value(archivoConfig, "PUNTO_MONTAJE");
+        char *puntoMontaje = config_get_string_value(archivoConfig, "PUNTO_MONTAJE");
+        configuracion.puntoMontaje = (char*) malloc(sizeof(char) * strlen(puntoMontaje));
+        strcpy(configuracion.puntoMontaje, puntoMontaje);
         configuracion.retardo = config_get_int_value(archivoConfig, "RETARDO");
         configuracion.tamanioValue = config_get_int_value(archivoConfig, "TAMAÑO_VALUE");
         configuracion.tiempoDump = config_get_int_value(archivoConfig, "TIEMPO_DUMP");

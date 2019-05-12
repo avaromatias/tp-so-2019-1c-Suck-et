@@ -18,17 +18,24 @@
 #include <pthread.h>
 #include <commons/collections/list.h>
 #include <stdarg.h>
+#include "generales.h"
+
+typedef enum  {
+    REQUEST,
+    RESPUESTA,
+    HANDSHAKE
+} TipoMensaje;
+
+typedef enum {
+    KERNEL,
+    MEMORIA
+} Componente;
 
 typedef struct {
     int tamanioMensaje;
     int fdRemitente;
+    TipoMensaje tipoMensaje;
 } __attribute__((packed)) Header;
-
-//typedef struct {
-//    int descriptorMaximo;
-//    int servidor;
-//    t_list * clientes;
-//} t_conexion;
 
 typedef struct  {
     int descriptorMaximo;
@@ -50,11 +57,11 @@ int aceptarCliente(int, t_log*);
 int crearSocketCliente(char*, int, t_log*);
 void cerrarSocket(int, t_log*);
 
-Header armarHeader(int fdDestinatario, int tamanioDelMensaje);
+Header armarHeader(int fdDestinatario, int tamanioDelMensaje, TipoMensaje tipoDeMensaje);
 void* serializarHeader(Header header);
 Header deserializarHeader(void* headerSerializado);
 void* empaquetar(void* headerSerializado, char* mensaje);
-void enviarPaquete(int fdDestinatario, char* mensaje);
+void enviarPaquete(int fdDestinatario, TipoMensaje tipoMensaje, char* mensaje);
 
 void desconectarCliente(int fdCliente, GestorConexiones* unaConexion, t_log* logger);
 
@@ -71,5 +78,11 @@ GestorConexiones* inicializarConexion();
 int conectarseAServidor(char* ip, int puerto, GestorConexiones* conexion, t_log* logger);
 
 int getFdMaximo(GestorConexiones* conexion);
+
+void eliminarFdDeListaDeConexiones(int fdCliente, GestorConexiones* unaConexion);
+
+void enviarRequest(int fdDestinatario, char* mensaje);
+
+void hacerHandshake(int fdDestinatario, Componente componente);
 
 #endif //LIBS_SOCKETS_H

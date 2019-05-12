@@ -173,28 +173,39 @@ int main(void) {
 	int fdKernel = 0;
 
     sem_t kernelConectado;
+    sem_t lissandraConectada;
 
 	sem_init(&kernelConectado, 0, 0);
+	sem_init(&lissandraConectada, 0 , 0);
+
+    int fdLissandra = crearSocketCliente(configuracion.ipFileSystem, configuracion.puertoFileSystem, logger);
+    if(fdLissandra > 0)
+    	sem_post(&lissandraConectada);
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
     pthread_t* hiloConsola = crearHiloConsola(logger);
 
     while(1)	{
 		sem_wait(&kernelConectado);
+		sem_wait(&lissandraConectada);
 		if(fdKernel > 0)	{
-			Header header;
-			int bytesRecibidos = recv(fdKernel, &header, sizeof(Header), MSG_WAITALL);
-			if(bytesRecibidos == 0)
-				fdKernel = 0;
-			else	{
-				header = deserializarHeader(&header);
-				char* request = (char*) malloc(header.tamanioMensaje);
-				bytesRecibidos = recv(fdKernel, &request, header.tamanioMensaje, MSG_WAITALL);
-				printf("Request recibida: %s\n", request);
-				fflush(stdout);
+			char* request = recibirMensaje(&fdKernel);
+			if(request == NULL) {
+				continue;
+			}
+			else    {
+				sem_post(&kernelConectado);
+				enviarPaquete(fdLissandra, REQUEST, request);
+                char* respuestaLissandra = recibirMensaje(&fdLissandra);
+                if(respuestaLissandra == NULL)	{
+                	continue;
+                }
+                else	{
+                	if(fdKernel > 0)
+                		enviarPaquete(fdKernel, REQUEST, respuestaLissandra);
+                }
 			}
 		}
-
     }
 
 

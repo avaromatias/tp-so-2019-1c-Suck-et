@@ -110,7 +110,7 @@ int crearSocketCliente(char *ipServidor, int puerto, t_log* logger) {
         return ERROR;
     }
     else {
-        log_info(logger, "¡Socket conectado a Servidor!");
+        log_info(logger, "Se estableció correctamente la conexión con el servidor a través del socket %i.", cliente);
         return cliente;
     }
 }
@@ -168,17 +168,21 @@ int getFdMaximo(GestorConexiones* conexion) {
 
 void desconectarCliente(int fdCliente, GestorConexiones* unaConexion, t_log* logger)	{
     cerrarSocket(fdCliente, logger);
+    eliminarFdDeListaDeConexiones(fdCliente, unaConexion);
+    log_info(logger, "El socket %i ha cerrado la conexión (posiblemente haya sido terminado).", fdCliente);
+}
+
+void eliminarFdDeListaDeConexiones(int fdCliente, GestorConexiones* unaConexion)  {
     bool esElClienteDesconectado(void* cliente)	{
         return *((int*) cliente) == fdCliente;
     }
     list_remove_and_destroy_by_condition(unaConexion->conexiones, esElClienteDesconectado, free);
     unaConexion->descriptorMaximo = getFdMaximo(unaConexion);
-    log_info(logger, "El socket %i ha cerrado la conexión (posiblemente haya sido terminado).", fdCliente);
 }
 
-void enviarPaquete(int fdDestinatario, char* mensaje)  {
-    int pesoMensaje = (strlen(mensaje) + 1) * sizeof(char);
-    Header header = armarHeader(fdDestinatario, pesoMensaje);
+void enviarPaquete(int fdDestinatario, TipoMensaje tipoMensaje, char* mensaje)  {
+    int pesoMensaje = pesoString(mensaje);
+    Header header = armarHeader(fdDestinatario, pesoMensaje, tipoMensaje);
     void* headerSerializado = serializarHeader(header);
     int pesoPaquete = sizeof(Header) + pesoMensaje;
     void* paquete = empaquetar(headerSerializado, mensaje);
@@ -187,9 +191,13 @@ void enviarPaquete(int fdDestinatario, char* mensaje)  {
     free(paquete);
 }
 
+void hacerHandshake(int fdDestinatario, Componente componente)  {
+    enviarPaquete(fdDestinatario, HANDSHAKE, (char*) &componente);
+}
+
 void* empaquetar(void* headerSerializado, char* mensaje)   {
-    int pesoMensaje = (strlen(mensaje) + 1) * sizeof(char);
-    void* paquete = (void*) malloc(sizeof(Header) + pesoMensaje);
+    int pesoMensaje = pesoString(mensaje);
+    void* paquete = malloc(sizeof(Header) + pesoMensaje);
     void* puntero = paquete;
     memcpy(puntero, headerSerializado, sizeof(Header));
     puntero += sizeof(Header);
@@ -206,6 +214,8 @@ void* serializarHeader(Header header)    {
     memcpy(puntero, &(header.tamanioMensaje), tamanioSize);
     puntero += tamanioSize;
     memcpy(puntero, &(header.fdRemitente), pesoTipoRemitente);
+    puntero += pesoTipoRemitente;
+    memcpy(puntero, &(header.tipoMensaje), sizeof(typeof(header.tipoMensaje)));
 
     return headerSerializado;
 }
@@ -220,12 +230,15 @@ Header deserializarHeader(void* headerSerializado)	{
     puntero += tamanioSize;
 
     memcpy(&(header.fdRemitente), puntero, pesoTipoRemitente);
+    puntero += pesoTipoRemitente;
+
+    memcpy(&(header.tipoMensaje), puntero, sizeof(typeof(header.tipoMensaje)));
 
     return header;
 }
 
-Header armarHeader(int fdDestinatario, int tamanioDelMensaje)    {
-    Header header = {.tamanioMensaje = tamanioDelMensaje, .fdRemitente = fdDestinatario};
+Header armarHeader(int fdDestinatario, int tamanioDelMensaje, TipoMensaje tipoMensaje)    {
+    Header header = {.tamanioMensaje = tamanioDelMensaje, .fdRemitente = fdDestinatario, .tipoMensaje = tipoMensaje};
     return header;
 }
 

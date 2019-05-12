@@ -12,7 +12,8 @@ set(PROYECTO_SRC
 set(LIBRERIAS
         "commons"
         "pthread"
-        "readline")
+        "readline"
+        "rt")
 
 project(${PROYECTO})
 

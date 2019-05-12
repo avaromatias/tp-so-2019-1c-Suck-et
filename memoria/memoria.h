@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <semaphore.h>
 #include <commons/config.h>
 #include <commons/log.h>
 #include <readline/readline.h>
@@ -62,6 +63,8 @@ typedef struct{
     char* direcciones;
 
 }t_memoria;
+
+char* config_get_string_in_array_by_index(char** array, int indiceBuscado);
 
 
 // no usar variables globales

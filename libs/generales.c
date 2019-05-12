@@ -30,6 +30,10 @@ int tamanioDeArrayDeStrings(char** arrayDeString){
     printf("Cantidad: %i\n", count);
 }
 
+int pesoString(char* string)    {
+    return sizeof(char) * (strlen(string) + 1);
+}
+
 char** parser(char* input){
     return string_split(input, " ");
 }

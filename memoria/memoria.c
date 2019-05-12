@@ -46,7 +46,9 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	}
 	else	{
 		configuracion.puerto = config_get_int_value(archivoConfig, "PUERTO");
-		configuracion.ipFileSystem = config_get_string_value(archivoConfig, "IP_FS");
+		char* ipFileSystem = config_get_string_value(archivoConfig, "IP_FS");
+		configuracion.ipFileSystem = (char*) malloc(pesoString("255.255.255.255"));
+        strcpy(configuracion.ipFileSystem, ipFileSystem);
 		configuracion.puertoFileSystem = config_get_int_value(archivoConfig, "PUERTO_FS");
 		configuracion.ipSeeds = config_get_array_value(archivoConfig, "IP_SEEDS");
 		configuracion.puertoSeeds = (int*) config_get_array_value(archivoConfig, "PUERTO_SEEDS");
@@ -80,8 +82,6 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 //
 //}
 
-// funciones propias de cada módulo para las conexiones
-
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
 
@@ -91,7 +91,31 @@ int main(void) {
 
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
-    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, logger);
+	int fdKernel = 0;
+
+    sem_t kernelConectado;
+
+	sem_init(&kernelConectado, 0, 0);
+
+    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
+
+    while(1)	{
+		sem_wait(&kernelConectado);
+		if(fdKernel > 0)	{
+			Header header;
+			int bytesRecibidos = recv(fdKernel, &header, sizeof(Header), MSG_WAITALL);
+			if(bytesRecibidos == 0)
+				fdKernel = 0;
+			else	{
+				header = deserializarHeader(&header);
+				char* request = (char*) malloc(header.tamanioMensaje);
+				bytesRecibidos = recv(fdKernel, &request, header.tamanioMensaje, MSG_WAITALL);
+				printf("Request recibida: %s\n", request);
+				fflush(stdout);
+			}
+		}
+
+    }
 
 
 //	char* linea;

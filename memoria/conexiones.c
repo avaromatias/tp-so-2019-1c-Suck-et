@@ -4,13 +4,15 @@
 
 #include "conexiones.h"
 
-pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_log* logger)    {
+pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, int* fdKernel, sem_t* kernelConectado, t_log* logger)    {
     pthread_t* hiloConexiones = malloc(sizeof(pthread_t));
 
-    parametros_thread* parametros = (parametros_thread*) malloc(sizeof(parametros_thread));
+    parametros_thread_memoria* parametros = (parametros_thread_memoria*) malloc(sizeof(parametros_thread_memoria));
 
     parametros->conexion = unaConexion;
     parametros->logger = logger;
+    parametros->fdKernel = fdKernel;
+    parametros->kernelConectado = kernelConectado;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -18,9 +20,11 @@ pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_log* logger)    
 }
 
 void* atenderConexiones(void* parametrosThread)    {
-    parametros_thread* parametros = (parametros_thread*) parametrosThread;
+    parametros_thread_memoria* parametros = (parametros_thread_memoria*) parametrosThread;
     GestorConexiones* unaConexion = parametros->conexion;
     t_log* logger = parametros->logger;
+    int* fdKernel = parametros->fdKernel;
+    sem_t* kernelConectado = parametros->kernelConectado;
 
     fd_set emisores;
 
@@ -50,8 +54,7 @@ void* atenderConexiones(void* parametrosThread)    {
                             Header header = deserializarHeader(&headerSerializado);
                             header.fdRemitente = fdConectado;
                             int pesoMensaje = header.tamanioMensaje * sizeof(char);
-                            char* mensaje = (char*) malloc(pesoMensaje);
-                            int n = strlen(mensaje);
+                            void* mensaje = (void*) malloc(pesoMensaje);
                             bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
                             if(bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
                                 log_warning(logger, "Hubo un error al recibir el mensaje proveniente del socket %i", fdConectado);
@@ -63,8 +66,7 @@ void* atenderConexiones(void* parametrosThread)    {
                             else	{
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
-                                int tamanioMensaje = strlen(mensaje);
-                                atenderMensajes(header, mensaje);
+                                atenderMensajes(header, mensaje, parametrosThread);
                             }
                             break;
                     }
@@ -80,6 +82,9 @@ void* atenderConexiones(void* parametrosThread)    {
                 //me fijo si hay que actualizar el file descriptor máximo con el del nuevo cliente
                 unaConexion->descriptorMaximo = getFdMaximo(unaConexion);
 
+                // hacemos handshake
+                hacerHandshake(*fdNuevoCliente, KERNEL);
+
                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le conecta un nuevo cliente
                 // nombre_maravillosa_funcion();
             }
@@ -87,9 +92,19 @@ void* atenderConexiones(void* parametrosThread)    {
     }
 }
 
-void atenderMensajes(Header header, char* mensaje)    {
-    printf("Estoy recibiendo un mensaje del file descriptor %i: %s", header.fdRemitente, mensaje);
-    fflush(stdout);
+void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros)    {
+    if(header.tipoMensaje == HANDSHAKE) {
+        if(*(Componente*) mensaje == KERNEL)   {
+            eliminarFdDeListaDeConexiones(header.fdRemitente, parametros->conexion);
+            if(*(parametros->fdKernel) == 0)    {
+                *(parametros->fdKernel) = header.fdRemitente;
+                sem_post(parametros->kernelConectado);
+            }
+            else    {
+                cerrarSocket(header.fdRemitente, parametros->logger);
+            }
+        }
+    }
 
 //    char** arrayMensaje = parser(mensaje);
 //

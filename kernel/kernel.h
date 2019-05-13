@@ -21,6 +21,7 @@
 #include "../libs/config.h"
 #include "../libs/sockets.h"
 #include "../libs/consola.h"
+#include "conexiones.h"
 
 typedef struct {
     char* ipMemoria;
@@ -41,14 +42,9 @@ t_queue* colaDeReady;
 t_queue* colaDeExecute;
 t_list* finalizados;
 
-
 //Funciones propias de Kernel
 t_configuracion cargarConfiguracion(char*, t_log*);
 int gestionarComando(char **);
-
-//Conexión con Memoria
-pthread_t* crearHiloConexiones(GestorConexiones*, t_log*);
-void atenderMensajes(Header header, char* mensaje);
-void* atenderConexiones(void* parametrosThread);
+int validarComandosKernel(char* tipoDeRequest, char* nombreTabla, char* param1, char* param2, char* param3);
 
 #endif /* KERNEL_H_ */

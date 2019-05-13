@@ -18,5 +18,6 @@ int validarComandosKernel(char** comando);
 void ejecutarConsola(int (*gestionarComando)(char**), Componente* nombreDelProceso, t_log *logger);
 char *obtenerPathTabla(char *nombreTabla);
 char *obtenerPathMetadata(char *nombreTabla);
+void imprimirErrorParametros();
 
 #endif //LIBS_CONSOLA_H

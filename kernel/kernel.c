@@ -59,7 +59,6 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 			if(!config_has_property(archivoConfig, clavesObligatorias[i]))
 				return false;
 		}
-
 		return true;
 	}
 
@@ -89,8 +88,7 @@ int gestionarComando(char **request) {
     char *param1 = request[2];
     char *param2 = request[3];
     char *param3 = request[4];
-    string_to_upper(tipoDeRequest);
-    if (validarComandosKernel(tipoDeRequest, nombreTabla, param1, param2, param3)==1){
+    if (validarComandosKernel(tipoDeRequest, nombreTabla, param1, param2, param3)== 1){
         if (strcmp(tipoDeRequest, "SELECT") == 0) {
             printf("Tipo de Request: %s\n", tipoDeRequest);
             printf("Tabla: %s\n", nombreTabla);
@@ -169,33 +167,31 @@ int gestionarComando(char **request) {
 }
 
 int validarComandosKernel(char* tipoDeRequest, char* nombreTabla, char* param1, char* param2, char* param3){
-    char * tipoDeRequest = comando[0]; string_to_upper(tipoDeRequest);
-    char *param1 = comando[1];
-    string_to_upper(param1); //palabra "MEMORY" necesaria para hacer el ADD
-    char *param2 = comando[2];
-    char *param3 = comando[3];
-    string_to_upper(param3); //el TO necesario para hacer el ADD
-    char *param4 = comando[4];
-    string_to_upper(param4); //tipoDeConsistencia
+    char * palabraMemory = nombreTabla;
+    if(palabraMemory != NULL) string_to_upper(palabraMemory);//palabra "MEMORY" necesaria para hacer el ADD o "PATH" para el comando RUN
+    char * palabraTO = param2;
+    //el TO necesario para hacer el ADD
+    char * criterio = param3;
+    if(criterio == "sc" || criterio == "shc" || criterio == "ec") string_to_upper(criterio);//tipoDeConsistencia
     if (strcmp(tipoDeRequest, "ADD") == 0) {
-        if(param1 != "MEMORY" || param2 == NULL || param3 != "TO" ||
-           (param4 != "SC" || param4 != "SHC" || param4 != "EC")){
-            printf("Alguno de los parámetros ingresados es incorrecto. Por favor verifíque su entrada.\n");
+        if(palabraMemory != "MEMORY" || param1 == NULL || palabraTO != "TO" ||
+            (criterio != "SC" || criterio != "SHC" || criterio != "EC")){
+            imprimirErrorParametros();
             return 0;
         }
     } else if (strcmp(tipoDeRequest, "RUN") == 0) {
-        char * path = comando[1];
+        char * path = palabraMemory;
         if(path == NULL){
-            printf("El Path recibido es inválido.\n");
+            printf("El PATH recibido es inválido.\n");
             return 0;
         }
     } else if (strcmp(tipoDeRequest, "JOURNAL") == 0) {
-        if (param1 != NULL || param2 != NULL || param3 != NULL || param4 != NULL) {
+        if (palabraMemory != NULL || param1 != NULL || palabraTO != NULL || criterio != NULL) {
             printf("Los parámetros son innecesarios.\n");
             return 0;
         }
     } else if (strcmp(tipoDeRequest, "METRICS") == 0) {
-        if(param1 != NULL || param2 != NULL || param3 != NULL || param4 != NULL){
+        if(palabraMemory != NULL || param1 != NULL || palabraTO != NULL || criterio != NULL){
             printf("Los parámetros son innecesarios.\n");
             return 0;
         }

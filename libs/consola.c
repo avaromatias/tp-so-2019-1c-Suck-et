@@ -39,13 +39,23 @@ int validarComandosComunes(char** comando){
     return 1;
 }
 void imprimirErrorParametros(){
-    printf("Cantidad de parámetros inválidos.\n");
+    printf("Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n");
 }
-void ejecutarConsola(int (*gestionarComando)(char**), Componente* nombreDelProceso, t_log *logger) {
+void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProceso, t_log *logger) {
     char* comando;
     char* nombreDelGrupo = "@suck-ets:~$ ";
     char* prompt = string_new();
-    string_append(&prompt, (char*) &nombreDelProceso);
+    switch (nombreDelProceso){
+        case KERNEL:
+            string_append(&prompt, "Kernel");
+            break;
+        case MEMORIA:
+            string_append(&prompt, "Memoria");
+            break;
+        case LISSANDRA:
+            string_append(&prompt, "Lissandra");
+            break;
+    }
     string_append(&prompt, nombreDelGrupo);
     do {
         char* leido = readline(prompt);
@@ -53,7 +63,7 @@ void ejecutarConsola(int (*gestionarComando)(char**), Componente* nombreDelProce
         memcpy(comando, leido, strlen(leido));
         comando[strlen(leido)] = '\0';
         char** comandoParseado = parser(comando);
-        if(validarComandosComunes(comandoParseado)==1){
+        if(validarComandosComunes(comandoParseado)== 1){
             if(gestionarComando(comandoParseado) == 0){
                 log_info(logger, "Request procesada correctamente.");
             } else {

@@ -6,7 +6,7 @@ set(PROYECTO_SRC
         "../libs/config.c"
         "../libs/sockets.c"
         "../libs/consola.c"
-        "../libs/generales.c")
+        "../libs/generales.c" conexiones.c conexiones.h)
 set(LIBRERIAS
         "commons"
         "readline"

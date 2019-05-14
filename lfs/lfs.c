@@ -373,7 +373,13 @@ int main(void) {
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdMemoria, &memoriaConectada, logger);
 
-    ejecutarConsola(&gestionarRequest, "lissandra", logger);
+    parametros_consola* parametros = (parametros_consola*) malloc(sizeof(parametros_consola));
+
+    parametros->logger = logger;
+    parametros->unComponente = LISSANDRA;
+    parametros->gestionarComando = gestionarRequest;
+
+    ejecutarConsola(parametros);
     // crearHiloServidor(configuracion.puertoEscucha, &atenderMensajes, NULL, NULL);
     //int cliente = crearSocketCliente("192.168.0.30", 8000);
 

@@ -81,7 +81,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 //    memoria.tamanioMemoria = configuracion.tamanioMemoria;
 //
 //}
-int gestionarComando(char **request) {
+int gestionarRequest(char **request) {
     char *tipoDeRequest = request[0];
     char *nombreTabla = request[1];
     char *param1 = request[2];
@@ -152,11 +152,11 @@ int gestionarComando(char **request) {
 }
 pthread_t crearHiloConsola(t_log* logger){
     pthread_t* hiloConsola = malloc(sizeof(pthread_t));
-    parametros_thread_consola* parametros = (parametros_thread_consola*) malloc(sizeof(parametros_thread_consola));
+    parametros_consola* parametros = (parametros_consola*) malloc(sizeof(parametros_consola));
 
     parametros->logger = logger;
     parametros->unComponente = MEMORIA;
-    parametros->gestionarComando = gestionarComando;
+    parametros->gestionarComando = gestionarRequest;
 
     pthread_create(hiloConsola, NULL, &ejecutarConsola, parametros);
     return hiloConsola;
@@ -185,7 +185,7 @@ int main(void) {
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
     pthread_t* hiloConsola = crearHiloConsola(logger);
 
-    while(1)	{
+    /*while(1){
 		sem_wait(&kernelConectado);
 		sem_wait(&lissandraConectada);
 		if(fdKernel > 0)	{
@@ -206,7 +206,7 @@ int main(void) {
                 }
 			}
 		}
-    }
+    }*/
 
 
 //	char* linea;

@@ -41,7 +41,7 @@ t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
 t_configuracion configuracion; //Declaro mi instancia de t_configuracion como global
 
-int gestionarComando(char **request);
+int gestionarRequest(char **request);
 
 
 typedef struct {
@@ -71,12 +71,6 @@ char* config_get_string_in_array_by_index(char** array, int indiceBuscado);
 //int (*gestionarComando)(char**)
 //typedef   int (*gestionarComando)(char**);
 
-typedef struct{
-    t_log* logger;
-    Componente unComponente;
-    int (*gestionarComando)(char**);
-
-}parametros_thread_consola;
 
 // no usar variables globales
 //Instancia global de la memoria

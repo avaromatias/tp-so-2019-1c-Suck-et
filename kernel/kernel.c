@@ -31,11 +31,17 @@ int main(void) {
 
     pthread_t* hiloRespuestas = crearHiloConexiones(conexion, logger);
 
-    ejecutarConsola(&gestionarComando, KERNEL, logger);
+    parametros_consola* parametros = (parametros_consola*) malloc(sizeof(parametros_consola));
 
-	while(1)	{
+    parametros->logger = logger;
+    parametros->unComponente = KERNEL;
+    parametros->gestionarComando = gestionarComando;
+
+    ejecutarConsola(parametros);
+
+	/*while(1)	{
     enviarPaquete(fdMemoria, REQUEST, "DESCRIBE TABLE 2\n");
-    sleep(3);}
+    sleep(3);}*/
 
 	return EXIT_SUCCESS;
 }

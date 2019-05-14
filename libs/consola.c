@@ -41,7 +41,15 @@ int validarComandosComunes(char** comando){
 void imprimirErrorParametros(){
     printf("Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n");
 }
-void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProceso, t_log *logger) {
+//void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProceso, t_log *logger) {
+void ejecutarConsola(void* parametrosConsola){
+
+    parametros_consola* parametros = (parametros_consola*) parametrosConsola;
+
+    t_log* logger = parametros->logger;
+    int (*gestionarComando)(char**) = parametros->gestionarComando;
+    Componente nombreDelProceso = parametros->unComponente;
+
     char* comando;
     char* nombreDelGrupo = "@suck-ets:~$ ";
     char* prompt = string_new();

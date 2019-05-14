@@ -15,9 +15,18 @@
 
 int validarComandosComunes(char** comando);
 //int validarComandosKernel(char** comando);
-void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProceso, t_log *logger);
+//void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProceso, t_log *logger);
+void ejecutarConsola(void *);
 char *obtenerPathTabla(char *nombreTabla);
 char *obtenerPathMetadata(char *nombreTabla);
 void imprimirErrorParametros();
+
+
+typedef struct{
+    t_log* logger;
+    Componente unComponente;
+    int (*gestionarComando)(char**);
+
+}parametros_consola;
 
 #endif //LIBS_CONSOLA_H

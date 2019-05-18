@@ -134,6 +134,9 @@ int gestionarRequest(char **request) {
         printf("Tabla: %s\n", nombreTabla);
         return 0;
 
+    }else if(strcmp(tipoDeRequest, "JOURNAL") == 0){
+        printf("Tipo de Request: %s\n", tipoDeRequest);
+        return 0;
     } else if (strcmp(tipoDeRequest, "HELP") == 0) {
         printf("************ Comandos disponibles ************\n");
         printf("- SELECT [NOMBRE_TABLA] [KEY]\n");
@@ -141,6 +144,7 @@ int gestionarRequest(char **request) {
         printf("- CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n");
         printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
         printf("- DROP [NOMBRE_TABLA]\n");
+        printf("- JOURNAL\n");
         printf("- EXIT\n");
         return 0;
 

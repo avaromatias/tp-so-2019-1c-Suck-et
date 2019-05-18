@@ -48,18 +48,16 @@ typedef struct {
     int timestamp;
     u_int16_t key;
     char value[10]; //Cada hardcodeo que meto en el codigo es un arbolito que se muere
-}t_pagina;
-
-typedef struct {
-    t_pagina pagina;
     int numeroDePagina;
     int flagDeModificado;
-}t_registro;
+}t_pagina;
 
 typedef struct{
-    t_registro* registros;
+    t_pagina* paginas;
 }t_tablaDePaginas;
 
+
+//Tipo de la Memoria Principal que aloja las paginas
 typedef struct{
     int tamanioMemoria;
     char* direcciones;

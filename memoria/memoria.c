@@ -65,22 +65,42 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	}
 }
 
-//void startUp(){
-//    FD_FS = crearSocketCliente(configuracion.ipFileSystem, configuracion.puertoFileSystem);
-//    //TODO Pedirle el TAMAÑO_VALUE al FS
+void inicializarMemoriaPrincipal(t_memoria* memoria){
+    t_memoria* unaMemoria = malloc(sizeof(t_memoria));
+
+    unaMemoria = memoria;
+
+    //Reservar memoria para la tabla de paginas
+
+    //Reservar memoria para la Memoria Principal
+
+    printf("Reservo bloque de memoria ");
+    //fflush(stdout);
+    unaMemoria->direcciones = (void*) malloc(configuracion.tamanioMemoria);
+    unaMemoria->tamanioMemoria = configuracion.tamanioMemoria;
+
+
+
+
+    //TODO Pedirle el TAMAÑO_VALUE al FS
 //    /*enviarPaquete(FD_FS, "DAME EL TAM_VALUE");
 //    Header *header = (Header*)malloc(sizeof(Header));
 //    recv(cliente, header, sizeof(Header), NULL);
 //    char* mensaje = malloc(header->tamanioMensaje);
 //    recv(cliente, mensaje, header->tamanioMensaje, NULL);
 //    printf("%s", mensaje);*/
-//
-//    printf("Reservo bloque de memoria ");
-//
-//    memoria.direcciones = (void*) malloc(configuracion.tamanioMemoria);
-//    memoria.tamanioMemoria = configuracion.tamanioMemoria;
-//
-//}
+
+}
+
+void handshakeConLissandra(int fdLissandra){
+
+    //Fer: Esta funcion bloquearía el funcionamiento hasta recibir la respuesta de lissandra?
+    enviarPaquete(fdLissandra, HANDSHAKE, "HANDSHAKE");
+    char* respuestaLissandra = recibirMensaje(&fdLissandra);
+
+    //La respuesta seria el tamaño maximo del value
+    TAM_VALUE = (int) respuestaLissandra;
+}
 int gestionarRequest(char **request) {
     char *tipoDeRequest = request[0];
     char *nombreTabla = request[1];
@@ -93,7 +113,6 @@ int gestionarRequest(char **request) {
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
         printf("Key: %s\n", param1);
-        //lfsSelect(nombreTabla, param1);
         return 0;
 
     } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
@@ -108,7 +127,6 @@ int gestionarRequest(char **request) {
             timestamp = (time_t) time(NULL);
         }
         printf("Timestamp: %i\n", (int) timestamp);
-        //lfsInsert(nombreTabla, param1, param2, timestamp);
         return 0;
 
     } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
@@ -184,6 +202,7 @@ int main(void) {
 
     int fdLissandra = crearSocketCliente(configuracion.ipFileSystem, configuracion.puertoFileSystem, logger);
     if(fdLissandra > 0)
+        //handshakeConLissandra(fdLissandra)
     	sem_post(&lissandraConectada);
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
@@ -211,19 +230,6 @@ int main(void) {
 			}
 		}
     }*/
-
-
-//	char* linea;
-//	while(1){
-//	    /* Imprimo lo que ingreso por pantalla
-//	     * queda comentado porque el crearHiloServido me bloquea el proceso*/
-//	    linea = readline(">");
-//        if (!linea) {
-//            break;
-//        }
-//        printf("%s\n", linea);
-//        free(linea);
-//	};
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
 

@@ -43,11 +43,13 @@ t_configuracion configuracion; //Declaro mi instancia de t_configuracion como gl
 
 int gestionarRequest(char **request);
 
+//Tamaño del value indicado por LFS en el handshake
+int TAM_VALUE = 0;
 
 typedef struct {
     int timestamp;
     u_int16_t key;
-    char value[10]; //Cada hardcodeo que meto en el codigo es un arbolito que se muere
+    char* value; //Cada hardcodeo que meto en el codigo es un arbolito que se muere
     int numeroDePagina;
     int flagDeModificado;
 }t_pagina;
@@ -66,17 +68,7 @@ typedef struct{
 
 char* config_get_string_in_array_by_index(char** array, int indiceBuscado);
 
-//int (*gestionarComando)(char**)
-//typedef   int (*gestionarComando)(char**);
-
-
 // no usar variables globales
 //Instancia global de la memoria
 t_memoria memoria;
-//Instancia global del File Descriptor del File System
-int FD_FS;
-//Instancia global del Tamaño maximo del value (viene del FS)
-int TAM_VALUE;
-//Instancia global del File Descriptor de mi instancia de memoria
-int FD_CLIENTE;
 #endif /* MEMORIA_H_ */

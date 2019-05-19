@@ -43,32 +43,41 @@ t_configuracion configuracion; //Declaro mi instancia de t_configuracion como gl
 
 int gestionarRequest(char **request);
 
-//Tamaño del value indicado por LFS en el handshake
-int TAM_VALUE = 0;
-
 typedef struct {
     int timestamp;
     u_int16_t key;
-    char* value; //Cada hardcodeo que meto en el codigo es un arbolito que se muere
-    int numeroDePagina;
-    int flagDeModificado;
+    char* value;
 }t_pagina;
 
 typedef struct{
-    t_pagina* paginas;
-}t_tablaDePaginas;
+    t_pagina unaPagina;
+    int numeroDePagina;
+    int flagDeModificado;
+}t_registroPagina;
 
+typedef struct {
+    char* nombreTabla; //es el path a la tabla?
+    int base;
+    int tamanioSegmento; //indica el limite del segmento
+
+}t_segmento;
 
 //Tipo de la Memoria Principal que aloja las paginas
 typedef struct{
     int tamanioMemoria;
     char* direcciones;
-
+    int tamanioDePagina;
 }t_memoria;
+// no usar variables globales
+//Instancia global de la memoria
 
 char* config_get_string_in_array_by_index(char** array, int indiceBuscado);
 
-// no usar variables globales
-//Instancia global de la memoria
-t_memoria memoria;
 #endif /* MEMORIA_H_ */
+
+/* Funcion conectarse a lissandra.
+ * Crear socket cliente lissandra
+ * if fdlissandra
+ *      handshakeconlissandra->calcularTamanioPagina(tam_value, memoria)
+ *      sem_post lissandra
+ */

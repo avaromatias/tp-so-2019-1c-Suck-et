@@ -23,7 +23,9 @@
 typedef enum  {
     REQUEST,
     RESPUESTA,
-    HANDSHAKE
+    HANDSHAKE,
+    CONEXION_ACEPTADA,
+    CONEXION_RECHAZADA
 } TipoMensaje;
 
 typedef enum {

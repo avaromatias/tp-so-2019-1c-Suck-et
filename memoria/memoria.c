@@ -65,40 +65,14 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	}
 }
 
-void inicializarMemoriaPrincipal(t_memoria* memoriaPrincipal, t_configuracion configuracion){
-
-    printf("Inicia el proceso de inicializar la memoria princial");
+t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, t_log* logger)    {
+    log_info(logger, "Inicia el proceso de inicializar la memoria princial");
+    t_memoria* memoriaPrincipal = (t_memoria*) malloc(sizeof(t_memoria));
     memoriaPrincipal->tamanioMemoria = configuracion.tamanioMemoria;
     memoriaPrincipal->direcciones = (void*) malloc(configuracion.tamanioMemoria);
-
-}
-int conectarseALissandra(char* ipLissandra, int puertoLissandra, sem_t* lissandraConectada, t_memoria* memoria, t_log* logger){
-
-    int fdLissandra = crearSocketCliente(ipLissandra, puertoLissandra, logger);
-    if(fdLissandra > 0){
-        (int) handshakeLissandra(fdLissandra, memoria);
-        log_info(logger, "Handshake con lissandra realizado con exito");
-    	sem_post(&lissandraConectada);
-        return fdLissandra;
-    }
-    else{
-        log_error(logger, "No se pudo realizar el handshake con lissandra");
-        return ERROR;
-    }
-
-}
-//Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS
-void handshakeLissandra(int fdLissandra, t_memoria* memoriaPrincipal){
-    enviarPaquete(fdLissandra, HANDSHAKE, "HANDSHAKE");
-    char* respuestaLissandra = recibirMensaje(&fdLissandra);
-
-    memoriaPrincipal->tamanioDePagina =calcularTamanioDePagina((int) respuestaLissandra);
+    return memoriaPrincipal;
 }
 
-int calcularTamanioDePagina(int tamanioValue){
-    //tamaño de INT (timestamp) + tamaño de u_int16_t (key) + tamaño de value (respuesta HS con LS)
-    return sizeof(int) + sizeof(u_int16_t) + tamanioValue;
-}
 int gestionarRequest(char **request) {
     char *tipoDeRequest = request[0];
     char *nombreTabla = request[1];
@@ -170,42 +144,37 @@ int gestionarRequest(char **request) {
     }
 
 }
-pthread_t crearHiloConsola(t_log* logger){
-    pthread_t* hiloConsola = malloc(sizeof(pthread_t));
-    parametros_consola* parametros = (parametros_consola*) malloc(sizeof(parametros_consola));
 
-    parametros->logger = logger;
-    parametros->unComponente = MEMORIA;
-    parametros->gestionarComando = gestionarRequest;
+//pthread_t crearHiloConsola(t_log* logger){
+//    pthread_t* hiloConsola = malloc(sizeof(pthread_t));
+//    parametros_consola* parametros = (parametros_consola*) malloc(sizeof(parametros_consola));
+//
+//    parametros->logger = logger;
+//    parametros->unComponente = MEMORIA;
+//    parametros->gestionarComando = gestionarRequest;
+//
+//    pthread_create(hiloConsola, NULL, &ejecutarConsola, parametros);
+//    return hiloConsola;
+//}
 
-    pthread_create(hiloConsola, NULL, &ejecutarConsola, parametros);
-    return hiloConsola;
-}
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
-
 	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
-
-	GestorConexiones* misConexiones = inicializarConexion();
-
-    levantarServidor(configuracion.puerto, misConexiones, logger);
-
-    //Instancia de la memoria principal
-    t_memoria* memoriaPrincipal = malloc(sizeof(t_memoria));
-
-	int fdKernel = 0;
+    t_memoria* memoriaPrincipal = inicializarMemoriaPrincipal(configuracion, logger);
 
     sem_t kernelConectado;
     sem_t lissandraConectada;
+    sem_init(&kernelConectado, 0, 0);
+    sem_init(&lissandraConectada, 0, 0);
 
-	sem_init(&kernelConectado, 0, 0);
-	sem_init(&lissandraConectada, 0 , 0);
+    int fdKernel = 0;
+	int fdLissandra = conectarseALissandra(configuracion.ipFileSystem, configuracion.puertoFileSystem, &lissandraConectada, logger);
+	memoriaPrincipal->tamanioDePagina = calcularTamanioDePagina(getTamanioValue(fdLissandra, logger));
+	GestorConexiones* misConexiones = inicializarConexion();
+    levantarServidor(configuracion.puerto, misConexiones, logger);
 
-	int fdLissandra = conectarseALissandra(configuracion.ipFileSystem, configuracion.puertoFileSystem, &lissandraConectada, memoriaPrincipal, logger);
-
-    inicializarMemoriaPrincipal(memoriaPrincipal, configuracion);
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
-    pthread_t* hiloConsola = crearHiloConsola(logger);
+//    pthread_t* hiloConsola = crearHiloConsola(logger);
 
     while(1){
 		sem_wait(&kernelConectado);
@@ -213,11 +182,14 @@ int main(void) {
 		if(fdKernel > 0)	{
 			char* request = recibirMensaje(&fdKernel);
 			if(request == NULL) {
+			    // tengo que habilitar el semáforo de Lissandra por si ésta sigue conectada, si no lo sigue se lo deshabilitará en otra vuelta del ciclo
+			    sem_post(&lissandraConectada);
 				continue;
 			}
 			else    {
 				sem_post(&kernelConectado);
-				enviarPaquete(fdLissandra, REQUEST, request);
+				if(fdLissandra > 0)
+				    enviarPaquete(fdLissandra, REQUEST, request);
                 char* respuestaLissandra = recibirMensaje(&fdLissandra);
                 if(respuestaLissandra == NULL)	{
                 	continue;
@@ -230,7 +202,23 @@ int main(void) {
 		}
     }
     pthread_join(*hiloConexiones, NULL);
-    pthread_join(*hiloConsola, NULL);
+//    pthread_join(*hiloConsola, NULL);
 
 	return 0;
+}
+
+int calcularTamanioDePagina(int tamanioValue){
+    //tamaño de INT (timestamp) + tamaño de u_int16_t (key) + tamaño de value (respuesta HS con LS)
+    return sizeof(time_t) + sizeof(u_int16_t) + tamanioValue;
+}
+
+//Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS
+int getTamanioValue(int fdLissandra, t_log* logger){
+    hacerHandshake(fdLissandra, MEMORIA);
+    int tamanioValue = (int) recibirMensaje(&fdLissandra);
+    if(tamanioValue != NULL)
+        log_info(logger, "Tamaño del value obtenido de Lissandra: %i", tamanioValue);
+    else
+        log_error(logger, "Hubo un error al intentar obtener el tamaño del value de Lissandra.");
+    return tamanioValue;
 }

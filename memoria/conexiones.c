@@ -64,9 +64,17 @@ void* atenderConexiones(void* parametrosThread)    {
                                 desconectarCliente(fdConectado, unaConexion, logger);
                             }
                             else	{
+                                switch(header.tipoMensaje)  {
+                                    case HANDSHAKE: ;
+                                        Componente componente = *((Componente*) mensaje);
+                                        atenderHandshake(header, componente, parametros);
+                                        break;
+                                    case REQUEST: ;
+                                        atenderMensajes(header, mensaje, parametros);
+                                        break;
+                                }
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
-                                atenderMensajes(header, mensaje, parametrosThread);
                             }
                             break;
                     }
@@ -82,9 +90,6 @@ void* atenderConexiones(void* parametrosThread)    {
                 //me fijo si hay que actualizar el file descriptor máximo con el del nuevo cliente
                 unaConexion->descriptorMaximo = getFdMaximo(unaConexion);
 
-                // hacemos handshake
-                hacerHandshake(*fdNuevoCliente, KERNEL);
-
                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le conecta un nuevo cliente
                 // nombre_maravillosa_funcion();
             }
@@ -92,20 +97,28 @@ void* atenderConexiones(void* parametrosThread)    {
     }
 }
 
-void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros)    {
-    if(header.tipoMensaje == HANDSHAKE) {
-        if(*(Componente*) mensaje == KERNEL)   {
-            eliminarFdDeListaDeConexiones(header.fdRemitente, parametros->conexion);
-            if(*(parametros->fdKernel) == 0)    {
-                *(parametros->fdKernel) = header.fdRemitente;
-                sem_post(parametros->kernelConectado);
-            }
-            else    {
-                cerrarSocket(header.fdRemitente, parametros->logger);
-            }
+void atenderHandshake(Header header, Componente componente, parametros_thread_memoria* parametros) {
+    if(componente == KERNEL) {
+        eliminarFdDeListaDeConexiones(header.fdRemitente, parametros->conexion);
+        TipoMensaje confirmacion;
+        if (*(parametros->fdKernel) == 0) {
+            *(parametros->fdKernel) = header.fdRemitente;
+            confirmacion = CONEXION_ACEPTADA;
+            sem_post(parametros->kernelConectado);
+        } else {
+            confirmacion = CONEXION_RECHAZADA;
+            cerrarSocket(header.fdRemitente, parametros->logger);
         }
-    }
 
+        enviarPaquete(header.fdRemitente, confirmacion, NULL);
+    }
+    else if(componente == MEMORIA)  {
+
+    }
+}
+
+void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros)    {
+    
 //    char** arrayMensaje = parser(mensaje);
 //
 //    //char** arrayMensaje = parser("SELECT amigues");
@@ -161,4 +174,12 @@ char* recibirMensaje(int* fdEmisor)    {
             return respuesta;
         }
     }
+}
+
+int conectarseALissandra(char* ipLissandra, int puertoLissandra, sem_t* lissandraConectada, t_log* logger){
+    int fdLissandra = crearSocketCliente(ipLissandra, puertoLissandra, logger);
+    if(fdLissandra > 0){
+        sem_post(lissandraConectada);
+    }
+    return fdLissandra;
 }

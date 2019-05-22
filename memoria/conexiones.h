@@ -20,7 +20,10 @@ void* atenderConexiones(void* parametrosThread);
 pthread_t* crearHiloConexiones(GestorConexiones* conexion, int* fdKernel, sem_t* kernelConectado, t_log* logger);
 
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros);
+void atenderHandshake(Header header, Componente componente, parametros_thread_memoria* parametros);
 
 char* recibirMensaje(int* fdEmisor);
+
+int conectarseALissandra(char* ipLissandra, int puertoLissandra, sem_t* lissandraConectada, t_log* logger);
 
 #endif //MEMORIA_CONEXIONES_H

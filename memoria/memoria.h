@@ -22,7 +22,6 @@
 #include "../libs/consola.h"
 #include "conexiones.h"
 
-
 typedef struct {
     int puerto;
     char* ipFileSystem;
@@ -37,47 +36,44 @@ typedef struct {
     int cantidadDeMemorias;
 } t_configuracion;
 
+typedef struct {
+    int timestamp;
+    u_int16_t key;
+    char* value;
+} t_pagina;
+
+typedef struct{
+    t_pagina unaPagina;
+    int numeroDePagina;
+    int flagDeModificado;
+} t_registroPagina;
+
+typedef struct {
+    char* nombreTabla;
+    int base;
+    int tamanioSegmento; //indica el limite del segmento
+} t_segmento;
+
+//Tipo de la Memoria Principal que aloja las paginas
+typedef struct {
+    int tamanioMemoria;
+    char* direcciones;
+    int tamanioDePagina;
+} t_memoria;
+
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
 t_configuracion configuracion; //Declaro mi instancia de t_configuracion como global
 
 int gestionarRequest(char **request);
 
-typedef struct {
-    int timestamp;
-    u_int16_t key;
-    char* value;
-}t_pagina;
+t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, t_log* logger);
 
-typedef struct{
-    t_pagina unaPagina;
-    int numeroDePagina;
-    int flagDeModificado;
-}t_registroPagina;
+int calcularTamanioDePagina(int tamanioValue);
+//Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS
+int getTamanioValue(int fdLissandra, t_log* logger);
 
-typedef struct {
-    char* nombreTabla; //es el path a la tabla?
-    int base;
-    int tamanioSegmento; //indica el limite del segmento
-
-}t_segmento;
-
-//Tipo de la Memoria Principal que aloja las paginas
-typedef struct{
-    int tamanioMemoria;
-    char* direcciones;
-    int tamanioDePagina;
-}t_memoria;
 // no usar variables globales
 //Instancia global de la memoria
 
-char* config_get_string_in_array_by_index(char** array, int indiceBuscado);
-
 #endif /* MEMORIA_H_ */
-
-/* Funcion conectarse a lissandra.
- * Crear socket cliente lissandra
- * if fdlissandra
- *      handshakeconlissandra->calcularTamanioPagina(tam_value, memoria)
- *      sem_post lissandra
- */

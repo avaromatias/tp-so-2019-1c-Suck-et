@@ -31,7 +31,7 @@ int tamanioDeArrayDeStrings(char** arrayDeString){
 }
 
 int pesoString(char* string)    {
-    return sizeof(char) * (strlen(string) + 1);
+    return string == NULL? 0 : sizeof(char) * (strlen(string) + 1);
 }
 
 char** parser(char* input){

@@ -16,7 +16,9 @@
 #include <semaphore.h>
 #include <commons/config.h>
 #include <commons/log.h>
+#include <commons/collections/dictionary.h>
 #include <readline/readline.h>
+#include <time.h>
 #include "../libs/config.h"
 #include "../libs/sockets.h"
 #include "../libs/consola.h"
@@ -36,34 +38,26 @@ typedef struct {
     int cantidadDeMemorias;
 } t_configuracion;
 
-typedef struct {
-    int timestamp;
-    u_int16_t key;
-    char* value;
+typedef struct  {
+    char** base;
+    int numero;
+    bool modificada;
 } t_pagina;
 
-typedef struct{
-    t_pagina unaPagina;
-    int numeroDePagina;
-    int flagDeModificado;
-} t_registroPagina;
-
 typedef struct {
-    char* nombreTabla;
-    int base;
-    int tamanioSegmento; //indica el limite del segmento
+    char* pathTabla; // viene a ser el identificador del segmento
+    int cantidadPaginasSegmento; //indica el limite del segmento
+    t_dictionary* tablaDePaginas; // viene a ser la base del segmento
 } t_segmento;
 
 //Tipo de la Memoria Principal que aloja las paginas
 typedef struct {
     int tamanioMemoria;
-    char* direcciones;
-    int tamanioDePagina;
+    int tamanioPagina;
+    t_dictionary* tablaDeSegmentos;
 } t_memoria;
 
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
-
-t_configuracion configuracion; //Declaro mi instancia de t_configuracion como global
 
 int gestionarRequest(char **request);
 
@@ -72,8 +66,5 @@ t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, t_log* log
 int calcularTamanioDePagina(int tamanioValue);
 //Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS
 int getTamanioValue(int fdLissandra, t_log* logger);
-
-// no usar variables globales
-//Instancia global de la memoria
 
 #endif /* MEMORIA_H_ */

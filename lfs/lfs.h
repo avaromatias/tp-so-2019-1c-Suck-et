@@ -36,9 +36,9 @@ typedef struct {
 } t_configuracion;
 
 typedef struct {
-    int block_size;
-    int blocks;
-    char *magic_number;
+    int consistency;
+    int partitions;
+    char *compaction_time;
 } t_metadata;
 
 typedef struct {

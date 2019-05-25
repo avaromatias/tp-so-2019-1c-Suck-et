@@ -36,7 +36,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     } else {
         configuracion.puertoEscucha = config_get_int_value(archivoConfig, "PUERTO_ESCUCHA");
         char *puntoMontaje = config_get_string_value(archivoConfig, "PUNTO_MONTAJE");
-        configuracion.puntoMontaje = (char*) malloc(sizeof(char) * strlen(puntoMontaje));
+        configuracion.puntoMontaje = (char *) malloc(sizeof(char) * strlen(puntoMontaje));
         strcpy(configuracion.puntoMontaje, puntoMontaje);
         configuracion.retardo = config_get_int_value(archivoConfig, "RETARDO");
         configuracion.tamanioValue = config_get_int_value(archivoConfig, "TAMAÑO_VALUE");
@@ -46,7 +46,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 }
 
-void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs* parametros) {
+void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros) {
     enviarPaquete(header.fdRemitente, REQUEST, "Hola, soy Lissandra");
     printf("Estoy recibiendo un mensaje del File Descriptor %i: %s", header.fdRemitente, mensaje);
     fflush(stdout);
@@ -75,26 +75,51 @@ char *armarLinea(char *key, char *valor, time_t timestamp) {
 }
 
 char **desarmarLinea(char *linea) {
+
     return string_split(linea, ";");
 }
 
-void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
-    if (existeTabla(nombreTabla)) {
-        char *path = obtenerPathMetadata(nombreTabla);
-        if (existeElArchivo(path)) {
-            printf("Existe metadata en %s\n", path);
-        } else {
-            printf("No existe metadata en %s\n", path);
-        }
-        char *linea = armarLinea(key, valor, timestamp);
-        FILE *f = fopen(obtenerPathArchivo(nombreTabla, "1.bin"), "a");
-        fwrite(linea, sizeof(char *), sizeof(linea), f);
-        fclose(f);
-        free(path);
+int validarValor(char *valor) {
+    char primerChar = valor[0];
+    char ultimoChar = valor[strlen(valor) - 1];
+    if(primerChar == '"' && ultimoChar == '"'){
+        return 0;
+    }else{
+        return -1;
     }
 }
 
-void lfsSelect(char* nombreTabla, char* key){
+void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
+    if (validarValor(valor) != 0) {
+        log_warning(logger, "El valor debe estar enmascarado con \"\"");
+    }
+    else{
+        if (existeTabla(nombreTabla) == 0) {
+            char *path = obtenerPathMetadata(nombreTabla);
+            if (existeElArchivo(path)) {
+                printf("Existe metadata en %s\n", path);
+                char *linea = armarLinea(key, valor, timestamp);
+                obtenerMetadata(nombreTabla);
+                t_metadata *meta = dictionary_get(metadatas, nombreTabla);
+                int particion = calcularParticion(key, meta);
+                char *nombreArchivo = string_new();
+                char *p = string_itoa(particion);
+                string_append(&nombreArchivo, p);
+                string_append(&nombreArchivo, ".bin");
+                FILE *f = fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "a");
+                printf("Linea %s\n", linea);
+                fwrite(linea, sizeof(char) * strlen(linea), 1, f);
+                fclose(f);
+                free(path);
+            } else {
+                printf("No existe metadata en %s\n", path);
+            }
+    }
+
+    }
+}
+
+void lfsSelect(char *nombreTabla, char *key) {
     char ch;
 
     //1. Verificar que la tabla exista en el File System
@@ -102,14 +127,14 @@ void lfsSelect(char* nombreTabla, char* key){
 
     //2. Obtener la metadata asociada a dicha tabla
     obtenerMetadata(nombreTabla);
-    t_metadata* meta = dictionary_get(metadatas, nombreTabla);
+    t_metadata *meta = dictionary_get(metadatas, nombreTabla);
 
     //3. Calcular cual es la partición que contiene dicho KEY
     int particion = calcularParticion(key, meta);
 
     //4. Escanear la partición objetivo, todos los archivos temporales y la memoria temporal de dicha tabla (si existe) buscando la key deseada
     char *nombreArchivo = string_new();
-    char* p = string_itoa(particion);
+    char *p = string_itoa(particion);
     string_append(&nombreArchivo, p);
     string_append(&nombreArchivo, ".bin");
     char *archivePath = obtenerPathArchivo(nombreTabla, nombreArchivo);
@@ -125,14 +150,14 @@ void lfsSelect(char* nombreTabla, char* key){
     char str[2];
     str[1] = '\0';
     char **entradas;
-    while(!feof(fd)) {
-        while((ch = fgetc(fd)) != '\r') {
+    while (!feof(fd)) {
+        while ((ch = fgetc(fd)) != '\r') {
             str[0] = ch;
             string_append(&linea, str);
             printf("%c", ch);
         }
         char **dato = desarmarLinea(linea);
-        if(dato[1] == key){
+        if (dato[1] == key) {
             entradas[i] = armarLinea(dato[0], dato[1], (time_t) dato[2]);
             i++;
         }
@@ -143,6 +168,48 @@ void lfsSelect(char* nombreTabla, char* key){
     log_info(logger, entradas[0]);
 
     //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
+}
+
+void ejecutarConsola(void* parametrosConsola){
+
+    parametros_consola* parametros = (parametros_consola*) parametrosConsola;
+
+    t_log* logger = parametros->logger;
+    int (*gestionarComando)(char**) = parametros->gestionarComando;
+    Componente nombreDelProceso = parametros->unComponente;
+
+    char* comando;
+    char* nombreDelGrupo = "@suck-ets:~$ ";
+    char* prompt = string_new();
+    switch (nombreDelProceso){
+        case KERNEL:
+            string_append(&prompt, "Kernel");
+            break;
+        case MEMORIA:
+            string_append(&prompt, "Memoria");
+            break;
+        case LISSANDRA:
+            string_append(&prompt, "Lissandra");
+            break;
+    }
+    string_append(&prompt, nombreDelGrupo);
+    do {
+        char* leido = readline(prompt);
+        comando = malloc(sizeof(char) * strlen(leido) + 1);
+        memcpy(comando, leido, strlen(leido));
+        comando[strlen(leido)] = '\0';
+        char** comandoParseado = parser(comando);
+        if(validarComandosComunes(comandoParseado)== 1){
+            if(gestionarComando(comandoParseado) == 0){
+                log_info(logger, "Request procesada correctamente.");
+            } else {
+                log_error(logger, "No se pudo procesar la request solicitada.");
+            };
+        }
+        string_to_lower(comando);
+    } while(strcmp(comando, "exit") != 0);
+    free(comando);
+    printf("Ya analizamos todo lo solicitado.\n");
 }
 
 int gestionarRequest(char **request) {
@@ -217,51 +284,49 @@ int gestionarRequest(char **request) {
 
 int existeTabla(char *tabla) {
     char *tablePath = obtenerPathTabla(tabla);
-    if (!existeElArchivo(tablePath)){
+    if (!existeElArchivo(tablePath)) {
         log_error(logger, "No se encontro o no tiene permisos para acceder a la tabla %s", tabla);
         return -1;
     }
     return 0;
 }
 
-void obtenerMetadata(char* tabla) {
+void obtenerMetadata(char *tabla) {
     char *metadataPath = obtenerPathMetadata(tabla);
-    t_config* config = config_create(metadataPath);
-    t_metadata *metadata = (t_metadata*) malloc(sizeof(t_metadata));
+    t_config *config = config_create(metadataPath);
+    t_metadata *metadata = (t_metadata *) malloc(sizeof(t_metadata));
 
-    if(config == NULL) {
+    if (config == NULL) {
         log_error(logger, "No se pudo obtener el archivo Metadata.");
         exit(1);
     }
 
-    if (config_has_property(config, "BLOCK_SIZE")) {
-        metadata->block_size = config_get_int_value(config, "BLOCK_SIZE");
+    if (config_has_property(config, "PARTITIONS")) {
+        metadata->partitions = config_get_int_value(config, "PARTITIONS");
     }
 
-    if (config_has_property(config, "BLOCKS")) {
-        metadata->blocks = config_get_int_value(config, "BLOCKS");
+    if (config_has_property(config, "CONSISTENCY")) {
+        metadata->consistency = config_get_int_value(config, "CONSISTENCY");
     }
 
-    if (config_has_property(config, "MAGIC_NUMBER")) {
-        char* magic_num = config_get_string_value(config, "MAGIC_NUMBER");
-        metadata->magic_number = malloc(strlen(magic_num) + 1);
-        memcpy(metadata->magic_number, magic_num, strlen(magic_num) + 1);
+    if (config_has_property(config, "COMPACTION_TIME")) {
+        metadata->compaction_time = config_get_string_value(config, "COMPACTION_TIME");
     }
 
     dictionary_put(metadatas, tabla, metadata);
     config_destroy(config);
 }
 
-int calcularParticion(char* key, t_metadata* metadata) {
+int calcularParticion(char *key, t_metadata *metadata) {
     int k = atoi(key);
-    int b = metadata->blocks;
+    int b = metadata->partitions;
     return k % b;
 }
 
-pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, int* fdMemoria, sem_t* kernelConectado, t_log* logger) {
-    pthread_t* hiloConexiones = malloc(sizeof(pthread_t));
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, int *fdMemoria, sem_t *kernelConectado, t_log *logger) {
+    pthread_t *hiloConexiones = malloc(sizeof(pthread_t));
 
-    parametros_thread_lfs* parametros = (parametros_thread_lfs*) malloc(sizeof(parametros_thread_lfs));
+    parametros_thread_lfs *parametros = (parametros_thread_lfs *) malloc(sizeof(parametros_thread_lfs));
 
     parametros->conexion = unaConexion;
     parametros->logger = logger;
@@ -273,29 +338,30 @@ pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, int* fdMemoria, se
     return hiloConexiones;
 }
 
-void* atenderConexiones(void* parametrosThread) {
-    parametros_thread_lfs* parametros = (parametros_thread_lfs*) parametrosThread;
-    GestorConexiones* unaConexion = parametros->conexion;
-    t_log* logger = parametros->logger;
-    int* fdMemoria = parametros->fdMemoria;
-    sem_t* memoriaConectada = parametros->memoriaConectada;
+void *atenderConexiones(void *parametrosThread) {
+    parametros_thread_lfs *parametros = (parametros_thread_lfs *) parametrosThread;
+    GestorConexiones *unaConexion = parametros->conexion;
+    t_log *logger = parametros->logger;
+    int *fdMemoria = parametros->fdMemoria;
+    sem_t *memoriaConectada = parametros->memoriaConectada;
 
     fd_set emisores;
 
-    while(1) {
-        if(hayNuevoMensaje(unaConexion, &emisores)) {
+    while (1) {
+        if (hayNuevoMensaje(unaConexion, &emisores)) {
             // voy a recorrer todos los FD a los cuales estoy conectado para saber cuál de todos es el que tiene un nuevo mensaje
-            for(int i=0; i < list_size(unaConexion->conexiones); i++) {
+            for (int i = 0; i < list_size(unaConexion->conexiones); i++) {
                 Header headerSerializado;
-                int fdConectado = *((int*) list_get(unaConexion->conexiones, i));
+                int fdConectado = *((int *) list_get(unaConexion->conexiones, i));
 
-                if(FD_ISSET(fdConectado, &emisores)) {
+                if (FD_ISSET(fdConectado, &emisores)) {
                     int bytesRecibidos = recv(fdConectado, &headerSerializado, sizeof(Header), MSG_DONTWAIT);
 
-                    switch(bytesRecibidos) {
+                    switch (bytesRecibidos) {
                         // hubo un error al recibir los datos
                         case -1:
-                            log_warning(logger, "Hubo un error al recibir el header proveniente del socket %i", fdConectado);
+                            log_warning(logger, "Hubo un error al recibir el header proveniente del socket %i",
+                                        fdConectado);
                             break;
                             // se desconectó
                         case 0:
@@ -304,20 +370,20 @@ void* atenderConexiones(void* parametrosThread) {
                             desconectarCliente(fdConectado, unaConexion, logger);
                             break;
                             // recibí algún mensaje
-                        default: ; // esto es lo más raro que vi pero tuve que hacerlo
+                        default:; // esto es lo más raro que vi pero tuve que hacerlo
                             Header header = deserializarHeader(&headerSerializado);
                             header.fdRemitente = fdConectado;
                             int pesoMensaje = header.tamanioMensaje * sizeof(char);
-                            void* mensaje = (void*) malloc(pesoMensaje);
+                            void *mensaje = (void *) malloc(pesoMensaje);
                             bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
-                            if(bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
-                                log_warning(logger, "Hubo un error al recibir el mensaje proveniente del socket %i", fdConectado);
-                            else if(bytesRecibidos == 0) {
+                            if (bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
+                                log_warning(logger, "Hubo un error al recibir el mensaje proveniente del socket %i",
+                                            fdConectado);
+                            else if (bytesRecibidos == 0) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();
                                 desconectarCliente(fdConectado, unaConexion, logger);
-                            }
-                            else {
+                            } else {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
                                 atenderMensajes(header, mensaje, parametrosThread);
@@ -328,8 +394,8 @@ void* atenderConexiones(void* parametrosThread) {
             }
 
             // me fijo si hay algún nuevo conectado
-            if(FD_ISSET(unaConexion->servidor, &emisores))	{
-                int* fdNuevoCliente = malloc(sizeof(int));
+            if (FD_ISSET(unaConexion->servidor, &emisores)) {
+                int *fdNuevoCliente = malloc(sizeof(int));
                 *fdNuevoCliente = aceptarCliente(unaConexion->servidor, logger);
                 list_add(unaConexion->conexiones, fdNuevoCliente);
 
@@ -361,7 +427,7 @@ int main(void) {
     log_info(logger, "Tamaño value: %i", configuracion.tamanioValue);
     log_info(logger, "Tiempo dump: %i", configuracion.tiempoDump);
 
-    GestorConexiones* misConexiones = inicializarConexion();
+    GestorConexiones *misConexiones = inicializarConexion();
 
     levantarServidor(configuracion.puertoEscucha, misConexiones, logger);
 
@@ -371,9 +437,9 @@ int main(void) {
 
     sem_init(&memoriaConectada, 0, 0);
 
-    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdMemoria, &memoriaConectada, logger);
+    //pthread_t *hiloConexiones = crearHiloConexiones(misConexiones, &fdMemoria, &memoriaConectada, logger);
 
-    parametros_consola* parametros = (parametros_consola*) malloc(sizeof(parametros_consola));
+    parametros_consola *parametros = (parametros_consola *) malloc(sizeof(parametros_consola));
 
     parametros->logger = logger;
     parametros->unComponente = LISSANDRA;
@@ -383,16 +449,16 @@ int main(void) {
     // crearHiloServidor(configuracion.puertoEscucha, &atenderMensajes, NULL, NULL);
     //int cliente = crearSocketCliente("192.168.0.30", 8000);
 
-    while(1) {
+    while (1) {
         sem_wait(&memoriaConectada);
-        if(fdMemoria > 0) {
+        if (fdMemoria > 0) {
             Header header;
             int bytesRecibidos = recv(fdMemoria, &header, sizeof(Header), MSG_WAITALL);
-            if(bytesRecibidos == 0)
+            if (bytesRecibidos == 0)
                 fdMemoria = 0;
             else {
                 header = deserializarHeader(&header);
-                char* request = (char*) malloc(header.tamanioMensaje);
+                char *request = (char *) malloc(header.tamanioMensaje);
                 bytesRecibidos = recv(fdMemoria, &request, header.tamanioMensaje, MSG_WAITALL);
                 printf("Request recibida: %s\n", request);
                 fflush(stdout);

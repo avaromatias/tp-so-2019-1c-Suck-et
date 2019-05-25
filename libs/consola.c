@@ -41,8 +41,8 @@ int validarComandosComunes(char** comando){
 void imprimirErrorParametros(){
     printf("Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n");
 }
-//void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProceso, t_log *logger) {
-void ejecutarConsola(void* parametrosConsola){
+
+/*void ejecutarConsola(void* parametrosConsola){
 
     parametros_consola* parametros = (parametros_consola*) parametrosConsola;
 
@@ -82,7 +82,7 @@ void ejecutarConsola(void* parametrosConsola){
     } while(strcmp(comando, "exit") != 0);
     free(comando);
     printf("Ya analizamos todo lo solicitado.\n");
-}
+}*/
 
 char *obtenerPathTabla(char *nombreTabla) {
     char *basePath = "../tables/";

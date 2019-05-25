@@ -145,6 +145,48 @@ void lfsSelect(char* nombreTabla, char* key){
     //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
 }
 
+void ejecutarConsola(void* parametrosConsola){
+
+    parametros_consola* parametros = (parametros_consola*) parametrosConsola;
+
+    t_log* logger = parametros->logger;
+    int (*gestionarComando)(char**) = parametros->gestionarComando;
+    Componente nombreDelProceso = parametros->unComponente;
+
+    char* comando;
+    char* nombreDelGrupo = "@suck-ets:~$ ";
+    char* prompt = string_new();
+    switch (nombreDelProceso){
+        case KERNEL:
+            string_append(&prompt, "Kernel");
+            break;
+        case MEMORIA:
+            string_append(&prompt, "Memoria");
+            break;
+        case LISSANDRA:
+            string_append(&prompt, "Lissandra");
+            break;
+    }
+    string_append(&prompt, nombreDelGrupo);
+    do {
+        char* leido = readline(prompt);
+        comando = malloc(sizeof(char) * strlen(leido) + 1);
+        memcpy(comando, leido, strlen(leido));
+        comando[strlen(leido)] = '\0';
+        char** comandoParseado = parser(comando);
+        if(validarComandosComunes(comandoParseado)== 1){
+            if(gestionarComando(comandoParseado) == 0){
+                log_info(logger, "Request procesada correctamente.");
+            } else {
+                log_error(logger, "No se pudo procesar la request solicitada.");
+            };
+        }
+        string_to_lower(comando);
+    } while(strcmp(comando, "exit") != 0);
+    free(comando);
+    printf("Ya analizamos todo lo solicitado.\n");
+}
+
 int gestionarRequest(char **request) {
     char *tipoDeRequest = request[0];
     char *nombreTabla = request[1];

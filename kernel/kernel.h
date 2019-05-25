@@ -46,5 +46,6 @@ t_list* finalizados;
 t_configuracion cargarConfiguracion(char*, t_log*);
 int gestionarComando(char **);
 int validarComandosKernel(char* tipoDeRequest, char* nombreTabla, char* param1, char* param2, char* param3);
+void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProceso, t_log *logger);
 
 #endif /* KERNEL_H_ */

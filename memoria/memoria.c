@@ -70,6 +70,7 @@ t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, t_log* log
     t_memoria* memoriaPrincipal = (t_memoria*) malloc(sizeof(t_memoria));
     memoriaPrincipal->tamanioMemoria = configuracion.tamanioMemoria;
     memoriaPrincipal->direcciones = (void*) malloc(configuracion.tamanioMemoria);
+    memoriaPrincipal->tablaDeSegmentos = dictionary_create();
     return memoriaPrincipal;
 }
 
@@ -157,6 +158,69 @@ int gestionarRequest(char **request) {
 //    return hiloConsola;
 //}
 
+char** crearPagina(int key, char* value, int tamanioPagina)   {
+    char** pagina = (char**) malloc(tamanioPagina);
+    time_t tiempo;
+    sprintfs(*pagina, "%i%i%s", time(&tiempo), key, value);
+    return pagina;
+}
+
+void guardarRegistroPagina(t_pagina* tablaDePaginas, t_pagina pagina)    {
+    t_pagina paginaEncontrada = findPaginaByKey(pagina.numero, tablaDePaginas);
+    if(paginaEncontrada != NULL) {
+        pagina.modificada = true;
+        free(paginaEncontrada.base);
+        paginaEncontrada.base = pagina.base;
+    } else  {
+        pagina.modificada = false;
+    }
+}
+
+void reemplazarPagina(u_int16 key, char** nuevoValor, t_dictionary* tablaDePaginas) {
+    t_pagina* pagina = dictionary_get(tablaDePaginas, key);
+    strcpy(pagina->base, nuevaPagina);
+    // reemplazo la página encontrada en la tabla de páginas
+    dictionary_put(tablaDePaginas, key, nuevoValor);
+}
+
+void insertarNuevaPagina(u_int16 key, char** value, t_segmento segmento) {
+    t_pagina* nuevaPagina = (t_pagina*) malloc(sizeof(t_pagina));
+    nuevaPagina->modificada = true;
+    nuevaPagina->base = value;
+    void* marcoLibre = getMarcoLibre(segmento);
+    insertarEnMemoriaAndActualizarTablaDePaginas(marcoLibre, value, segmento.tablaDePaginas, nuevaPagina);
+}
+
+void insertarEnMemoriaAndActualizarTablaDePaginas(void* direccion, char* valor, t_dictionary* tablaDePaginas, t_pagina* pagina)  {
+    strcpy(direccion, valor);
+    dictionary_put(tablaDePaginas, key, pagina);
+}
+
+void* getMarcoLibre(t_segmento segmento)    {
+    // cómo sé qué marcos están libres en un segmento?
+    // seguramente voy a tener que cambiar el struct t_segmento para agregar una tabla de marcos libres o modificar el struct t_pagina para agregar un flag de ocupado
+}
+
+bool segmentoTieneMarcosLibres(t_segmento segmento)    {
+    return dictionary_size(segmento.tablaDePaginas) < segmento.cantidadPaginasSegmento;
+}
+
+void insert(char* nombreTabla, u_int16 key, char* value, t_memoria memoria)   {
+    char** contenidoPagina = crearPagina(key, value, memoria.tamanioPagina);
+    // tengo la tabla en la memoria?
+    if(dictionary_has_key(memoria.tablaDeSegmentos, nombreTabla))   {
+        // obtengo el segmento asociado a la tabla en memoria
+        t_segmento* segmento = (t_segmento*) dictionary_get(memoria.tablaDeSegmentos, nombreTabla);
+        // tengo la key en la tabla de páginas?
+        if(dictionary_has_key(segmento->tablaDePaginas, key))   {
+            reemplazarPagina(key, contenidoPagina, segmento->tablaDePaginas);
+        }   else if(segmentoTieneMarcosLibres(*segmento))   {
+            insertarNuevaPagina(segmento, key, contenidoPagina);
+        }
+    }
+}
+
+
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
 	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
@@ -175,6 +239,8 @@ int main(void) {
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
 //    pthread_t* hiloConsola = crearHiloConsola(logger);
+
+    char** tablaDeEspaciosLibres = (char*) malloc(configuracion.tamanioMemoria);
 
     while(1){
 		sem_wait(&kernelConectado);

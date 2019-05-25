@@ -48,6 +48,10 @@ typedef struct {
     int* fdMemoria;
 } parametros_thread_lfs;
 
+typedef struct {
+    char* comando;
+} parametros_thread_request;
+
 t_configuracion configuracion;
 t_log *logger;
 t_dictionary *metadatas;
@@ -60,6 +64,9 @@ void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs* parame
 
 void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
+pthread_t* crearHiloRequest(char *mensaje);
+char* procesarComando(char* comando);
+void * procesarComandoPorRequest(void* params);
 void lfsSelect(char *nombreTabla, char *key);
 
 /**

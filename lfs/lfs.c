@@ -47,9 +47,22 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
 }
 
 void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros) {
-    enviarPaquete(header.fdRemitente, REQUEST, "Hola, soy Lissandra");
-    printf("Estoy recibiendo un mensaje del File Descriptor %i: %s", header.fdRemitente, mensaje);
-    fflush(stdout);
+   if(header.tipoMensaje == HANDSHAKE){
+       enviarPaquete(header.fdRemitente, REQUEST, "Hola, soy Lissandra");
+       printf("Estoy recibiendo un mensaje del File Descriptor %i: %s", header.fdRemitente, mensaje);
+       fflush(stdout);
+   } else if(header.tipoMensaje == REQUEST) {
+       pthread_t *hiloRequest = crearHiloRequest(mensaje);
+   }
+
+}
+
+pthread_t* crearHiloRequest(char * mensaje){
+    pthread_t *hiloRequest = malloc(sizeof(pthread_t));
+    parametros_thread_request *parametros = (parametros_thread_request *) malloc(sizeof(parametros_thread_request));
+    parametros->comando = mensaje;
+    pthread_create(hiloRequest, NULL, &procesarComandoPorRequest,parametros);
+    return hiloRequest;
 }
 
 char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
@@ -198,20 +211,29 @@ void ejecutarConsola(void* parametrosConsola){
         comando = malloc(sizeof(char) * strlen(leido) + 1);
         memcpy(comando, leido, strlen(leido));
         comando[strlen(leido)] = '\0';
-        char** comandoParseado = parser(comando);
-        if(validarComandosComunes(comandoParseado)== 1){
-            if(gestionarComando(comandoParseado) == 0){
-                log_info(logger, "Request procesada correctamente.");
-            } else {
-                log_error(logger, "No se pudo procesar la request solicitada.");
-            };
-        }
-        string_to_lower(comando);
+        comando = procesarComando(comando);
     } while(strcmp(comando, "exit") != 0);
     free(comando);
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
+void * procesarComandoPorRequest(void* params){
+    parametros_thread_request *parametros = (parametros_thread_request *) params;
+    return procesarComando(parametros->comando);
+
+}
+char * procesarComando(char* comando){
+    char** comandoParseado = parser(comando);
+    if(validarComandosComunes(comandoParseado)== 1){
+        if(gestionarRequest(comandoParseado) == 0){
+            log_info(logger, "Request procesada correctamente.");
+        } else {
+            log_error(logger, "No se pudo procesar la request solicitada.");
+        };
+    }
+    string_to_lower(comando);
+    return comando;
+}
 int gestionarRequest(char **request) {
     char *tipoDeRequest = request[0];
     char *nombreTabla = request[1];
@@ -437,7 +459,7 @@ int main(void) {
 
     sem_init(&memoriaConectada, 0, 0);
 
-    //pthread_t *hiloConexiones = crearHiloConexiones(misConexiones, &fdMemoria, &memoriaConectada, logger);
+    pthread_t *hiloConexiones = crearHiloConexiones(misConexiones, &fdMemoria, &memoriaConectada, logger);
 
     parametros_consola *parametros = (parametros_consola *) malloc(sizeof(parametros_consola));
 

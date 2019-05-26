@@ -131,6 +131,15 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
     fclose(f);
 }
 
+void crearBinarios(char *nombreTabla,int particiones){
+    for(int i=0;i<particiones;i++){
+        char * nombreArchivo = string_new();
+        string_append(&nombreArchivo,string_from_format("%i",i));
+        string_append(&nombreArchivo,".bin");
+        FILE* file=fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "w");
+        fclose(file);
+    }
+}
 void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
     if (validarConsistencia(tipoConsistencia) != 0) {
         log_warning(logger, "El Tipo de Consistencia no es valido. Este puede ser SC, SHC o EC.");
@@ -155,7 +164,9 @@ void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, cha
             // Grabar en dicho archivo los parámetros pasados por el request.
             crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
             printf("Se creo la Metadata de la tabla %s.\n", nombreTabla);
-            // TODO: Crear los archivos binarios asociados a cada partición de la tabla y asignar a cada uno un bloque
+            // Crear los archivos binarios asociados a cada partición de la tabla y
+            //  TODO: asignar a cada uno un bloque (?)
+            crearBinarios(nombreTabla,atoi(particiones));
         }
     }
 }

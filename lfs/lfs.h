@@ -72,6 +72,8 @@ char *procesarComando(char *comando);
 
 int validarConsistencia(char *tipoConsistencia);
 
+void crearBinarios(char *nombreTabla, int particiones);
+
 void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
 void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);

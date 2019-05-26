@@ -136,20 +136,26 @@ void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, cha
         log_warning(logger, "El Tipo de Consistencia no es valido. Este puede ser SC, SHC o EC.");
     } else {
         char *tablePath = obtenerPathTabla(nombreTabla);
+        // Verificar que la tabla no exista en el file system.
         if (existeElArchivo(tablePath)) {
             char *path = obtenerPathMetadata(nombreTabla);
-            printf("La tabla %s ya existe.\n", nombreTabla);
+            // En caso que exista, se guardará el resultado en un archivo .log y se retorna un error indicando dicho resultado.
+            log_info(logger, "La tabla %s ya existe.\n", nombreTabla);
             if (!existeElArchivo(path)) {
                 crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
                 printf("Se creo la Metadata de la tabla %s.\n", nombreTabla);
             }
         } else {
+            // Crear el directorio para dicha tabla.
             char *createDir = string_new();
             string_append(&createDir, "../tables/");
             string_append(&createDir, nombreTabla);
             mkdir(createDir, 0777);
+            // Crear el directorio para dicha tabla.
+            // Grabar en dicho archivo los parámetros pasados por el request.
             crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
             printf("Se creo la Metadata de la tabla %s.\n", nombreTabla);
+            // TODO: Crear los archivos binarios asociados a cada partición de la tabla y asignar a cada uno un bloque
         }
     }
 }
@@ -158,10 +164,13 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
     if (validarValor(valor) != 0) {
         log_warning(logger, "El valor debe estar enmascarado con \"\"");
     } else {
+        // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
         if (existeTabla(nombreTabla) == 0) {
+           // Obtener la metadata asociada a dicha tabla.
             char *path = obtenerPathMetadata(nombreTabla);
             if (existeElArchivo(path)) {
                 printf("Existe metadata en %s\n", path);
+                // TODO: Verificar si existe en memoria una lista de datos a dumpear. De no existir, alocar dicha memoria.
                 char *linea = armarLinea(key, valor, timestamp);
                 obtenerMetadata(nombreTabla);
                 t_metadata *meta = dictionary_get(metadatas, nombreTabla);
@@ -172,6 +181,7 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
                 string_append(&nombreArchivo, ".bin");
                 FILE *f = fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "a");
                 printf("Linea %s\n", linea);
+                // TODO: Insertar en la memoria temporal del punto anterior una nueva entrada que contenga los datos enviados en la request.
                 fwrite(linea, sizeof(char) * strlen(linea), 1, f);
                 fclose(f);
                 free(path);
@@ -245,17 +255,7 @@ void ejecutarConsola(void *parametrosConsola) {
     char *comando;
     char *nombreDelGrupo = "@suck-ets:~$ ";
     char *prompt = string_new();
-    switch (nombreDelProceso) {
-        case KERNEL:
-            string_append(&prompt, "Kernel");
-            break;
-        case MEMORIA:
-            string_append(&prompt, "Memoria");
-            break;
-        case LISSANDRA:
-            string_append(&prompt, "Lissandra");
-            break;
-    }
+    string_append(&prompt, "Lissandra");
     string_append(&prompt, nombreDelGrupo);
     do {
         char *leido = readline(prompt);
@@ -265,7 +265,7 @@ void ejecutarConsola(void *parametrosConsola) {
         comando = procesarComando(comando);
     } while (strcmp(comando, "exit") != 0);
     free(comando);
-    printf("Ya analizamos todo lo solicitado.\n");
+    printf("Ya se analizo todo lo solicitado.\n");
 }
 
 void *procesarComandoPorRequest(void *params) {
@@ -276,11 +276,11 @@ void *procesarComandoPorRequest(void *params) {
 
 char *procesarComando(char *comando) {
     char **comandoParseado = parser(comando);
-    if (validarComandosComunes(comandoParseado) == 1) {
+    if (strcmp("exit", comando) != 0 && validarComandosComunes(comandoParseado) == 1) {
         if (gestionarRequest(comandoParseado) == 0) {
             log_info(logger, "Request procesada correctamente.");
         } else {
-            log_error(logger, "No se pudo procesar la request solicitada.");
+            log_error(logger, "No se pudo procesar la request solicitada (%s).", comando);
         };
     }
     string_to_lower(comando);
@@ -308,6 +308,9 @@ int gestionarRequest(char **request) {
         printf("Key: %s\n", param1);
         printf("Valor: %s\n", param2);
         time_t timestamp;
+        // El parámetro Timestamp es opcional.
+        // En caso que un request no lo provea (por ejemplo insertando un valor desde la consola),
+        // se usará el valor actual del Epoch UNIX.
         if (param3 != NULL) {
             timestamp = (time_t) strtol(param3, NULL, 10);
         } else {
@@ -351,8 +354,11 @@ int gestionarRequest(char **request) {
         printf("- EXIT\n");
         return 0;
 
+    } else if (strcmp(tipoDeRequest, "EXIT") == 0) {
+        return 0;
+
     } else {
-        printf("Ingrese un comando valido.");
+        printf("Ingrese un comando valido.\n");
         return -2;
     }
 
@@ -361,7 +367,7 @@ int gestionarRequest(char **request) {
 int existeTabla(char *tabla) {
     char *tablePath = obtenerPathTabla(tabla);
     if (!existeElArchivo(tablePath)) {
-        log_error(logger, "No se encontro o no tiene permisos para acceder a la tabla %s", tabla);
+        log_error(logger, "No se encontro o no tiene permisos para acceder a la tabla %s.", tabla);
         return -1;
     }
     return 0;

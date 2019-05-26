@@ -47,21 +47,21 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
 }
 
 void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros) {
-   if(header.tipoMensaje == HANDSHAKE){
-       enviarPaquete(header.fdRemitente, REQUEST, "Hola, soy Lissandra");
-       printf("Estoy recibiendo un mensaje del File Descriptor %i: %s", header.fdRemitente, mensaje);
-       fflush(stdout);
-   } else if(header.tipoMensaje == REQUEST) {
-       pthread_t *hiloRequest = crearHiloRequest(mensaje);
-   }
+    if (header.tipoMensaje == HANDSHAKE) {
+        enviarPaquete(header.fdRemitente, REQUEST, "Hola, soy Lissandra");
+        printf("Estoy recibiendo un mensaje del File Descriptor %i: %s", header.fdRemitente, mensaje);
+        fflush(stdout);
+    } else if (header.tipoMensaje == REQUEST) {
+        pthread_t *hiloRequest = crearHiloRequest(mensaje);
+    }
 
 }
 
-pthread_t* crearHiloRequest(char * mensaje){
+pthread_t *crearHiloRequest(char *mensaje) {
     pthread_t *hiloRequest = malloc(sizeof(pthread_t));
     parametros_thread_request *parametros = (parametros_thread_request *) malloc(sizeof(parametros_thread_request));
     parametros->comando = mensaje;
-    pthread_create(hiloRequest, NULL, &procesarComandoPorRequest,parametros);
+    pthread_create(hiloRequest, NULL, &procesarComandoPorRequest, parametros);
     return hiloRequest;
 }
 
@@ -92,21 +92,72 @@ char **desarmarLinea(char *linea) {
     return string_split(linea, ";");
 }
 
+int validarConsistencia(char *tipoConsistencia) {
+    if (strcmp(tipoConsistencia, "SC") == 0 || strcmp(tipoConsistencia, "SHC") == 0 ||
+        strcmp(tipoConsistencia, "EC") == 0) {
+        return 0;
+    }
+    return -1;
+}
+
 int validarValor(char *valor) {
     char primerChar = valor[0];
     char ultimoChar = valor[strlen(valor) - 1];
-    if(primerChar == '"' && ultimoChar == '"'){
+    if (primerChar == '"' && ultimoChar == '"') {
         return 0;
-    }else{
-        return -1;
+    }
+    return -1;
+
+}
+
+void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
+
+    FILE *f = fopen(obtenerPathArchivo(nombreTabla, "Metadata"), "w");
+    char *lineaConsistencia = string_new();
+    string_append(&lineaConsistencia, "CONSISTENCY=");
+    string_append(&lineaConsistencia, tipoConsistencia);
+    string_append(&lineaConsistencia, "\n");
+    char *lineaParticiones = string_new();
+    string_append(&lineaParticiones, "PARTITIONS=");
+    string_append(&lineaParticiones, particiones);
+    string_append(&lineaParticiones, "\n");
+    char *lineaCompactacion = string_new();
+    string_append(&lineaCompactacion, "COMPACTION_TIME=");
+    string_append(&lineaCompactacion, tiempoCompactacion);
+    string_append(&lineaCompactacion, "\n");
+    fwrite(lineaConsistencia, sizeof(char) * strlen(lineaConsistencia), 1, f);
+    fwrite(lineaParticiones, sizeof(char) * strlen(lineaParticiones), 1, f);
+    fwrite(lineaCompactacion, sizeof(char) * strlen(lineaCompactacion), 1, f);
+    fclose(f);
+}
+
+void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
+    if (validarConsistencia(tipoConsistencia) != 0) {
+        log_warning(logger, "El Tipo de Consistencia no es valido. Este puede ser SC, SHC o EC.");
+    } else {
+        char *tablePath = obtenerPathTabla(nombreTabla);
+        if (existeElArchivo(tablePath)) {
+            char *path = obtenerPathMetadata(nombreTabla);
+            printf("La tabla %s ya existe.\n", nombreTabla);
+            if (!existeElArchivo(path)) {
+                crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
+                printf("Se creo la Metadata de la tabla %s.\n", nombreTabla);
+            }
+        } else {
+            char *createDir = string_new();
+            string_append(&createDir, "../tables/");
+            string_append(&createDir, nombreTabla);
+            mkdir(createDir, 0777);
+            crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
+            printf("Se creo la Metadata de la tabla %s.\n", nombreTabla);
+        }
     }
 }
 
 void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
     if (validarValor(valor) != 0) {
         log_warning(logger, "El valor debe estar enmascarado con \"\"");
-    }
-    else{
+    } else {
         if (existeTabla(nombreTabla) == 0) {
             char *path = obtenerPathMetadata(nombreTabla);
             if (existeElArchivo(path)) {
@@ -127,7 +178,7 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
             } else {
                 printf("No existe metadata en %s\n", path);
             }
-    }
+        }
 
     }
 }
@@ -183,18 +234,18 @@ void lfsSelect(char *nombreTabla, char *key) {
     //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
 }
 
-void ejecutarConsola(void* parametrosConsola){
+void ejecutarConsola(void *parametrosConsola) {
 
-    parametros_consola* parametros = (parametros_consola*) parametrosConsola;
+    parametros_consola *parametros = (parametros_consola *) parametrosConsola;
 
-    t_log* logger = parametros->logger;
-    int (*gestionarComando)(char**) = parametros->gestionarComando;
+    t_log *logger = parametros->logger;
+    int (*gestionarComando)(char **) = parametros->gestionarComando;
     Componente nombreDelProceso = parametros->unComponente;
 
-    char* comando;
-    char* nombreDelGrupo = "@suck-ets:~$ ";
-    char* prompt = string_new();
-    switch (nombreDelProceso){
+    char *comando;
+    char *nombreDelGrupo = "@suck-ets:~$ ";
+    char *prompt = string_new();
+    switch (nombreDelProceso) {
         case KERNEL:
             string_append(&prompt, "Kernel");
             break;
@@ -207,25 +258,26 @@ void ejecutarConsola(void* parametrosConsola){
     }
     string_append(&prompt, nombreDelGrupo);
     do {
-        char* leido = readline(prompt);
+        char *leido = readline(prompt);
         comando = malloc(sizeof(char) * strlen(leido) + 1);
         memcpy(comando, leido, strlen(leido));
         comando[strlen(leido)] = '\0';
         comando = procesarComando(comando);
-    } while(strcmp(comando, "exit") != 0);
+    } while (strcmp(comando, "exit") != 0);
     free(comando);
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
-void * procesarComandoPorRequest(void* params){
+void *procesarComandoPorRequest(void *params) {
     parametros_thread_request *parametros = (parametros_thread_request *) params;
     return procesarComando(parametros->comando);
 
 }
-char * procesarComando(char* comando){
-    char** comandoParseado = parser(comando);
-    if(validarComandosComunes(comandoParseado)== 1){
-        if(gestionarRequest(comandoParseado) == 0){
+
+char *procesarComando(char *comando) {
+    char **comandoParseado = parser(comando);
+    if (validarComandosComunes(comandoParseado) == 1) {
+        if (gestionarRequest(comandoParseado) == 0) {
             log_info(logger, "Request procesada correctamente.");
         } else {
             log_error(logger, "No se pudo procesar la request solicitada.");
@@ -234,6 +286,7 @@ char * procesarComando(char* comando){
     string_to_lower(comando);
     return comando;
 }
+
 int gestionarRequest(char **request) {
     char *tipoDeRequest = request[0];
     char *nombreTabla = request[1];
@@ -270,6 +323,7 @@ int gestionarRequest(char **request) {
         printf("TIpo de consistencia: %s\n", param1);
         printf("Numero de particiones: %s\n", param2);
         printf("Tiempo de compactacion: %s\n", param3);
+        lfsCreate(nombreTabla, param1, param2, param3);
         return 0;
 
     } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {

@@ -16,6 +16,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <commons/config.h>
 #include <commons/log.h>
 #include <commons/collections/dictionary.h>
@@ -42,14 +44,14 @@ typedef struct {
 } t_metadata;
 
 typedef struct {
-    GestorConexiones* conexion;
-    t_log* logger;
-    sem_t* memoriaConectada;
-    int* fdMemoria;
+    GestorConexiones *conexion;
+    t_log *logger;
+    sem_t *memoriaConectada;
+    int *fdMemoria;
 } parametros_thread_lfs;
 
 typedef struct {
-    char* comando;
+    char *comando;
 } parametros_thread_request;
 
 t_configuracion configuracion;
@@ -60,13 +62,22 @@ t_dictionary *metadatas;
 //Header de funciones
 t_configuracion cargarConfiguracion(char *path, t_log *logger);
 
-void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs* parametros);
+void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros);
 
 void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
-pthread_t* crearHiloRequest(char *mensaje);
-char* procesarComando(char* comando);
-void * procesarComandoPorRequest(void* params);
+pthread_t *crearHiloRequest(char *mensaje);
+
+char *procesarComando(char *comando);
+
+int validarConsistencia(char *tipoConsistencia);
+
+void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
+
+void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
+
+void *procesarComandoPorRequest(void *params);
+
 void lfsSelect(char *nombreTabla, char *key);
 
 /**
@@ -94,14 +105,15 @@ int existeTabla(char *path);
 * @NAME: obtenerMetadata
 * @DESC: Almacena o actualiza la metadata de una tabla en el diccionario de metadatas
 */
-void obtenerMetadata(char* tabla);
+void obtenerMetadata(char *tabla);
 
 /**
 * @NAME: calcularParticion
 * @DESC: Retorna el numero de particion asignado a una key especifica
 */
-int calcularParticion(char* key, t_metadata* metadata);
-void* atenderConexiones(void* parametrosThread);
+int calcularParticion(char *key, t_metadata *metadata);
+
+void *atenderConexiones(void *parametrosThread);
 
 
 #endif /* LFS_H_ */

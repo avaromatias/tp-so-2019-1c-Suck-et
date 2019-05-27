@@ -227,24 +227,23 @@ void lfsSelect(char *nombreTabla, char *key) {
         char *linea;
         char str[2];
         str[1] = '\0';
-        char **entradas;
-        char *keyComando;
-        char *timestampComando;
-        int mayorTimestamp = atoi("0");
+        char *keyEncontrado;
+        char *timestampEncontrado;
+        int mayorTimestamp = 0;
         char *valorMayorTimestamp;
         while (!feof(fd)) {
             linea = string_new();
-            keyComando = string_new();
-            timestampComando = string_new();
+            keyEncontrado = string_new();
+            timestampEncontrado = string_new();
             while ((seek = getc(fd)) != EOF && seek != '\n') {
                 str[0] = seek;
                 string_append(&linea, str);
             }
             palabras = desarmarLinea(linea);
-            string_append(&timestampComando, palabras[0]);
-            string_append(&keyComando, palabras[1]);
-            if (strcmp(keyComando, key) == 0 && (atoi(timestampComando) > mayorTimestamp)) {
-                mayorTimestamp = atoi(timestampComando);
+            string_append(&timestampEncontrado, palabras[0]);
+            string_append(&keyEncontrado, palabras[1]);
+            if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
+                mayorTimestamp = atoi(timestampEncontrado);
                 valorMayorTimestamp = string_new();
                 string_append(&valorMayorTimestamp, palabras[2]);
             }

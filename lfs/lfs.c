@@ -88,7 +88,6 @@ char *armarLinea(char *key, char *valor, time_t timestamp) {
 }
 
 char **desarmarLinea(char *linea) {
-
     return string_split(linea, ";");
 }
 
@@ -177,7 +176,7 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
     } else {
         // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
         if (existeTabla(nombreTabla) == 0) {
-           // Obtener la metadata asociada a dicha tabla.
+            // Obtener la metadata asociada a dicha tabla.
             char *path = obtenerPathMetadata(nombreTabla);
             if (existeElArchivo(path)) {
                 printf("Existe metadata en %s\n", path);
@@ -205,54 +204,57 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
 }
 
 void lfsSelect(char *nombreTabla, char *key) {
-    char ch;
-
     //1. Verificar que la tabla exista en el File System
-    existeTabla(nombreTabla);
+    if(existeTabla(nombreTabla) == 0) {
 
-    //2. Obtener la metadata asociada a dicha tabla
-    obtenerMetadata(nombreTabla);
-    t_metadata *meta = dictionary_get(metadatas, nombreTabla);
+        //2. Obtener la metadata asociada a dicha tabla
+        obtenerMetadata(nombreTabla);
+        t_metadata *meta = dictionary_get(metadatas, nombreTabla);
 
-    //3. Calcular cual es la partición que contiene dicho KEY
-    int particion = calcularParticion(key, meta);
+        //3. Calcular cual es la partición que contiene dicho KEY
+        int particion = calcularParticion(key, meta);
 
-    //4. Escanear la partición objetivo, todos los archivos temporales y la memoria temporal de dicha tabla (si existe) buscando la key deseada
-    char *nombreArchivo = string_new();
-    char *p = string_itoa(particion);
-    string_append(&nombreArchivo, p);
-    string_append(&nombreArchivo, ".bin");
-    char *archivePath = obtenerPathArchivo(nombreTabla, nombreArchivo);
-    FILE *fd = fopen(archivePath, "r");
-    char *contenido = string_new();
-    string_append(&contenido, "El contenido de ");
-    string_append(&contenido, archivePath);
-    string_append(&contenido, " es:");
-    log_info(logger, contenido);
+        //4. Escanear la partición objetivo, todos los archivos temporales y la memoria temporal de dicha tabla (si existe) buscando la key deseada
+        char *nombreArchivo = string_new();
+        char *p = string_itoa(particion);
+        string_append(&nombreArchivo, p);
+        string_append(&nombreArchivo, ".bin");
+        char *archivePath = obtenerPathArchivo(nombreTabla, nombreArchivo);
+        FILE *fd = fopen(archivePath, "r");
 
-    int i = 0;
-    char *linea = string_new();
-    char str[2];
-    str[1] = '\0';
-    char **entradas;
-    while (!feof(fd)) {
-        while ((ch = fgetc(fd)) != '\r') {
-            str[0] = ch;
-            string_append(&linea, str);
-            printf("%c", ch);
+        char seek;
+        char **palabras;
+        char *linea;
+        char str[2];
+        str[1] = '\0';
+        char **entradas;
+        char *keyComando;
+        char *timestampComando;
+        int mayorTimestamp = atoi("0");
+        char *valorMayorTimestamp;
+        while (!feof(fd)) {
+            linea = string_new();
+            keyComando = string_new();
+            timestampComando = string_new();
+            while ((seek = getc(fd)) != EOF && seek != '\n') {
+                str[0] = seek;
+                string_append(&linea, str);
+            }
+            palabras = desarmarLinea(linea);
+            string_append(&timestampComando, palabras[0]);
+            string_append(&keyComando, palabras[1]);
+            if (strcmp(keyComando, key) == 0 && (atoi(timestampComando) > mayorTimestamp)) {
+                mayorTimestamp = atoi(timestampComando);
+                valorMayorTimestamp = string_new();
+                string_append(&valorMayorTimestamp, palabras[2]);
+            }
         }
-        char **dato = desarmarLinea(linea);
-        if (dato[1] == key) {
-            entradas[i] = armarLinea(dato[0], dato[1], (time_t) dato[2]);
-            i++;
-        }
+
+        fclose(fd);
+
+        //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
+        printf("%s", valorMayorTimestamp);
     }
-
-    fclose(fd);
-
-    log_info(logger, entradas[0]);
-
-    //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
 }
 
 void ejecutarConsola(void *parametrosConsola) {

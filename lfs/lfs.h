@@ -22,6 +22,7 @@
 #include <commons/log.h>
 #include <commons/collections/dictionary.h>
 #include <semaphore.h>
+#include <commons/collections/list.h>
 
 #include "../libs/config.h"
 #include "../libs/sockets.h"

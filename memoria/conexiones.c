@@ -177,9 +177,13 @@ char* recibirMensaje(int* fdEmisor)    {
 }
 
 int conectarseALissandra(char* ipLissandra, int puertoLissandra, sem_t* lissandraConectada, t_log* logger){
+    log_info(logger, "Intentando conectarse a Lissandra...");
     int fdLissandra = crearSocketCliente(ipLissandra, puertoLissandra, logger);
-    if(fdLissandra > 0){
-        sem_post(lissandraConectada);
+    if(fdLissandra < 0) {
+        log_error(logger, "Hubo un error al intentar conectarse a Lissandra. Cerrando el proceso...");
+//        exit(-1);
     }
+    else
+        sem_post(lissandraConectada);
     return fdLissandra;
 }

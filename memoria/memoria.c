@@ -65,13 +65,30 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	}
 }
 
-t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, t_log* logger)    {
+t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamanioPagina, t_log* logger)    {
     log_info(logger, "Inicia el proceso de inicializar la memoria princial");
     t_memoria* memoriaPrincipal = (t_memoria*) malloc(sizeof(t_memoria));
     memoriaPrincipal->tamanioMemoria = configuracion.tamanioMemoria;
-    memoriaPrincipal->direcciones = (void*) malloc(configuracion.tamanioMemoria);
+    memoriaPrincipal->direcciones = (char*) malloc(sizeof(char) * configuracion.tamanioMemoria);
     memoriaPrincipal->tablaDeSegmentos = dictionary_create();
+    memoriaPrincipal->marcosOcupados = 0;
+    memoriaPrincipal->tamanioPagina = tamanioPagina;
+    memoriaPrincipal->cantidadTotalMarcos = cantidadTotalMarcosMemoria(*memoriaPrincipal);
+
+    inicializarTablaDeMarcos(memoriaPrincipal);
     return memoriaPrincipal;
+}
+
+void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
+    memoriaPrincipal->tablaDeMarcos = (t_marco*) malloc(sizeof(t_marco) * memoriaPrincipal->cantidadTotalMarcos);
+
+    char* comienzoPagina = memoriaPrincipal->direcciones;
+
+    for(int i = 0; i < memoriaPrincipal->cantidadTotalMarcos; i++)  {
+        memoriaPrincipal->tablaDeMarcos[i].base = comienzoPagina;
+        memoriaPrincipal->tablaDeMarcos[i].ocupado = false;
+        comienzoPagina += memoriaPrincipal->tamanioPagina;
+    }
 }
 
 int gestionarRequest(char **request) {
@@ -188,85 +205,96 @@ void ejecutarConsola(void* parametrosConsola){
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
-pthread_t crearHiloConsola(t_log* logger){
-    pthread_t* hiloConsola = malloc(sizeof(pthread_t));
-    parametros_consola* parametros = (parametros_consola*) malloc(sizeof(parametros_consola));
+//pthread_t crearHiloConsola(t_log* logger){
+//    pthread_t* hiloConsola = malloc(sizeof(pthread_t));
+//    parametros_consola* parametros = (parametros_consola*) malloc(sizeof(parametros_consola));
+//
+//    parametros->logger = logger;
+//    parametros->unComponente = MEMORIA;
+//    parametros->gestionarComando = gestionarRequest;
+//
+//    pthread_create(hiloConsola, NULL, &ejecutarConsola, parametros);
+//    return hiloConsola;
+//}
 
-    parametros->logger = logger;
-    parametros->unComponente = MEMORIA;
-    parametros->gestionarComando = gestionarRequest;
-
-    pthread_create(hiloConsola, NULL, &ejecutarConsola, parametros);
-    return hiloConsola;
-}
-
-char** crearPagina(int key, char* value, int tamanioPagina)   {
-    char** pagina = (char**) malloc(tamanioPagina);
+char* formatearPagina(char* key, char* value)   {
     time_t tiempo;
-    sprintfs(*pagina, "%i%i%s", time(&tiempo), key, value);
-    return pagina;
+    return string_from_format("%i%s%s", (int) time(&tiempo), key, value);
 }
 
-void guardarRegistroPagina(t_pagina* tablaDePaginas, t_pagina pagina)    {
-    t_pagina paginaEncontrada = findPaginaByKey(pagina.numero, tablaDePaginas);
-    if(paginaEncontrada != NULL) {
-        pagina.modificada = true;
-        free(paginaEncontrada.base);
-        paginaEncontrada.base = pagina.base;
-    } else  {
-        pagina.modificada = false;
-    }
-}
+//void guardarRegistroPagina(t_dictionary* tablaDePaginas, t_pagina pagina)    {
+//    t_pagina* paginaEncontrada = findPaginaByKey(pagina.numero, tablaDePaginas);
+//    if(paginaEncontrada != NULL) {
+//        pagina.modificada = true;
+//        free(paginaEncontrada.base);
+//        paginaEncontrada.base = pagina.base;
+//    } else  {
+//        pagina.modificada = false;
+//    }
+//}
 
-void reemplazarPagina(u_int16 key, char** nuevoValor, t_dictionary* tablaDePaginas) {
+char* reemplazarPagina(char* key, char* nuevoValor, t_dictionary* tablaDePaginas) {
     t_pagina* pagina = dictionary_get(tablaDePaginas, key);
-    strcpy(pagina->base, nuevaPagina);
+    t_pagina* nuevaPagina = (t_pagina*) malloc(sizeof(t_pagina));
+    nuevaPagina->base = pagina->base;
+    free(pagina);
+    strcpy(nuevaPagina->base, nuevoValor);
     // reemplazo la página encontrada en la tabla de páginas
     dictionary_put(tablaDePaginas, key, nuevoValor);
+    return nuevaPagina->base;
 }
 
-void insertarNuevaPagina(u_int16 key, char** value, t_segmento segmento) {
+char* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria) {
+    t_pagina* nuevaPagina = crearPagina(key, memoria);
+    insertarEnMemoriaAndActualizarTablaDePaginas(nuevaPagina, value, tablaDePaginas);
+    return nuevaPagina->base;
+}
+
+t_pagina* crearPagina(char* key, t_memoria* memoria)  {
     t_pagina* nuevaPagina = (t_pagina*) malloc(sizeof(t_pagina));
+    nuevaPagina->base = getMarcoLibre(memoria);
+    nuevaPagina->key = string_duplicate(key);
     nuevaPagina->modificada = true;
-    nuevaPagina->base = value;
-    void* marcoLibre = getMarcoLibre(segmento);
-    insertarEnMemoriaAndActualizarTablaDePaginas(marcoLibre, value, segmento.tablaDePaginas, nuevaPagina);
+    return nuevaPagina;
 }
 
-void insertarEnMemoriaAndActualizarTablaDePaginas(void* direccion, char* valor, t_dictionary* tablaDePaginas, t_pagina* pagina)  {
-    strcpy(direccion, valor);
-    dictionary_put(tablaDePaginas, key, pagina);
+void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* value, t_dictionary* tablaDePaginas)  {
+    strcpy(nuevaPagina->base, value);
+    dictionary_put(tablaDePaginas, nuevaPagina->key, nuevaPagina);
 }
 
-void* getMarcoLibre(t_segmento segmento)    {
-    // cómo sé qué marcos están libres en un segmento?
-    // seguramente voy a tener que cambiar el struct t_segmento para agregar una tabla de marcos libres o modificar el struct t_pagina para agregar un flag de ocupado
-}
-
-bool segmentoTieneMarcosLibres(t_segmento segmento)    {
-    return dictionary_size(segmento.tablaDePaginas) < segmento.cantidadPaginasSegmento;
-}
-
-void insert(char* nombreTabla, u_int16 key, char* value, t_memoria memoria)   {
-    char** contenidoPagina = crearPagina(key, value, memoria.tamanioPagina);
+char* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria)   {
+    char* contenidoPagina = formatearPagina(key, value);
     // tengo la tabla en la memoria?
-    if(dictionary_has_key(memoria.tablaDeSegmentos, nombreTabla))   {
+    if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))   {
         // obtengo el segmento asociado a la tabla en memoria
-        t_segmento* segmento = (t_segmento*) dictionary_get(memoria.tablaDeSegmentos, nombreTabla);
+        t_segmento* segmento = (t_segmento*) dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
         // tengo la key en la tabla de páginas?
         if(dictionary_has_key(segmento->tablaDePaginas, key))   {
             reemplazarPagina(key, contenidoPagina, segmento->tablaDePaginas);
-        }   else if(segmentoTieneMarcosLibres(*segmento))   {
-            insertarNuevaPagina(segmento, key, contenidoPagina);
+        }   else if(hayMarcosLibres(*memoria))   {
+            return insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria);
         }
+    } else  {
+        t_segmento* nuevoSegmento = crearSegmento(nombreTabla, memoria);
+        return insertarNuevaPagina(key, contenidoPagina, nuevoSegmento->tablaDePaginas, memoria);
     }
+    free(contenidoPagina);
+}
+
+// creo un segmento con una página
+
+t_segmento* crearSegmento(char* nombreTabla, t_memoria* memoria)    {
+    t_segmento* segmento = (t_segmento*) malloc(sizeof(t_segmento));
+    segmento->tablaDePaginas = dictionary_create();
+    dictionary_put(memoria->tablaDeSegmentos, nombreTabla, segmento);
+    return segmento;
 }
 
 
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
 	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
-    t_memoria* memoriaPrincipal = inicializarMemoriaPrincipal(configuracion, logger);
 
     sem_t kernelConectado;
     sem_t lissandraConectada;
@@ -275,14 +303,24 @@ int main(void) {
 
     int fdKernel = 0;
 	int fdLissandra = conectarseALissandra(configuracion.ipFileSystem, configuracion.puertoFileSystem, &lissandraConectada, logger);
-	memoriaPrincipal->tamanioDePagina = calcularTamanioDePagina(getTamanioValue(fdLissandra, logger));
+	int tamanioPagina = calcularTamanioDePagina(getTamanioValue(fdLissandra, logger));
+    t_memoria* memoriaPrincipal = inicializarMemoriaPrincipal(configuracion, tamanioPagina, logger);
 	GestorConexiones* misConexiones = inicializarConexion();
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
+    char* direccion = insert("tableA", "5", "QUÉ ONDA GUACHOOOOO", memoriaPrincipal);
+    char* otraPalabra = insert("tableB", "2", "qué onda guachín", memoriaPrincipal);
+    char* word = insert("tableA", "3", "lalalalala", memoriaPrincipal);
+
+    printf("%s\n", direccion);
+    printf("%s\n", otraPalabra);
+    printf("%s\n", word);
+    insert("tableA", "3", "ñacañacañaca", memoriaPrincipal);
+    printf("%s\n", word);
+    fflush(stdout);
+
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
 //    pthread_t* hiloConsola = crearHiloConsola(logger);
-
-    char** tablaDeEspaciosLibres = (char*) malloc(configuracion.tamanioMemoria);
 
     while(1){
 		sem_wait(&kernelConectado);
@@ -315,6 +353,10 @@ int main(void) {
 	return 0;
 }
 
+int cantidadTotalMarcosMemoria(t_memoria memoria)   {
+    return memoria.tamanioMemoria / memoria.tamanioPagina;
+}
+
 int calcularTamanioDePagina(int tamanioValue){
     //tamaño de INT (timestamp) + tamaño de u_int16_t (key) + tamaño de value (respuesta HS con LS)
     return sizeof(time_t) + sizeof(u_int16_t) + tamanioValue;
@@ -322,6 +364,7 @@ int calcularTamanioDePagina(int tamanioValue){
 
 //Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS
 int getTamanioValue(int fdLissandra, t_log* logger){
+    return 4;
     hacerHandshake(fdLissandra, MEMORIA);
     int tamanioValue = (int) recibirMensaje(&fdLissandra);
     if(tamanioValue != NULL)
@@ -329,4 +372,22 @@ int getTamanioValue(int fdLissandra, t_log* logger){
     else
         log_error(logger, "Hubo un error al intentar obtener el tamaño del value de Lissandra.");
     return tamanioValue;
+}
+
+char* getMarcoLibre(t_memoria* memoria)   {
+    t_marco* marcoLeido = memoria->tablaDeMarcos;
+    for(int i = 0; i < memoria->cantidadTotalMarcos; i++)   {
+        if(!marcoLeido->ocupado)    {
+            marcoLeido->ocupado = true;
+            memoria->marcosOcupados++;
+            return marcoLeido->base;
+        } else
+            marcoLeido += memoria->tamanioPagina;
+    }
+
+    return NULL;
+}
+
+bool hayMarcosLibres(t_memoria memoria)  {
+    return memoria.marcosOcupados < memoria.cantidadTotalMarcos;
 }

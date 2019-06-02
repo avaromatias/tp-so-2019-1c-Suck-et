@@ -119,7 +119,7 @@ int gestionarRequest(char **request, t_memoria* memoria, int fdLissandra) {
 
             //TODO nos tienen que responder timestamp;key;value
             char* respuestaMensaje =recibirMensaje(fdLissandra);
-            char** respuesta = stringToArray(respuestaMensaje);
+            char** respuesta = string_split(respuestaMensaje, ';');
             //La respuesta sera del tipo [timestamp, key, value]
             insert(request[1], respuesta[1], respuesta[2]);
 
@@ -151,6 +151,22 @@ int gestionarRequest(char **request, t_memoria* memoria, int fdLissandra) {
         printf("TIpo de consistencia: %s\n", param1);
         printf("Numero de particiones: %s\n", param2);
         printf("Tiempo de compactacion: %s\n", param3);
+
+
+        //La operación Create permite la creación de una nueva tabla dentro del file system. Para esto, se utiliza la siguiente nomenclatura:
+        //    CREATE [TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]
+        /*char* nuevaRequest = string_new();
+        string_append(&nuevaRequest, request[0]);
+        string_append(&nuevaRequest, request[1]);
+        string_append(&nuevaRequest, request[2]);
+        string_append(&nuevaRequest, request[3]);
+        string_append(&nuevaRequest, request[4]);
+        enviarPaquete(fdLissandra, REQUEST, nuevaRequest);
+
+        //TODO nos tienen que responder timestamp;key;value
+        char* respuesta =recibirMensaje(fdLissandra);
+        log_info(logger, respuesta);*/
+
         return 0;
 
     } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {

@@ -75,7 +75,7 @@ typedef struct {
 
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
-int gestionarRequest(char **request, t_memoria* memoria);
+int gestionarRequest(char **request, t_memoria* memoria, int fdLissandra);
 
 t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamanioPagina, t_log* logger);
 

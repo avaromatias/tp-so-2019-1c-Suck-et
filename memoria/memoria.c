@@ -91,7 +91,7 @@ void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
     }
 }
 
-int gestionarRequest(char **request, t_memoria* memoria) {
+int gestionarRequest(char **request, t_memoria* memoria, int fdLissandra) {
     char *tipoDeRequest = request[0];
     char *nombreTabla = request[1];
     char *param1 = request[2];
@@ -110,7 +110,14 @@ int gestionarRequest(char **request, t_memoria* memoria) {
             char* value = unaPagina->base;
             printf("Valor hallado: %s", value);
         }else{
-            printf("Valor no hallado");
+            printf("Valor no hallado, se lo pido a lissandra");
+            /*char* nuevaRequest = string_new();
+            string_append(&nuevaRequest, request[0]);
+            string_append(&nuevaRequest, request[1]);
+            string_append(&nuevaRequest, request[2]);
+            enviarPaquete(fdLissandra, REQUEST, nuevaRequest);*/
+
+
         }
         return 0;
 
@@ -179,6 +186,7 @@ void ejecutarConsola(void* parametrosConsola){
 
     t_memoria* memoria = parametros->memoria;
     t_log* logger = parametros->logger;
+    int fdLissandra = parametros->fdLissandra;
 
     char* comando;
     char* nombreDelGrupo = "@suck-ets:~$ ";
@@ -192,7 +200,7 @@ void ejecutarConsola(void* parametrosConsola){
         comando[strlen(leido)] = '\0';
         char** comandoParseado = parser(comando);
         if(validarComandosComunes(comandoParseado)== 1){
-            if(gestionarRequest(comandoParseado, memoria) == 0){
+            if(gestionarRequest(comandoParseado, memoria, fdLissandra) == 0){
                 log_info(logger, "Request procesada correctamente.");
             } else {
                 log_error(logger, "No se pudo procesar la request solicitada.");

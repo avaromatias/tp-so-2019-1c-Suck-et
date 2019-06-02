@@ -31,7 +31,7 @@ int validarComandosComunes(char** comando){
        }
 
     } else if (strcmp(tipoDeRequest, "DROP") == 0) {
-        if(nombreTabla == NULL || param1 != NULL || param2 != NULL || param3 != NULL){
+        if(nombreTabla == NULL){
             imprimirErrorParametros();
             return 0;
         }

@@ -40,9 +40,14 @@ typedef struct {
     int cantidadDeMemorias;
 } t_configuracion;
 
+typedef struct {
+    char* base;
+    bool ocupado;
+} t_marco;
+
 typedef struct  {
     char* key;
-    char* base;
+    t_marco* marco;
     bool modificada;
 } t_pagina;
 
@@ -50,11 +55,6 @@ typedef struct {
     char* pathTabla; // viene a ser el identificador del segmento
     t_dictionary* tablaDePaginas; // viene a ser la base del segmento
 } t_segmento;
-
-typedef struct {
-    char* base;
-    bool ocupado;
-} t_marco;
 
 //Tipo de la Memoria Principal que aloja las paginas
 typedef struct {
@@ -88,10 +88,15 @@ void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* v
 t_pagina* crearPagina(char* key, t_memoria* memoria);
 char* formatearPagina(char* key, char* value);
 bool hayMarcosLibres(t_memoria memoria);
-char* getMarcoLibre(t_memoria* memoria);
-char* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria);
-char* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria);
+t_marco* getMarcoLibre(t_memoria* memoria);
+t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria);
+t_pagina* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria);
 t_segmento* crearSegmento(char* nombreTabla, t_memoria* memoria);
-char* reemplazarPagina(char* key, char* nuevoValor, t_dictionary* tablaDePaginas);
+t_pagina* reemplazarPagina(char* key, char* nuevoValor, t_dictionary* tablaDePaginas);
 t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria);
+
+// drop
+void drop(char* nombreTabla, t_memoria* memoria);
+void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria);
+void eliminarPagina(char* key, t_pagina* pagina);
 #endif /* MEMORIA_H_ */

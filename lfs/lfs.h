@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <libgen.h>
 #include <stdlib.h>
 #include <time.h>
 #include <sys/stat.h>
@@ -71,6 +72,8 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 pthread_t *crearHiloRequest(char *mensaje);
 
 char *procesarComando(char *comando);
+
+void mkdir_recursive(char *path);
 
 int validarConsistencia(char *tipoConsistencia);
 

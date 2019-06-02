@@ -10,6 +10,26 @@
 #include <string.h>
 #include <commons/string.h>
 
+typedef enum {
+    SELECT,
+    INSERT,
+    CREATE,
+    DROP,
+    DESCRIBE,
+    JOURNAL,
+    ADD,
+    RUN,
+    METRICS,
+    HELP,
+    EXIT,
+    INVALIDO,
+} TipoRequest;
+
+typedef struct{
+    TipoRequest tipoRequest;
+    char** parametros;
+}t_comando;
+
 void printArrayDeStrings(char** arrayDeStrings);
 int tamanioDeArrayDeStrings(char** arrayDeString);
 char** parser(char* input);

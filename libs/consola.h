@@ -9,18 +9,18 @@
 #include <commons/log.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../libs/generales.h"
 #include "../libs/sockets.h"
 #include <readline/readline.h>
 
 int validarComandosComunes(char** comando);
 //int validarComandosKernel(char** comando);
 //void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProceso, t_log *logger);
-void ejecutarConsola(void *);
+//void ejecutarConsola(void *);
 char *obtenerPathTabla(char *nombreTabla);
 char *obtenerPathMetadata(char *nombreTabla);
 void imprimirErrorParametros();
-
+t_comando instanciarComando(char **request);
+int obtenerCantidadParametros(char **request);
 
 typedef struct{
     t_log* logger;

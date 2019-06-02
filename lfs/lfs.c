@@ -231,6 +231,8 @@ void lfsSelect(char *nombreTabla, char *key) {
         char *timestampEncontrado;
         int mayorTimestamp = 0;
         char *valorMayorTimestamp;
+
+        //4.1. Escaneo particion objetivo
         while (!feof(fd)) {
             linea = string_new();
             keyEncontrado = string_new();
@@ -251,8 +253,14 @@ void lfsSelect(char *nombreTabla, char *key) {
 
         fclose(fd);
 
+        //4.2. Escaneo los archivos temporales
+
+
+        //4.2. Escaneo la memoria temporal de la tabla
+
+
         //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
-        printf("%s", valorMayorTimestamp);
+        printf("Value: %s\n", valorMayorTimestamp);
     }
 }
 
@@ -392,6 +400,8 @@ void obtenerMetadata(char *tabla) {
 
     if (config == NULL) {
         log_error(logger, "No se pudo obtener el archivo Metadata.");
+        config_destroy(config);
+        free(metadata);
         exit(1);
     }
 

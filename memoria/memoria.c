@@ -115,7 +115,16 @@ int gestionarRequest(char **request, t_memoria* memoria, int fdLissandra) {
             string_append(&nuevaRequest, request[0]);
             string_append(&nuevaRequest, request[1]);
             string_append(&nuevaRequest, request[2]);
-            enviarPaquete(fdLissandra, REQUEST, nuevaRequest);*/
+            enviarPaquete(fdLissandra, REQUEST, nuevaRequest);
+
+            //TODO nos tienen que responder timestamp;key;value
+            char* respuestaMensaje =recibirMensaje(fdLissandra);
+            char** respuesta = stringToArray(respuestaMensaje);
+            //La respuesta sera del tipo [timestamp, key, value]
+            insert(request[1], respuesta[1], respuesta[2]);
+
+            */
+
 
 
         }
@@ -178,6 +187,10 @@ int gestionarRequest(char **request, t_memoria* memoria, int fdLissandra) {
         return -2;
     }
 
+}
+
+char** stringToArray(char* unString){
+    return string_split(unString, ';');
 }
 
 void ejecutarConsola(void* parametrosConsola){

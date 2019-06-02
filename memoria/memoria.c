@@ -91,7 +91,7 @@ void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
     }
 }
 
-int gestionarRequest(char **request) {
+int gestionarRequest(char **request, t_memoria* memoria) {
     char *tipoDeRequest = request[0];
     char *nombreTabla = request[1];
     char *param1 = request[2];
@@ -103,6 +103,8 @@ int gestionarRequest(char **request) {
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
         printf("Key: %s\n", param1);
+        char* value = cmdSelect(nombreTabla, param1, memoria)->base;
+        printf("Valor hallado: %s", value);
         return 0;
 
     } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
@@ -117,6 +119,7 @@ int gestionarRequest(char **request) {
             timestamp = (time_t) time(NULL);
         }
         printf("Timestamp: %i\n", (int) timestamp);
+        insert(nombreTabla, param1, param2, memoria);
         return 0;
 
     } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
@@ -163,37 +166,26 @@ int gestionarRequest(char **request) {
 
 }
 
-void ejecutarConsola(void* parametrosConsola){
+void* ejecutarConsola(void* parametrosConsola){
 
-    parametros_consola* parametros = (parametros_consola*) parametrosConsola;
+    parametros_consola_memoria* parametros = (parametros_consola_memoria*) parametrosConsola;
 
+    t_memoria* memoria = parametros->memoria;
     t_log* logger = parametros->logger;
-    int (*gestionarComando)(char**) = parametros->gestionarComando;
-    Componente nombreDelProceso = parametros->unComponente;
 
     char* comando;
     char* nombreDelGrupo = "@suck-ets:~$ ";
     char* prompt = string_new();
-    switch (nombreDelProceso){
-        case KERNEL:
-            string_append(&prompt, "Kernel");
-            break;
-        case MEMORIA:
-            string_append(&prompt, "Memoria");
-            break;
-        case LISSANDRA:
-            string_append(&prompt, "Lissandra");
-            break;
-    }
+    string_append(&prompt, "Memoria");
     string_append(&prompt, nombreDelGrupo);
     do {
         char* leido = readline(prompt);
-        comando = malloc(sizeof(char) * strlen(leido) + 1);
+        comando = malloc(sizeof(char) * (strlen(leido) + 1));
         memcpy(comando, leido, strlen(leido));
         comando[strlen(leido)] = '\0';
         char** comandoParseado = parser(comando);
         if(validarComandosComunes(comandoParseado)== 1){
-            if(gestionarComando(comandoParseado) == 0){
+            if(gestionarRequest(comandoParseado, memoria) == 0){
                 log_info(logger, "Request procesada correctamente.");
             } else {
                 log_error(logger, "No se pudo procesar la request solicitada.");
@@ -205,33 +197,21 @@ void ejecutarConsola(void* parametrosConsola){
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
-//pthread_t crearHiloConsola(t_log* logger){
-//    pthread_t* hiloConsola = malloc(sizeof(pthread_t));
-//    parametros_consola* parametros = (parametros_consola*) malloc(sizeof(parametros_consola));
-//
-//    parametros->logger = logger;
-//    parametros->unComponente = MEMORIA;
-//    parametros->gestionarComando = gestionarRequest;
-//
-//    pthread_create(hiloConsola, NULL, &ejecutarConsola, parametros);
-//    return hiloConsola;
-//}
+pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger){
+    pthread_t* hiloConsola = malloc(sizeof(pthread_t));
+    parametros_consola_memoria* parametros = (parametros_consola_memoria*) malloc(sizeof(parametros_consola_memoria));
+
+    parametros->logger = logger;
+    parametros->memoria = memoria;
+
+    pthread_create(hiloConsola, NULL, &ejecutarConsola, parametros);
+    return hiloConsola;
+}
 
 char* formatearPagina(char* key, char* value)   {
     time_t tiempo;
     return string_from_format("%i%s%s", (int) time(&tiempo), key, value);
 }
-
-//void guardarRegistroPagina(t_dictionary* tablaDePaginas, t_pagina pagina)    {
-//    t_pagina* paginaEncontrada = findPaginaByKey(pagina.numero, tablaDePaginas);
-//    if(paginaEncontrada != NULL) {
-//        pagina.modificada = true;
-//        free(paginaEncontrada.base);
-//        paginaEncontrada.base = pagina.base;
-//    } else  {
-//        pagina.modificada = false;
-//    }
-//}
 
 char* reemplazarPagina(char* key, char* nuevoValor, t_dictionary* tablaDePaginas) {
     t_pagina* pagina = dictionary_get(tablaDePaginas, key);
@@ -286,9 +266,21 @@ char* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria)   {
 
 t_segmento* crearSegmento(char* nombreTabla, t_memoria* memoria)    {
     t_segmento* segmento = (t_segmento*) malloc(sizeof(t_segmento));
+    segmento->pathTabla = string_duplicate(nombreTabla);
     segmento->tablaDePaginas = dictionary_create();
     dictionary_put(memoria->tablaDeSegmentos, nombreTabla, segmento);
     return segmento;
+}
+
+t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria)  {
+    t_pagina* resultado = NULL;
+    if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))   {
+        // obtengo el segmento asociado a la tabla en memoria
+        t_segmento* segmento = (t_segmento*) dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
+        if(dictionary_has_key(segmento->tablaDePaginas, key))
+            resultado = (t_pagina*) dictionary_get(segmento->tablaDePaginas, key);
+    }
+    return resultado;
 }
 
 
@@ -308,19 +300,23 @@ int main(void) {
 	GestorConexiones* misConexiones = inicializarConexion();
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
-    char* direccion = insert("tableA", "5", "QUÉ ONDA GUACHOOOOO", memoriaPrincipal);
-    char* otraPalabra = insert("tableB", "2", "qué onda guachín", memoriaPrincipal);
-    char* word = insert("tableA", "3", "lalalalala", memoriaPrincipal);
+    insert("tableA", "5", "QUÉ ONDA GUACHOOOOO", memoriaPrincipal);
+    insert("tableB", "2", "qué onda guachín", memoriaPrincipal);
+    insert("tableA", "3", "lalalalala", memoriaPrincipal);
+
+    char* direccion = cmdSelect("tableA", "5", memoriaPrincipal)->base;
+    char* otraPalabra = cmdSelect("tableA", "3", memoriaPrincipal)->base;
+    char* word = cmdSelect("tableB", "2", memoriaPrincipal)->base;
 
     printf("%s\n", direccion);
     printf("%s\n", otraPalabra);
     printf("%s\n", word);
     insert("tableA", "3", "ñacañacañaca", memoriaPrincipal);
-    printf("%s\n", word);
+    printf("%s\n", otraPalabra);
     fflush(stdout);
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
-//    pthread_t* hiloConsola = crearHiloConsola(logger);
+    pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger);
 
     while(1){
 		sem_wait(&kernelConectado);

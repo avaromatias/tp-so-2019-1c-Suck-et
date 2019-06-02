@@ -48,7 +48,6 @@ typedef struct  {
 
 typedef struct {
     char* pathTabla; // viene a ser el identificador del segmento
-    int cantidadPaginasSegmento; //indica el limite del segmento
     t_dictionary* tablaDePaginas; // viene a ser la base del segmento
 } t_segmento;
 
@@ -68,9 +67,15 @@ typedef struct {
     t_marco* tablaDeMarcos;
 } t_memoria;
 
+typedef struct {
+    t_memoria* memoria;
+    int fdLissandra;
+    t_log* logger;
+} parametros_consola_memoria;
+
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
-int gestionarRequest(char **request);
+int gestionarRequest(char **request, t_memoria* memoria);
 
 t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamanioPagina, t_log* logger);
 
@@ -88,4 +93,5 @@ char* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria);
 char* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria);
 t_segmento* crearSegmento(char* nombreTabla, t_memoria* memoria);
 char* reemplazarPagina(char* key, char* nuevoValor, t_dictionary* tablaDePaginas);
+t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria);
 #endif /* MEMORIA_H_ */

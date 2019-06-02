@@ -23,6 +23,7 @@
 #include <commons/collections/dictionary.h>
 #include <semaphore.h>
 #include <commons/collections/list.h>
+#include <commons/bitarray.h>
 
 #include "../libs/config.h"
 #include "../libs/sockets.h"

@@ -103,8 +103,15 @@ int gestionarRequest(char **request, t_memoria* memoria) {
         printf("Tipo de Request: %s\n", tipoDeRequest);
         printf("Tabla: %s\n", nombreTabla);
         printf("Key: %s\n", param1);
-        char* value = cmdSelect(nombreTabla, param1, memoria)->base;
-        printf("Valor hallado: %s", value);
+
+        t_pagina* unaPagina = cmdSelect(nombreTabla, param1, memoria);
+
+        if (unaPagina!= NULL){
+            char* value = unaPagina->base;
+            printf("Valor hallado: %s", value);
+        }else{
+            printf("Valor no hallado");
+        }
         return 0;
 
     } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
@@ -166,7 +173,7 @@ int gestionarRequest(char **request, t_memoria* memoria) {
 
 }
 
-void* ejecutarConsola(void* parametrosConsola){
+void ejecutarConsola(void* parametrosConsola){
 
     parametros_consola_memoria* parametros = (parametros_consola_memoria*) parametrosConsola;
 

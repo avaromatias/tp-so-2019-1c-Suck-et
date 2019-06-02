@@ -67,7 +67,7 @@ pthread_t *crearHiloRequest(char *mensaje) {
 
 char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
     char *path = string_new();
-    char *tablePath = obtenerPathTabla(nombreTabla);
+    char *tablePath = obtenerPathTabla(nombreTabla,configuracion.puntoMontaje);
     string_append(&path, tablePath);
     string_append(&path, "/");
     string_append(&path, nombreArchivo);
@@ -143,10 +143,10 @@ void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, cha
     if (validarConsistencia(tipoConsistencia) != 0) {
         log_warning(logger, "El Tipo de Consistencia no es valido. Este puede ser SC, SHC o EC.");
     } else {
-        char *tablePath = obtenerPathTabla(nombreTabla);
+        char *tablePath = obtenerPathTabla(nombreTabla,configuracion.puntoMontaje);
         // Verificar que la tabla no exista en el file system.
         if (existeElArchivo(tablePath)) {
-            char *path = obtenerPathMetadata(nombreTabla);
+            char *path = obtenerPathMetadata(nombreTabla,configuracion.puntoMontaje);
             // En caso que exista, se guardará el resultado en un archivo .log y se retorna un error indicando dicho resultado.
             log_info(logger, "La tabla %s ya existe.\n", nombreTabla);
             if (!existeElArchivo(path)) {
@@ -155,10 +155,7 @@ void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, cha
             }
         } else {
             // Crear el directorio para dicha tabla.
-            char *createDir = string_new();
-            string_append(&createDir, "../tables/");
-            string_append(&createDir, nombreTabla);
-            mkdir(createDir, 0777);
+            mkdir(tablePath, 0777);
             // Crear el directorio para dicha tabla.
             // Grabar en dicho archivo los parámetros pasados por el request.
             crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
@@ -177,7 +174,7 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
         // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
         if (existeTabla(nombreTabla) == 0) {
             // Obtener la metadata asociada a dicha tabla.
-            char *path = obtenerPathMetadata(nombreTabla);
+            char *path = obtenerPathMetadata(nombreTabla,configuracion.puntoMontaje);
             if (existeElArchivo(path)) {
                 printf("Existe metadata en %s\n", path);
                 // TODO: Verificar si existe en memoria una lista de datos a dumpear. De no existir, alocar dicha memoria.
@@ -385,7 +382,7 @@ int gestionarRequest(char **request) {
 }
 
 int existeTabla(char *tabla) {
-    char *tablePath = obtenerPathTabla(tabla);
+    char *tablePath = obtenerPathTabla(tabla,configuracion.puntoMontaje);
     if (!existeElArchivo(tablePath)) {
         log_error(logger, "No se encontro o no tiene permisos para acceder a la tabla %s.", tabla);
         return -1;
@@ -394,7 +391,7 @@ int existeTabla(char *tabla) {
 }
 
 void obtenerMetadata(char *tabla) {
-    char *metadataPath = obtenerPathMetadata(tabla);
+    char *metadataPath = obtenerPathMetadata(tabla,configuracion.puntoMontaje);
     t_config *config = config_create(metadataPath);
     t_metadata *metadata = (t_metadata *) malloc(sizeof(t_metadata));
 
@@ -462,7 +459,7 @@ int archivoVacio(char * path){
     fclose(f);
     return c == EOF;
 }
-int obtenerCantidadBloques(puntoMontaje){
+int obtenerCantidadBloques(char * puntoMontaje){
     char** dir=string_split(puntoMontaje,"/");
     char *nombreArchivo = string_new();
     string_append(&nombreArchivo, "..");

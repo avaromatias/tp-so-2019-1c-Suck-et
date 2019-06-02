@@ -110,20 +110,23 @@ int gestionarRequest(char **request, t_memoria* memoria, int fdLissandra) {
             char* value = unaPagina->marco->base;
             printf("Valor hallado: %s", value);
         }else{
-            printf("Valor no hallado, se lo pido a lissandra");
-            /*char* nuevaRequest = string_new();
+            printf("Valor no hallado, se lo pido a lissandra\n");
+            char* nuevaRequest = string_new();
+            string_to_lower(request[0]);
             string_append(&nuevaRequest, request[0]);
+            string_append(&nuevaRequest, " ");
             string_append(&nuevaRequest, request[1]);
+            string_append(&nuevaRequest, " ");
             string_append(&nuevaRequest, request[2]);
+            printf("%s\n", nuevaRequest);
             enviarPaquete(fdLissandra, REQUEST, nuevaRequest);
 
             //TODO nos tienen que responder timestamp;key;value
-            char* respuestaMensaje =recibirMensaje(fdLissandra);
+            /*char* respuestaMensaje =recibirMensaje(&fdLissandra);
             char** respuesta = string_split(respuestaMensaje, ';');
             //La respuesta sera del tipo [timestamp, key, value]
-            insert(request[1], respuesta[1], respuesta[2]);
+            insert(request[1], respuesta[1], respuesta[2], memoria);*/
 
-            */
 
 
 
@@ -155,17 +158,22 @@ int gestionarRequest(char **request, t_memoria* memoria, int fdLissandra) {
 
         //La operación Create permite la creación de una nueva tabla dentro del file system. Para esto, se utiliza la siguiente nomenclatura:
         //    CREATE [TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]
-        /*char* nuevaRequest = string_new();
+        char* nuevaRequest = string_new();
+
+        string_to_lower(request[0]);
         string_append(&nuevaRequest, request[0]);
+        string_append(&nuevaRequest, " ");
         string_append(&nuevaRequest, request[1]);
+        string_append(&nuevaRequest, " ");
         string_append(&nuevaRequest, request[2]);
+        string_append(&nuevaRequest, " ");
         string_append(&nuevaRequest, request[3]);
+        string_append(&nuevaRequest, " ");
         string_append(&nuevaRequest, request[4]);
         enviarPaquete(fdLissandra, REQUEST, nuevaRequest);
 
         //TODO nos tienen que responder timestamp;key;value
-        char* respuesta =recibirMensaje(fdLissandra);
-        log_info(logger, respuesta);*/
+        //char* respuesta =recibirMensaje(fdLissandra);
 
         return 0;
 
@@ -237,12 +245,13 @@ void ejecutarConsola(void* parametrosConsola){
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
-pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger){
+pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, int fdLissandra){
     pthread_t* hiloConsola = malloc(sizeof(pthread_t));
     parametros_consola_memoria* parametros = (parametros_consola_memoria*) malloc(sizeof(parametros_consola_memoria));
 
     parametros->logger = logger;
     parametros->memoria = memoria;
+    parametros->fdLissandra = fdLissandra;
 
     pthread_create(hiloConsola, NULL, &ejecutarConsola, parametros);
     return hiloConsola;
@@ -422,7 +431,7 @@ int main(void) {
 //    drop("tableB", memoriaPrincipal);
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
-    pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger);
+    pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, fdLissandra);
 
     while(1){
 		sem_wait(&kernelConectado);

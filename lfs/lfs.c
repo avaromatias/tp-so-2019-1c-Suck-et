@@ -74,14 +74,39 @@ char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
     return path;
 }
 
+char *obtenerPathBloque(int numberoBloque) {
+    char *unArchivoDeBloque = string_new();
+    string_append(&unArchivoDeBloque,"..");
+    string_append(&unArchivoDeBloque,configuracion.puntoMontaje);
+    string_append(&unArchivoDeBloque,"Bloques/");
+    string_append(&unArchivoDeBloque,string_from_format("%i",numberoBloque));
+    string_append(&unArchivoDeBloque,".bin");
+    return unArchivoDeBloque;
+}
+
+void valorSinComillas(char* valor){
+    if(string_starts_with(valor,"\"") && string_ends_with(valor,"\"")) {
+        int j = 0;
+        for (int i = 0; i < strlen(valor); i++) {
+            if (valor[i] == '\\') {
+                valor[j++] = valor[i++];
+                valor[j++] = valor[i];
+                if (valor[i] == '\0')
+                    break;
+            } else if (valor[i] != '"')
+                valor[j++] = valor[i];
+        }
+        valor[j] = '\0';
+    }
+}
 char *armarLinea(char *key, char *valor, time_t timestamp) {
     char *linea = string_new();
     char *timestampString;
-    sprintf(timestampString, "%ld", timestamp);
-    string_append(&linea, timestampString);
+    string_append(&linea, string_from_format("%ld",timestamp));
     string_append(&linea, ";");
     string_append(&linea, key);
     string_append(&linea, ";");
+    valorSinComillas(valor);
     string_append(&linea, valor);
     string_append(&linea, "\n");
     return linea;
@@ -100,9 +125,7 @@ int validarConsistencia(char *tipoConsistencia) {
 }
 
 int validarValor(char *valor) {
-    char primerChar = valor[0];
-    char ultimoChar = valor[strlen(valor) - 1];
-    if (primerChar == '"' && ultimoChar == '"') {
+    if (string_starts_with(valor,"\"") && string_ends_with(valor,"\"")) {
         return 0;
     }
     return -1;
@@ -132,12 +155,55 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 
 void crearBinarios(char *nombreTabla,int particiones){
     for(int i=0;i<particiones;i++){
-        char * nombreArchivo = string_new();
-        string_append(&nombreArchivo,string_from_format("%i",i));
-        string_append(&nombreArchivo,".bin");
-        FILE* file=fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "w");
-        fclose(file);
+        int bloque=obtenerBloqueLibreAsignado();
+        if(bloque!=-1) {
+            char * nombreArchivo = string_new();
+            string_append(&nombreArchivo,string_from_format("%i",i));
+            string_append(&nombreArchivo,".bin");
+            FILE* file=fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "w");
+            char *contenido = string_new();
+            string_append(&contenido, "SIZE=");
+            int tamanio = obtenerTamanioBloque(bloque);
+            string_append(&contenido, string_from_format("%i", tamanio));
+            string_append(&contenido, "\n");
+            string_append(&contenido, "BLOCKS=[");
+            string_append(&contenido, string_from_format("%i", bloque));
+            string_append(&contenido, "]");
+            string_append(&contenido, "\n");
+            fwrite(contenido, sizeof(char) * strlen(contenido), 1, file);
+            fclose(file);
+        }
+
     }
+}
+int obtenerTamanioBloque(int bloque){
+    char * pathBloque = obtenerPathBloque(bloque);
+    if(archivoVacio(pathBloque)){
+        return 0;
+    }else{
+        FILE* bloque = fopen(pathBloque,"r");
+        char ch;
+        int count=0;
+        while((ch=fgetc(bloque))!=EOF) {
+            if(ch!='\n'){
+                count++;
+            }
+        }
+        fclose(bloque);
+        return count;
+    }
+}
+int estaLibreElBloque(int bloque){
+    return 1;
+}
+int obtenerBloqueLibreAsignado(){
+    for(int i=0;i<obtenerCantidadBloques(configuracion.puntoMontaje);i++)
+    {
+        if(estaLibreElBloque(i)){
+            return i;
+        }
+    }
+    return -1;
 }
 void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
     if (validarConsistencia(tipoConsistencia) != 0) {
@@ -161,7 +227,7 @@ void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, cha
             crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
             printf("Se creo la Metadata de la tabla %s.\n", nombreTabla);
             // Crear los archivos binarios asociados a cada partición de la tabla y
-            //  TODO: asignar a cada uno un bloque (?)
+            // asignar a cada uno un bloque
             crearBinarios(nombreTabla,atoi(particiones));
         }
     }

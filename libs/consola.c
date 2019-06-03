@@ -1,42 +1,32 @@
 #include "consola.h"
 
-int validarComandosComunes(char **comando) {
-    char *tipoDeRequest = comando[0];
-    char *nombreTabla = comando[1];
-    char *param1 = comando[2];
-    char *param2 = comando[3];
-    char *param3 = comando[4];
-    string_to_upper(tipoDeRequest);
-    if (strcmp(tipoDeRequest, "SELECT") == 0) {
-        if (nombreTabla == NULL || param1 == NULL) {
-            imprimirErrorParametros();
-            return 0;
-        }
-
-    } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
-        if (nombreTabla == NULL || param1 == NULL || param2 == NULL) {
-            imprimirErrorParametros();
-            return 0;
-        }
-
-    } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
-        if (nombreTabla == NULL || param1 == NULL || param2 == NULL || param3 == NULL) {
-            imprimirErrorParametros();
-            return 0;
-        }
-    } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {
-        if (param1 != NULL || param2 != NULL || param3 != NULL) {
-            imprimirErrorParametros();
-            return 0;
-        }
-
-    } else if (strcmp(tipoDeRequest, "DROP") == 0) {
-        if (nombreTabla == NULL || param1 != NULL || param2 != NULL || param3 != NULL) {
-            imprimirErrorParametros();
-            return 0;
-        }
+bool validarComandosComunes(t_comando comando) {
+    bool esValido;
+    switch(comando.tipoRequest) {
+        case JOURNAL:
+        case METRICS:
+            esValido = comando.cantidadParametros == 0;
+            break;
+        case DROP:
+        case DESCRIBE:
+        case RUN:
+            esValido = comando.cantidadParametros == 1;
+            break;
+        case SELECT:
+            esValido = comando.cantidadParametros == 2;
+            break;
+        case INSERT:
+            esValido = comando.cantidadParametros == 3;
+            break;
+        case CREATE:
+            esValido = comando.cantidadParametros == 4;
+            break;
     }
-    return 1;
+
+    if(!esValido)
+        imprimirErrorParametros();
+
+    return esValido;
 }
 
 void imprimirErrorParametros() {

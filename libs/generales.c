@@ -40,7 +40,7 @@ char** parser(char* input){
 
 t_comando instanciarComando(char** request) {//request ya parseada
     int cantidadParametros = obtenerCantidadParametros(request);
-    t_comando comando;
+    t_comando comando = {.cantidadParametros = cantidadParametros, .parametros = malloc(sizeof(char*) * cantidadParametros)};
     for (int i = 0; i <= cantidadParametros; i++) {
         comando.parametros[i] = string_duplicate(request[i + 1]);//primero lo evitamos porque es de "TipoRequest"
     }

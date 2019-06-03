@@ -12,15 +12,13 @@
 #include "../libs/sockets.h"
 #include <readline/readline.h>
 
-int validarComandosComunes(char** comando);
+bool validarComandosComunes(t_comando comando);
 //int validarComandosKernel(char** comando);
 //void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProceso, t_log *logger);
 //void ejecutarConsola(void *);
 char *obtenerPathTabla(char *nombreTabla, char* puntoMontaje);
 char *obtenerPathMetadata(char *nombreTabla,char* puntoMontaje);
 void imprimirErrorParametros();
-t_comando instanciarComando(char **request);
-int obtenerCantidadParametros(char **request);
 
 typedef struct{
     t_log* logger;

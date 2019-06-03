@@ -28,6 +28,7 @@ typedef enum {
 typedef struct{
     TipoRequest tipoRequest;
     char** parametros;
+    int cantidadParametros;
 }t_comando;
 
 void printArrayDeStrings(char** arrayDeStrings);

@@ -35,15 +35,18 @@ int pesoString(char* string)    {
 }
 
 char** parser(char* input){
-    return string_split(input, " ");
+    char** parseado = string_split(input, " ");
+    string_to_upper(parseado[0]);
+    return parseado;
 }
 
 t_comando instanciarComando(char** request) {//request ya parseada
     int cantidadParametros = obtenerCantidadParametros(request);
-    t_comando comando = {.cantidadParametros = cantidadParametros, .parametros = malloc(sizeof(char*) * cantidadParametros)};
-    for (int i = 0; i <= cantidadParametros; i++) {
+    t_comando comando = {.cantidadParametros = cantidadParametros, .parametros = malloc(sizeof(char*))};
+    for (int i = 0; i < cantidadParametros; i++) {
         comando.parametros[i] = string_duplicate(request[i + 1]);//primero lo evitamos porque es de "TipoRequest"
     }
+
     if (strcmp(request[0], "SELECT") == 0)
         comando.tipoRequest = SELECT;
     else if (strcmp(request[0], "INSERT") == 0)

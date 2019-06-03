@@ -91,157 +91,52 @@ void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
     }
 }
 
-int gestionarRequest(char **request, t_memoria* memoria, int fdLissandra) {
-    char *tipoDeRequest = request[0];
-    char *nombreTabla = request[1];
-    char *param1 = request[2];
-    char *param2 = request[3];
-    char *param3 = request[4];
-    string_to_upper(tipoDeRequest);
-
-    if (strcmp(tipoDeRequest, "SELECT") == 0) {
-        printf("Tipo de Request: %s\n", tipoDeRequest);
-        printf("Tabla: %s\n", nombreTabla);
-        printf("Key: %s\n", param1);
-
-        t_pagina* unaPagina = cmdSelect(nombreTabla, param1, memoria);
-
-        if (unaPagina != NULL){
-            char* value = unaPagina->marco->base;
-            printf("Valor hallado: %s", value);
-        }else{
-            printf("Valor no hallado, se lo pido a lissandra\n");
-            char* nuevaRequest = string_new();
-            string_to_lower(request[0]);
-            string_append(&nuevaRequest, request[0]);
-            string_append(&nuevaRequest, " ");
-            string_append(&nuevaRequest, request[1]);
-            string_append(&nuevaRequest, " ");
-            string_append(&nuevaRequest, request[2]);
-            printf("%s\n", nuevaRequest);
-            enviarPaquete(fdLissandra, REQUEST, nuevaRequest);
-
-            //TODO nos tienen que responder timestamp;key;value
-            /*char* respuestaMensaje =recibirMensaje(&fdLissandra);
-            char** respuesta = string_split(respuestaMensaje, ';');
-            //La respuesta sera del tipo [timestamp, key, value]
-            insert(request[1], respuesta[1], respuesta[2], memoria);*/
-
-
-
-
-        }
-        return 0;
-
-    } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
-        printf("Tipo de Request: %s\n", tipoDeRequest);
-        printf("Tabla: %s\n", nombreTabla);
-        printf("Key: %s\n", param1);
-        printf("Valor: %s\n", param2);
-        time_t timestamp;
-        if (param3 != NULL) {
-            timestamp = (time_t) strtol(param3, NULL, 10);
-        } else {
-            timestamp = (time_t) time(NULL);
-        }
-        printf("Timestamp: %i\n", (int) timestamp);
-        insert(nombreTabla, param1, param2, memoria);
-        return 0;
-
-    } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
-        printf("Tipo de Request: %s\n", tipoDeRequest);
-        printf("Tabla: %s\n", nombreTabla);
-        printf("TIpo de consistencia: %s\n", param1);
-        printf("Numero de particiones: %s\n", param2);
-        printf("Tiempo de compactacion: %s\n", param3);
-
-
-        //La operación Create permite la creación de una nueva tabla dentro del file system. Para esto, se utiliza la siguiente nomenclatura:
-        //    CREATE [TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]
-        char* nuevaRequest = string_new();
-
-        string_to_lower(request[0]);
-        string_append(&nuevaRequest, request[0]);
-        string_append(&nuevaRequest, " ");
-        string_append(&nuevaRequest, request[1]);
-        string_append(&nuevaRequest, " ");
-        string_append(&nuevaRequest, request[2]);
-        string_append(&nuevaRequest, " ");
-        string_append(&nuevaRequest, request[3]);
-        string_append(&nuevaRequest, " ");
-        string_append(&nuevaRequest, request[4]);
-        enviarPaquete(fdLissandra, REQUEST, nuevaRequest);
-
-        //TODO nos tienen que responder timestamp;key;value
-        //char* respuesta =recibirMensaje(fdLissandra);
-
-        return 0;
-
-    } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {
-        printf("Tipo de Request: %s\n", tipoDeRequest);
-        if (nombreTabla == NULL) {
-            // Hacer describe global
-        } else {
-            printf("Tabla: %s\n", nombreTabla);
-            // Hacer describe de una tabla especifica
-        }
-        return 0;
-
-    } else if (strcmp(tipoDeRequest, "DROP") == 0) {
-        printf("Tipo de Request: %s\n", tipoDeRequest);
-        printf("Tabla: %s\n", nombreTabla);
-        return 0;
-
-    }else if(strcmp(tipoDeRequest, "JOURNAL") == 0){
-        printf("Tipo de Request: %s\n", tipoDeRequest);
-        return 0;
-    } else if (strcmp(tipoDeRequest, "HELP") == 0) {
-        printf("************ Comandos disponibles ************\n");
-        printf("- SELECT [NOMBRE_TABLA] [KEY]\n");
-        printf("- INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp](Opcional)\n");
-        printf("- CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n");
-        printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
-        printf("- DROP [NOMBRE_TABLA]\n");
-        printf("- JOURNAL\n");
-        printf("- EXIT\n");
-        return 0;
-
-    } else {
-        printf("Ingrese un comando valido.");
-        return -2;
-    }
-
+char* gestionarInsert(char* nombreTabla, char* key, char* value, t_memoria* memoria)    {
+    t_pagina* nuevaPagina = insert(nombreTabla, key, value, memoria);
+    return string_from_format("Valor insertado: %s", nuevaPagina->marco->base);
 }
 
-void ejecutarConsola(void* parametrosConsola){
+char* gestionarSelect(char* nombreTabla, char* key, int fdLissandra, t_memoria* memoria) {
+    t_pagina* paginaEncontrada = cmdSelect(nombreTabla, key, memoria);
+    if(paginaEncontrada != NULL)
+        return paginaEncontrada->marco->base;
+    char* request = string_from_format("SELECT %s %s", nombreTabla, key);
+    enviarPaquete(fdLissandra, REQUEST, request);
+    free(request);
+    return recibirMensaje(&fdLissandra);
+}
 
+char* gestionarRequest(t_comando comando, t_memoria* memoria, int fdLissandra) {
+    switch(comando.tipoRequest) {
+        case SELECT:
+            return gestionarSelect(comando.parametros[0], comando.parametros[1], fdLissandra, memoria);
+        case INSERT:
+            return gestionarInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], memoria);
+//        case DROP:
+//            return gestionarDrop(comando.parametros[0], memoria);
+//        case CREATE:
+//            return gestionarCreate(comando.parametros[0], comando.parametros[1], comando.parametros[2], comando.parametros[3], memoria);
+        default:
+            return "Comando inválido.";
+    }
+}
+
+void* ejecutarConsola(void* parametrosConsola){
     parametros_consola_memoria* parametros = (parametros_consola_memoria*) parametrosConsola;
 
     t_memoria* memoria = parametros->memoria;
     t_log* logger = parametros->logger;
     int fdLissandra = parametros->fdLissandra;
 
-    char* comando;
-    char* nombreDelGrupo = "@suck-ets:~$ ";
-    char* prompt = string_new();
-    string_append(&prompt, "Memoria");
-    string_append(&prompt, nombreDelGrupo);
+    t_comando comando;
+
     do {
-        char* leido = readline(prompt);
-        comando = malloc(sizeof(char) * (strlen(leido) + 1));
-        memcpy(comando, leido, strlen(leido));
-        comando[strlen(leido)] = '\0';
-        char** comandoParseado = parser(comando);
-        if(validarComandosComunes(comandoParseado)== 1){
-            if(gestionarRequest(comandoParseado, memoria, fdLissandra) == 0){
-                log_info(logger, "Request procesada correctamente.");
-            } else {
-                log_error(logger, "No se pudo procesar la request solicitada.");
-            };
-        }
-        string_to_lower(comando);
-    } while(strcmp(comando, "exit") != 0);
-    free(comando);
+        char* leido = readline("Memoria@suck-ets:~$ ");
+        char** comandoParseado = parser(leido);
+        comando = instanciarComando(comandoParseado);
+        free(comandoParseado);
+        printf(validarComandosComunes(comando)? "%s" : "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n", gestionarRequest(comando, memoria, fdLissandra));
+    } while(comando.tipoRequest != EXIT);
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
@@ -305,10 +200,18 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria) 
         }   else if(hayMarcosLibres(*memoria))   {
             pagina = insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria);
         }
+//        else {
+//            hacerJournaling();
+//            insert(nombreTabla, key, value, memoria);
+//        }
     } else if(hayMarcosLibres(*memoria)) {
         t_segmento* nuevoSegmento = crearSegmento(nombreTabla, memoria);
         pagina = insertarNuevaPagina(key, contenidoPagina, nuevoSegmento->tablaDePaginas, memoria);
     }
+//    else {
+//        hacerJournaling();
+//        insert(nombreTabla, key, value, memoria);
+//    }
 
     free(contenidoPagina);
     return pagina;
@@ -329,9 +232,11 @@ t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria)  {
     if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))   {
         // obtengo el segmento asociado a la tabla en memoria
         t_segmento* segmento = (t_segmento*) dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
-        if(dictionary_has_key(segmento->tablaDePaginas, key))
+        if(dictionary_has_key(segmento->tablaDePaginas, key))   {
             resultado = (t_pagina*) dictionary_get(segmento->tablaDePaginas, key);
+        }
     }
+
     return resultado;
 }
 
@@ -344,17 +249,16 @@ void drop(char* nombreTabla, t_memoria* memoria)    {
 
 void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria)   {
     memoria->marcosOcupados -= dictionary_size(tablaDePaginas);
-    dictionary_iterator(tablaDePaginas, &eliminarPagina);
+    dictionary_destroy_and_destroy_elements(tablaDePaginas, &eliminarPagina);
     free(tablaDePaginas);
 }
 
-void eliminarPagina(char* key, t_pagina* pagina)    {
-    free(key);
+void eliminarPagina(void* data)    {
+    t_pagina* pagina = (t_pagina*) data;
     free(pagina->key);
     pagina->marco->ocupado = false;
     free(pagina);
 }
-
 
 int cantidadTotalMarcosMemoria(t_memoria memoria)   {
     return memoria.tamanioMemoria / memoria.tamanioPagina;
@@ -368,13 +272,13 @@ int calcularTamanioDePagina(int tamanioValue){
 //Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS
 int getTamanioValue(int fdLissandra, t_log* logger){
     return 4;
-    hacerHandshake(fdLissandra, MEMORIA);
-    int tamanioValue = (int) recibirMensaje(&fdLissandra);
-    if(tamanioValue != NULL)
-        log_info(logger, "Tamaño del value obtenido de Lissandra: %i", tamanioValue);
-    else
-        log_error(logger, "Hubo un error al intentar obtener el tamaño del value de Lissandra.");
-    return tamanioValue;
+//    hacerHandshake(fdLissandra, MEMORIA);
+//    int tamanioValue = (int) recibirMensaje(&fdLissandra);
+//    if(tamanioValue != NULL)
+//        log_info(logger, "Tamaño del value obtenido de Lissandra: %i", tamanioValue);
+//    else
+//        log_error(logger, "Hubo un error al intentar obtener el tamaño del value de Lissandra.");
+//    return tamanioValue;
 }
 
 t_marco* getMarcoLibre(t_memoria* memoria)   {
@@ -433,7 +337,7 @@ int main(void) {
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, fdLissandra);
 
-    while(1){
+    while(1)    {
 		sem_wait(&kernelConectado);
 		sem_wait(&lissandraConectada);
 		if(fdKernel > 0)	{

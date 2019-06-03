@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <libgen.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <commons/config.h>
@@ -83,6 +84,8 @@ void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, cha
 void *procesarComandoPorRequest(void *params);
 
 void lfsSelect(char *nombreTabla, char *key);
+
+void mkdir_recursive(char *path);
 
 /**
 * @NAME: gestionarRequest

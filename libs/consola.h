@@ -13,8 +13,8 @@
 #include <readline/readline.h>
 
 int validarComandosComunes(char** comando);
-char *obtenerPathTabla(char *nombreTabla);
-char *obtenerPathMetadata(char *nombreTabla);
+char *obtenerPathTabla(char *nombreTabla, char* puntoMontaje);
+char *obtenerPathMetadata(char *nombreTabla,char* puntoMontaje);
 void imprimirErrorParametros();
 
 typedef struct{

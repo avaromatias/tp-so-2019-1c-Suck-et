@@ -85,16 +85,19 @@ void imprimirErrorParametros() {
     printf("Ya analizamos todo lo solicitado.\n");
 }*/
 
-char *obtenerPathTabla(char *nombreTabla) {
-    char *basePath = "../tables/";
+char *obtenerPathTabla(char *nombreTabla, char* puntoMontaje) {
+    char *basePath = string_new();
+    string_append(&basePath, "..");
+    string_append(&basePath, puntoMontaje);
+    string_append(&basePath, "Tables/");
     char *tablePath = string_new();
     string_append(&tablePath, basePath);
     string_append(&tablePath, nombreTabla);
     return tablePath;
 }
 
-char *obtenerPathMetadata(char *nombreTabla) {
-    char *tablePath = obtenerPathTabla(nombreTabla);
+char *obtenerPathMetadata(char *nombreTabla,char* puntoMontaje) {
+    char *tablePath = obtenerPathTabla(nombreTabla,puntoMontaje);
     string_append(&tablePath, "/Metadata");
     return tablePath;
 }

@@ -594,6 +594,96 @@ void inicializarLFS(char* puntoMontaje){
 
 }
 
+char* crearDirEnPuntoDeMontaje(char* puntoMontaje,char* nombreDir){
+    char** dir=string_split(puntoMontaje,"/");
+    char *nombreArchivo = string_new();
+    string_append(&nombreArchivo, "..");
+    string_append(&nombreArchivo, puntoMontaje);
+    string_append(&nombreArchivo, nombreDir);
+
+    if (!existeElArchivo(nombreArchivo)) {
+        mkdir_recursive(nombreArchivo);
+    }
+    return nombreArchivo;
+}
+void crearDirTables(char* puntoMontaje){
+    char* nombreArchivo = crearDirEnPuntoDeMontaje(puntoMontaje,"/Tables");
+}
+int archivoVacio(char * path){
+    FILE* f= fopen(path,"r");
+    int c = fgetc(f);
+    fclose(f);
+    return c == EOF;
+}
+int obtenerCantidadBloques(char * puntoMontaje){
+    char** dir=string_split(puntoMontaje,"/");
+    char *nombreArchivo = string_new();
+    string_append(&nombreArchivo, "..");
+    string_append(&nombreArchivo, puntoMontaje);
+    string_append(&nombreArchivo, "/Metadata/Metadata.bin");
+    if (existeElArchivo(nombreArchivo) && !archivoVacio(nombreArchivo)) {
+        t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
+        int cantidadDeBloques= config_get_int_value(archivoConfig, "BLOCKS");
+        return cantidadDeBloques;
+    }
+    return -1;
+
+}
+void crearDirBloques(char* puntoMontaje){
+    char* nombreArchivo = crearDirEnPuntoDeMontaje(puntoMontaje,"/Bloques");
+    int bloques=obtenerCantidadBloques(puntoMontaje);
+    if(bloques!=-1){
+        for(int i=0;i<bloques;i++){
+            char * unArchivoDeBloque = string_duplicate(nombreArchivo);
+            string_append(&unArchivoDeBloque,"/");
+            string_append(&unArchivoDeBloque,string_from_format("%i",i));
+            string_append(&unArchivoDeBloque,".bin");
+            if(!existeElArchivo(unArchivoDeBloque)){
+                FILE* file=fopen(unArchivoDeBloque, "w");
+                fclose(file);
+            }
+        }
+    }
+}
+void crearDirMetadata(char* puntoMontaje){
+    char* nombreArchivo = crearDirEnPuntoDeMontaje(puntoMontaje,"/Metadata");
+    char *pathArchivoMetadata = string_new();
+    string_append(&pathArchivoMetadata, nombreArchivo);
+    string_append(&pathArchivoMetadata, "/Metadata.bin");
+    char *pathArchivoBitmap = string_new();
+    string_append(&pathArchivoBitmap, nombreArchivo);
+    string_append(&pathArchivoBitmap, "/Bitmap.bin");
+    if (!existeElArchivo(pathArchivoMetadata)) {
+        FILE *f = fopen(pathArchivoMetadata, "w");
+    }
+    if (!existeElArchivo(pathArchivoBitmap)) {
+        FILE *f = fopen(pathArchivoBitmap, "w");
+    }
+}
+int existenDirectoriosBase(char* puntoMontaje){
+    crearDirMetadata(puntoMontaje);
+    crearDirTables(puntoMontaje);
+    crearDirBloques(puntoMontaje);
+
+}
+void mkdir_recursive(char *path)
+{
+    char *subpath, *fullpath;
+
+    fullpath = strdup(path);
+    subpath = dirname(fullpath);
+    if (strlen(subpath) > 1)
+        mkdir_recursive(subpath);
+    mkdir(path,0777);
+    free(fullpath);
+}
+void inicializarLFS(char* puntoMontaje){
+    existenDirectoriosBase(puntoMontaje);
+    // TODO: Si no existen los directorios tables y bloques (suponiendo que la metadata ya existe), los crea.
+    // TODO: Si no existen los bloques, los crea.
+
+}
+
 void *atenderConexiones(void *parametrosThread) {
     parametros_thread_lfs *parametros = (parametros_thread_lfs *) parametrosThread;
     GestorConexiones *unaConexion = parametros->conexion;

@@ -22,7 +22,7 @@ typedef enum {
     METRICS,
     HELP,
     EXIT,
-    INVALIDO,
+    INVALIDO
 } TipoRequest;
 
 typedef struct{
@@ -34,5 +34,7 @@ void printArrayDeStrings(char** arrayDeStrings);
 int tamanioDeArrayDeStrings(char** arrayDeString);
 char** parser(char* input);
 int pesoString(char*);
+t_comando instanciarComando(char **request);
+int obtenerCantidadParametros(char **request);
 
 #endif //TP_2019_1C_SUCK_ET_ARRAYDESTRING_H

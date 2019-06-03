@@ -17,6 +17,7 @@
 #include <libgen.h>
 #include <stdlib.h>
 #include <time.h>
+#include <libgen.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <commons/config.h>
@@ -89,6 +90,8 @@ int obtenerTamanioBloque(int bloque);
 int archivoVacio(char * path);
 
 void lfsSelect(char *nombreTabla, char *key);
+
+void mkdir_recursive(char *path);
 
 /**
 * @NAME: gestionarRequest

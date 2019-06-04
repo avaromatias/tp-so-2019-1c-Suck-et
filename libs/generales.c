@@ -27,7 +27,7 @@ int tamanioDeArrayDeStrings(char** arrayDeString){
     while (arrayDeString[count] != NULL) {
         count++;
     }
-    printf("Cantidad: %i\n", count);
+    return count;
 }
 
 int pesoString(char* string)    {

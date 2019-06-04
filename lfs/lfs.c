@@ -295,22 +295,27 @@ void lfsSelect(char *nombreTabla, char *key) {
         int mayorTimestamp = 0;
         char *valorMayorTimestamp;
 
-        //4.1. Escaneo particion objetivo
-        while (!feof(fd)) {
-            linea = string_new();
-            keyEncontrado = string_new();
-            timestampEncontrado = string_new();
-            while ((seek = getc(fd)) != EOF && seek != '\n') {
-                str[0] = seek;
-                string_append(&linea, str);
-            }
-            palabras = desarmarLinea(linea);
-            string_append(&timestampEncontrado, palabras[0]);
-            string_append(&keyEncontrado, palabras[1]);
-            if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
-                mayorTimestamp = atoi(timestampEncontrado);
-                valorMayorTimestamp = string_new();
-                string_append(&valorMayorTimestamp, palabras[2]);
+        //4.0 Obtengo los bloques asignados a la particion obtenida
+        int tamanioArray = tamanioDeArrayDeStrings(obtenerBloquesDe(particion); //TODO: Cambiar obtenerBloquesDe(particion) por el header de la funcion verdadera
+        char bloques[tamanioArray] = obtenerBloquesDe(particion);
+        for(int i = 0; i < tamanioArray; i++){
+            //4.1. Escaneo particion objetivo
+            while (!feof(fd)) {
+                linea = string_new();
+                keyEncontrado = string_new();
+                timestampEncontrado = string_new();
+                while ((seek = getc(fd)) != EOF && seek != '\n') {
+                    str[0] = seek;
+                    string_append(&linea, str);
+                }
+                palabras = desarmarLinea(linea);
+                string_append(&timestampEncontrado, palabras[0]);
+                string_append(&keyEncontrado, palabras[1]);
+                if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
+                    mayorTimestamp = atoi(timestampEncontrado);
+                    valorMayorTimestamp = string_new();
+                    string_append(&valorMayorTimestamp, palabras[2]);
+                }
             }
         }
 

@@ -12,10 +12,8 @@
 #include "../libs/sockets.h"
 #include <readline/readline.h>
 #include "../libs/config.h"
+#include <regex.h>
 
-//int validarComandosKernel(char** comando);
-//void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProceso, t_log *logger);
-//void ejecutarConsola(void *);
 char *obtenerPathTabla(char *nombreTabla, char *puntoMontaje);
 
 char *obtenerPathMetadata(char *nombreTabla, char *puntoMontaje);
@@ -36,11 +34,13 @@ bool esEntero(char *palabra);
 
 bool esString(char *palabra);
 
+bool validarComandosComunes(t_comando comando);
+
 typedef struct {
     t_log *logger;
     Componente unComponente;
 
-    int (*gestionarComando)(char **);
+    int (*gestionarComando)(t_comando);
 
 } parametros_consola;
 

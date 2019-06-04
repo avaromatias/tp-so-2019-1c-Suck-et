@@ -52,18 +52,18 @@ void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parame
         printf("Estoy recibiendo un mensaje del File Descriptor %i: %s", header.fdRemitente, mensaje);
         fflush(stdout);
     } else if (header.tipoMensaje == REQUEST) {
-        pthread_t *hiloRequest = crearHiloRequest(mensaje);
+        //pthread_t *hiloRequest = crearHiloRequest(mensaje);
     }
 
 }
 
-pthread_t *crearHiloRequest(char *mensaje) {
+/*pthread_t *crearHiloRequest(char *mensaje) {
     pthread_t *hiloRequest = malloc(sizeof(pthread_t));
     parametros_thread_request *parametros = (parametros_thread_request *) malloc(sizeof(parametros_thread_request));
     parametros->comando = mensaje;
     pthread_create(hiloRequest, NULL, &procesarComandoPorRequest, parametros);
     return hiloRequest;
-}
+}*/
 
 char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
     char *path = string_new();
@@ -329,120 +329,86 @@ void lfsSelect(char *nombreTabla, char *key) {
 
 void ejecutarConsola(void *parametrosConsola) {
     parametros_consola *parametros = (parametros_consola *) parametrosConsola;
+    t_comando comando;
 
-    t_log *logger = parametros->logger;
-    int (*gestionarComando)(char **) = parametros->gestionarComando;
-    Componente nombreDelProceso = parametros->unComponente;
-
-    char *comando;
-    char *nombreDelGrupo = "@suck-ets:~$ ";
-    char *prompt = string_new();
-    string_append(&prompt, "Lissandra");
-    string_append(&prompt, nombreDelGrupo);
     do {
-        char *leido = readline(prompt);
-        comando = malloc(sizeof(char) * strlen(leido) + 1);
-        memcpy(comando, leido, strlen(leido));
-        comando[strlen(leido)] = '\0';
-        comando = procesarComando(comando);
-    } while (strcmp(comando, "exit") != 0);
-    free(comando);
+        char* leido = readline("Lissandra@suck-ets:~$ ");
+        char** comandoParseado = parser(leido);
+        comando = instanciarComando(comandoParseado);
+        free(comandoParseado);
+        printf(validarComandosComunes(comando)? "%d" : "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n", gestionarRequest(comando));
+    } while(comando.tipoRequest != EXIT);
     printf("Ya se analizo todo lo solicitado.\n");
 }
 
-void *procesarComandoPorRequest(void *params) {
-    parametros_thread_request *parametros = (parametros_thread_request *) params;
-    return procesarComando(parametros->comando);
-}
+int gestionarRequest(t_comando comando) {
+    char *nombreTabla = comando.parametros[0];
+    char *param1 = comando.parametros[1];
+    char *param2 = comando.parametros[2];
+    char *param3 = comando.parametros[3];
 
-char *procesarComando(char *comando) {
-    char **comandoParseado = parser(comando);
-    /*if (strcmp("exit", comando) != 0 && validarComandosComunes(comandoParseado) == 1) {*/ //TODO: Descomentar cuando salga fix del validarComandosComunes
-    if (strcmp("exit", comando) != 0) {
-        if (gestionarRequest(comandoParseado) == 0) {
-            log_info(logger, "Request procesada correctamente.");
-        } else {
-            log_error(logger, "No se pudo procesar la request solicitada (%s).", comando);
-        };
-    }
-    string_to_lower(comando);
-    return comando;
-}
-
-int gestionarRequest(char **request) {
-    char *tipoDeRequest = request[0];
-    char *nombreTabla = request[1];
-    char *param1 = request[2];
-    char *param2 = request[3];
-    char *param3 = request[4];
-    string_to_upper(tipoDeRequest);
-
-    if (strcmp(tipoDeRequest, "SELECT") == 0) {
-        printf("Tipo de Request: %s\n", tipoDeRequest);
-        printf("Tabla: %s\n", nombreTabla);
-        printf("Key: %s\n", param1);
-        lfsSelect(nombreTabla, param1);
-        return 0;
-
-    } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
-        printf("Tipo de Request: %s\n", tipoDeRequest);
-        printf("Tabla: %s\n", nombreTabla);
-        printf("Key: %s\n", param1);
-        printf("Valor: %s\n", param2);
-        time_t timestamp;
-        // El parámetro Timestamp es opcional.
-        // En caso que un request no lo provea (por ejemplo insertando un valor desde la consola),
-        // se usará el valor actual del Epoch UNIX.
-        if (param3 != NULL) {
-            timestamp = (time_t) strtol(param3, NULL, 10);
-        } else {
-            timestamp = (time_t) time(NULL);
-        }
-        printf("Timestamp: %i\n", (int) timestamp);
-        lfsInsert(nombreTabla, param1, param2, timestamp);
-        return 0;
-
-    } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
-        printf("Tipo de Request: %s\n", tipoDeRequest);
-        printf("Tabla: %s\n", nombreTabla);
-        printf("TIpo de consistencia: %s\n", param1);
-        printf("Numero de particiones: %s\n", param2);
-        printf("Tiempo de compactacion: %s\n", param3);
-        lfsCreate(nombreTabla, param1, param2, param3);
-        return 0;
-
-    } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {
-        printf("Tipo de Request: %s\n", tipoDeRequest);
-        if (nombreTabla == NULL) {
-            // Hacer describe global
-        } else {
+    switch(comando.tipoRequest) {
+        case SELECT:
             printf("Tabla: %s\n", nombreTabla);
-            // Hacer describe de una tabla especifica
+            printf("Key: %s\n", param1);
+            lfsSelect(nombreTabla, param1);
+            return 0;
+
+        case INSERT:
+            printf("Tabla: %s\n", nombreTabla);
+            printf("Key: %s\n", param1);
+            printf("Valor: %s\n", param2);
+            time_t timestamp;
+            // El parámetro Timestamp es opcional.
+            // En caso que un request no lo provea (por ejemplo insertando un valor desde la consola),
+            // se usará el valor actual del Epoch UNIX.
+            if (param3 != NULL) {
+                timestamp = (time_t) strtol(param3, NULL, 10);
+            } else {
+                timestamp = (time_t) time(NULL);
+            }
+            printf("Timestamp: %i\n", (int) timestamp);
+            lfsInsert(nombreTabla, param1, param2, timestamp);
+            return 0;
+
+        case CREATE:
+            printf("Tabla: %s\n", nombreTabla);
+            printf("TIpo de consistencia: %s\n", param1);
+            printf("Numero de particiones: %s\n", param2);
+            printf("Tiempo de compactacion: %s\n", param3);
+            lfsCreate(nombreTabla, param1, param2, param3);
+            return 0;
+
+        case DESCRIBE:
+            if (nombreTabla == NULL) {
+                // Hacer describe global
+            } else {
+                printf("Tabla: %s\n", nombreTabla);
+                // Hacer describe de una tabla especifica
+            }
+            return 0;
+
+        case DROP:
+            printf("Tabla: %s\n", nombreTabla);
+            return 0;
+
+        case HELP:
+            printf("************ Comandos disponibles ************\n");
+            printf("- SELECT [NOMBRE_TABLA] [KEY]\n");
+            printf("- INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp](Opcional)\n");
+            printf("- CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n");
+            printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
+            printf("- DROP [NOMBRE_TABLA]\n");
+            printf("- EXIT\n");
+            return 0;
+
+        case EXIT:
+            return 0;
+
+        default:
+            printf("Ingrese un comando valido.\n");
+            return -2;
         }
-        return 0;
-
-    } else if (strcmp(tipoDeRequest, "DROP") == 0) {
-        printf("Tipo de Request: %s\n", tipoDeRequest);
-        printf("Tabla: %s\n", nombreTabla);
-        return 0;
-
-    } else if (strcmp(tipoDeRequest, "HELP") == 0) {
-        printf("************ Comandos disponibles ************\n");
-        printf("- SELECT [NOMBRE_TABLA] [KEY]\n");
-        printf("- INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp](Opcional)\n");
-        printf("- CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n");
-        printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
-        printf("- DROP [NOMBRE_TABLA]\n");
-        printf("- EXIT\n");
-        return 0;
-
-    } else if (strcmp(tipoDeRequest, "EXIT") == 0) {
-        return 0;
-
-    } else {
-        printf("Ingrese un comando valido.\n");
-        return -2;
-    }
 
 }
 

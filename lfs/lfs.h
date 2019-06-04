@@ -75,8 +75,6 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
 pthread_t *crearHiloRequest(char *mensaje);
 
-char *procesarComando(char *comando);
-
 void mkdir_recursive(char *path);
 
 int validarConsistencia(char *tipoConsistencia);
@@ -88,8 +86,6 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 int obtenerBloqueLibreAsignado();
 
 void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
-
-void *procesarComandoPorRequest(void *params);
 
 int obtenerTamanioBloque(int bloque);
 
@@ -110,7 +106,7 @@ int obtenerCantidadBloques(char *puntoMontaje);
 * -1: Numero de parametros invalido
 * 0: Ejecucion exitosa
 */
-int gestionarRequest(char **request);
+int gestionarRequest(t_comando comando);
 
 /**
 * @NAME: existeTabla

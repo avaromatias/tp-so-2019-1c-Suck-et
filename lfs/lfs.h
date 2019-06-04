@@ -28,6 +28,7 @@
 #include <commons/bitarray.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <dirent.h>
 
 #include "../libs/config.h"
 #include "../libs/sockets.h"
@@ -63,6 +64,7 @@ typedef struct {
 t_configuracion configuracion;
 t_log *logger;
 t_dictionary *metadatas;
+t_dictionary *bloquesAsignados;
 t_bitarray *bitmap;
 
 
@@ -72,6 +74,8 @@ t_configuracion cargarConfiguracion(char *path, t_log *logger);
 void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros);
 
 void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
+
+char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo);
 
 pthread_t *crearHiloRequest(char *mensaje);
 
@@ -83,13 +87,13 @@ void crearBinarios(char *nombreTabla, int particiones);
 
 void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
-int obtenerBloqueLibreAsignado();
+int obtenerBloqueDisponible();
 
 void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
 int obtenerTamanioBloque(int bloque);
 
-int archivoVacio(char * path);
+int archivoVacio(char *path);
 
 void lfsSelect(char *nombreTabla, char *key);
 

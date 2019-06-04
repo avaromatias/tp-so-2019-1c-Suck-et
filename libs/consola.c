@@ -26,17 +26,7 @@ bool validarComandosComunes(t_comando comando) {
     if(!esValido)
         imprimirErrorParametros();
 
-<<<<<<< HEAD
-    } else if (strcmp(tipoDeRequest, "DROP") == 0) {
-        if(nombreTabla == NULL){
-            imprimirErrorParametros();
-            return 0;
-        }
-    }
-    return 1;
-=======
     return esValido;
->>>>>>> 984ca180dd1fd009b7047c7447e6a02fe8ea271b
 }
 
 void imprimirErrorParametros() {

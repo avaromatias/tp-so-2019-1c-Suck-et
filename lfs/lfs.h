@@ -26,6 +26,8 @@
 #include <semaphore.h>
 #include <commons/collections/list.h>
 #include <commons/bitarray.h>
+#include <sys/mman.h>
+#include <fcntl.h>
 
 #include "../libs/config.h"
 #include "../libs/sockets.h"

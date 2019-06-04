@@ -192,8 +192,8 @@ int obtenerTamanioBloque(int bloque) {
     }
 }
 
-int estaLibreElBloque(int bloque) { //TODO: Implementar el test bit
-    return 1;
+bool estaLibreElBloque(int bloque) { //TODO: Implementar el test bit
+    return bitarray_test_bit(bitmap, bloque);
 }
 
 int obtenerBloqueLibreAsignado() {
@@ -357,7 +357,8 @@ void *procesarComandoPorRequest(void *params) {
 
 char *procesarComando(char *comando) {
     char **comandoParseado = parser(comando);
-    if (strcmp("exit", comando) != 0 && validarComandosComunes(comandoParseado) == 1) {
+    /*if (strcmp("exit", comando) != 0 && validarComandosComunes(comandoParseado) == 1) {*/ //TODO: Descomentar cuando salga fix del validarComandosComunes
+    if (strcmp("exit", comando) != 0) {
         if (gestionarRequest(comandoParseado) == 0) {
             log_info(logger, "Request procesada correctamente.");
         } else {
@@ -553,6 +554,12 @@ void crearDirBloques(char *puntoMontaje) {
         }
 
         bitmap = bitarray_create_with_mode(data, sizeof(data), LSB_FIRST);
+
+        int file = open("../mnt/LISSANDRA_FS/Metadata/Bitmap.bin", O_RDWR | O_CREAT | O_TRUNC);
+        mmap(NULL, sizeof(bitmap), PROT_WRITE, MAP_SHARED, file, 0);
+        munmap(bitmap, sizeof(bitmap));
+
+        close(file);
 
         for(int i = 0; i < bloques; i++) {
             char * unArchivoDeBloque = string_duplicate(nombreArchivo);

@@ -37,5 +37,7 @@ char** parser(char* input);
 int pesoString(char*);
 t_comando instanciarComando(char **request);
 int obtenerCantidadParametros(char **request);
+bool cantidadDeParametrosEsValida(char* request, int cantidadDeParametros);
+bool stringEsVacio(const char* string);
 
 #endif //TP_2019_1C_SUCK_ET_ARRAYDESTRING_H

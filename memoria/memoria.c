@@ -127,12 +127,20 @@ void* ejecutarConsola(void* parametrosConsola){
     t_memoria* memoria = parametros->memoria;
     t_log* logger = parametros->logger;
     int fdLissandra = parametros->fdLissandra;
-
+    sem_t* lissandraConectada = (sem_t* ) parametros->lissandraConectada;
     t_comando comando;
 
+    sem_wait(&lissandraConectada);
     do {
         char* leido = readline("Memoria@suck-ets:~$ ");
         char** comandoParseado = parser(leido);
+
+        if (comandoParseado == NULL){
+            printf("Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n");
+            continue;
+        }
+
+        string_trim(comandoParseado);
         comando = instanciarComando(comandoParseado);
         free(comandoParseado);
         printf(validarComandosComunes(comando)? "%s" : "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n", gestionarRequest(comando, memoria, fdLissandra));
@@ -140,13 +148,14 @@ void* ejecutarConsola(void* parametrosConsola){
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
-pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, int fdLissandra){
+pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, int fdLissandra, sem_t* lissandraConectada ){
     pthread_t* hiloConsola = malloc(sizeof(pthread_t));
     parametros_consola_memoria* parametros = (parametros_consola_memoria*) malloc(sizeof(parametros_consola_memoria));
 
     parametros->logger = logger;
     parametros->memoria = memoria;
     parametros->fdLissandra = fdLissandra;
+    parametros->lissandraConectada = lissandraConectada;
 
     pthread_create(hiloConsola, NULL, &ejecutarConsola, parametros);
     return hiloConsola;
@@ -335,16 +344,18 @@ int main(void) {
 //    drop("tableB", memoriaPrincipal);
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
-    pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, fdLissandra);
+    pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, fdLissandra, &lissandraConectada);
 
     while(1)    {
 		sem_wait(&kernelConectado);
 		sem_wait(&lissandraConectada);
+		printf("Todavia no entre aca");
 		if(fdKernel > 0)	{
 			char* request = recibirMensaje(&fdKernel);
 			if(request == NULL) {
 			    // tengo que habilitar el semáforo de Lissandra por si ésta sigue conectada, si no lo sigue se lo deshabilitará en otra vuelta del ciclo
 			    sem_post(&lissandraConectada);
+                sem_post(&lissandraConectada);
 				continue;
 			}
 			else    {
@@ -363,7 +374,7 @@ int main(void) {
 		}
     }
     pthread_join(*hiloConexiones, NULL);
-//    pthread_join(*hiloConsola, NULL);
+    pthread_join(*hiloConsola, NULL);
 
 	return 0;
 }

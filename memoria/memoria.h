@@ -71,7 +71,9 @@ typedef struct {
     t_memoria* memoria;
     int fdLissandra;
     t_log* logger;
+    sem_t* lissandraConectada;
 } parametros_consola_memoria;
+pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, int fdLissandra, sem_t* lissandraConectada );
 
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
 

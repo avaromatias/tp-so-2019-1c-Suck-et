@@ -23,8 +23,8 @@ bool validarComandosComunes(t_comando comando) {
             break;
     }
 
-    if(!esValido)
-        imprimirErrorParametros();
+    /*if(!esValido)
+        imprimirErrorParametros();*/
 
     return esValido;
 }

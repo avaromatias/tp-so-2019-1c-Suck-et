@@ -183,7 +183,10 @@ int conectarseALissandra(char* ipLissandra, int puertoLissandra, sem_t* lissandr
         log_error(logger, "Hubo un error al intentar conectarse a Lissandra. Cerrando el proceso...");
 //        exit(-1);
     }
-    else
-        sem_post(lissandraConectada);
+    else{
+        sem_post(&lissandraConectada);
+        sem_post(&lissandraConectada);
+    }
+
     return fdLissandra;
 }

@@ -35,23 +35,48 @@ int pesoString(char* string)    {
 }
 
 char** parser(char* input){
+    if (stringEsVacio(input)){
+        return NULL;
+    }
     char** parseado = string_split(input, " ");
     string_to_upper(parseado[0]);
     return parseado;
 }
 
+bool stringEsVacio(const char *s) {
+    while (*s != '\0') {
+        if (!isspace((unsigned char)*s))
+            return 0;
+        s++;
+    }
+    return 1;
+}
+//TODO extender comportamiento de esta funcion para las request faltantes
+bool cantidadDeParametrosEsValida(char* request, int cantidadDeParametros){
+    if(strcmp(request, "SELECT") == 0){
+        return cantidadDeParametros == 2;
+    }else if(strcmp(request, "INSERT") == 0){
+        return cantidadDeParametros == 3;
+    }else if(strcmp(request, "CREATE") == 0){
+        return cantidadDeParametros == 4;
+    }else{
+        return 0;
+    }
+}
 t_comando instanciarComando(char** request) {//request ya parseada
     int cantidadParametros = obtenerCantidadParametros(request);
+
     t_comando comando = {.cantidadParametros = cantidadParametros, .parametros = malloc(sizeof(char*))};
     for (int i = 0; i < cantidadParametros; i++) {
         comando.parametros[i] = string_duplicate(request[i + 1]);//primero lo evitamos porque es de "TipoRequest"
     }
 
-    if (strcmp(request[0], "SELECT") == 0)
+    //TODO extender cantidad de parametros para todas las request
+    if (strcmp(request[0], "SELECT") == 0 && cantidadDeParametrosEsValida(request[0], cantidadParametros))
         comando.tipoRequest = SELECT;
-    else if (strcmp(request[0], "INSERT") == 0)
+    else if (strcmp(request[0], "INSERT") == 0 && cantidadDeParametrosEsValida(request[0], cantidadParametros))
         comando.tipoRequest = INSERT;
-    else if (strcmp(request[0], "CREATE") == 0)
+    else if (strcmp(request[0], "CREATE") == 0 && cantidadDeParametrosEsValida(request[0], cantidadParametros))
         comando.tipoRequest = CREATE;
     else if (strcmp(request[0], "DROP") == 0)
         comando.tipoRequest = DROP;

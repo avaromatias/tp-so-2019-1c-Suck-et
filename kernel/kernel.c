@@ -35,9 +35,9 @@ int main(void) {
 
     ejecutarConsola(gestionarComando, nombreDelProceso, logger);
 
-	/*while(1)	{
-    enviarPaquete(fdMemoria, REQUEST, "DESCRIBE TABLE 2\n");
-    sleep(3);}*/
+	while(1)	{
+    enviarPaquete(fdMemoria, REQUEST, "select table 3\n");
+    sleep(3);}
 
 	return EXIT_SUCCESS;
 }
@@ -106,13 +106,13 @@ void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProces
             memcpy(comando, leido, strlen(leido));
             comando[strlen(leido)] = '\0';
             char **comandoParseado = parser(comando);
-            if (validarComandosComunes(comandoParseado) == 1) {
+            /*if (validarComandosComunes(comandoParseado) == 1) {
                 if (gestionarComando(comandoParseado) == 0) {
                     log_info(logger, "Request procesada correctamente.");
                 } else {
                     log_error(logger, "No se pudo procesar la request solicitada.");
                 };
-            }
+            }*/
             string_to_lower(comando);
         }
     } while(strcmp(comando, "exit") != 0);

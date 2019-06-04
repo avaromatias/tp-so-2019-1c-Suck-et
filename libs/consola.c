@@ -1,35 +1,32 @@
 #include "consola.h"
 
-int validarComandosComunes(char** comando){
-    char *tipoDeRequest = comando[0];
-    char *nombreTabla = comando[1];
-    char *param1 = comando[2];
-    char *param2 = comando[3];
-    char *param3 = comando[4];
-    string_to_upper(tipoDeRequest);
-    if (strcmp(tipoDeRequest, "SELECT") == 0) {
-        if(nombreTabla == NULL || param1 == NULL){
-            imprimirErrorParametros();
-            return 0;
-        }
+bool validarComandosComunes(t_comando comando) {
+    bool esValido;
+    switch(comando.tipoRequest) {
+        case JOURNAL:
+        case METRICS:
+            esValido = comando.cantidadParametros == 0;
+            break;
+        case DROP:
+        case DESCRIBE:
+        case RUN:
+            esValido = comando.cantidadParametros == 1;
+            break;
+        case SELECT:
+            esValido = comando.cantidadParametros == 2;
+            break;
+        case INSERT:
+            esValido = comando.cantidadParametros == 3;
+            break;
+        case CREATE:
+            esValido = comando.cantidadParametros == 4;
+            break;
+    }
 
-    } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
-        if(nombreTabla == NULL || param1 == NULL || param2 == NULL){
-            imprimirErrorParametros();
-            return 0;
-        }
+    if(!esValido)
+        imprimirErrorParametros();
 
-    } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
-        if (nombreTabla == NULL || param1 == NULL || param2 == NULL || param3 == NULL) {
-            imprimirErrorParametros();
-            return 0;
-        }
-    } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {
-       if(param1 != NULL || param2 != NULL || param3 != NULL){
-            imprimirErrorParametros();
-           return 0;
-       }
-
+<<<<<<< HEAD
     } else if (strcmp(tipoDeRequest, "DROP") == 0) {
         if(nombreTabla == NULL){
             imprimirErrorParametros();
@@ -37,8 +34,12 @@ int validarComandosComunes(char** comando){
         }
     }
     return 1;
+=======
+    return esValido;
+>>>>>>> 984ca180dd1fd009b7047c7447e6a02fe8ea271b
 }
-void imprimirErrorParametros(){
+
+void imprimirErrorParametros() {
     printf("Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n");
 }
 
@@ -84,16 +85,19 @@ void imprimirErrorParametros(){
     printf("Ya analizamos todo lo solicitado.\n");
 }*/
 
-char *obtenerPathTabla(char *nombreTabla) {
-    char *basePath = "../tables/";
+char *obtenerPathTabla(char *nombreTabla, char* puntoMontaje) {
+    char *basePath = string_new();
+    string_append(&basePath, "..");
+    string_append(&basePath, puntoMontaje);
+    string_append(&basePath, "Tables/");
     char *tablePath = string_new();
     string_append(&tablePath, basePath);
     string_append(&tablePath, nombreTabla);
     return tablePath;
 }
 
-char *obtenerPathMetadata(char *nombreTabla) {
-    char *tablePath = obtenerPathTabla(nombreTabla);
+char *obtenerPathMetadata(char *nombreTabla,char* puntoMontaje) {
+    char *tablePath = obtenerPathTabla(nombreTabla,puntoMontaje);
     string_append(&tablePath, "/Metadata");
     return tablePath;
 }

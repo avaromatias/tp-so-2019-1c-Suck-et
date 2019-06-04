@@ -75,7 +75,7 @@ typedef struct {
 
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
-int gestionarRequest(char **request, t_memoria* memoria, int fdLissandra);
+char* gestionarRequest(t_comando comando, t_memoria* memoria, int fdLissandra);
 
 t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamanioPagina, t_log* logger);
 
@@ -98,5 +98,5 @@ t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria);
 // drop
 void drop(char* nombreTabla, t_memoria* memoria);
 void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria);
-void eliminarPagina(char* key, t_pagina* pagina);
+void eliminarPagina(void* pagina);
 #endif /* MEMORIA_H_ */

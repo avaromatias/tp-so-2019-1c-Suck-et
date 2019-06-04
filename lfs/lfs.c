@@ -67,21 +67,46 @@ pthread_t *crearHiloRequest(char *mensaje) {
 
 char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
     char *path = string_new();
-    char *tablePath = obtenerPathTabla(nombreTabla);
+    char *tablePath = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
     string_append(&path, tablePath);
     string_append(&path, "/");
     string_append(&path, nombreArchivo);
     return path;
 }
 
+char *obtenerPathBloque(int numberoBloque) {
+    char *unArchivoDeBloque = string_new();
+    string_append(&unArchivoDeBloque, "..");
+    string_append(&unArchivoDeBloque, configuracion.puntoMontaje);
+    string_append(&unArchivoDeBloque, "Bloques/");
+    string_append(&unArchivoDeBloque,string_from_format("%i", numberoBloque));
+    string_append(&unArchivoDeBloque, ".bin");
+    return unArchivoDeBloque;
+}
+
+void valorSinComillas(char *valor) {
+    if(string_starts_with(valor, "\"") && string_ends_with(valor, "\"")) {
+        int j = 0;
+        for (int i = 0; i < strlen(valor); i++) {
+            if (valor[i] == '\\') {
+                valor[j++] = valor[i++];
+                valor[j++] = valor[i];
+                if (valor[i] == '\0')
+                    break;
+            } else if (valor[i] != '"')
+                valor[j++] = valor[i];
+        }
+        valor[j] = '\0';
+    }
+}
+
 char *armarLinea(char *key, char *valor, time_t timestamp) {
     char *linea = string_new();
-    char *timestampString;
-    sprintf(timestampString, "%ld", timestamp);
-    string_append(&linea, timestampString);
+    string_append(&linea, string_from_format("%ld",timestamp));
     string_append(&linea, ";");
     string_append(&linea, key);
     string_append(&linea, ";");
+    valorSinComillas(valor);
     string_append(&linea, valor);
     string_append(&linea, "\n");
     return linea;
@@ -100,17 +125,13 @@ int validarConsistencia(char *tipoConsistencia) {
 }
 
 int validarValor(char *valor) {
-    char primerChar = valor[0];
-    char ultimoChar = valor[strlen(valor) - 1];
-    if (primerChar == '"' && ultimoChar == '"') {
+    if (string_starts_with(valor, "\"") && string_ends_with(valor, "\"")) {
         return 0;
     }
     return -1;
-
 }
 
 void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
-
     FILE *f = fopen(obtenerPathArchivo(nombreTabla, "Metadata"), "w");
     char *lineaConsistencia = string_new();
     string_append(&lineaConsistencia, "CONSISTENCY=");
@@ -130,23 +151,68 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
     fclose(f);
 }
 
-void crearBinarios(char *nombreTabla,int particiones){
-    for(int i=0;i<particiones;i++){
-        char * nombreArchivo = string_new();
-        string_append(&nombreArchivo,string_from_format("%i",i));
-        string_append(&nombreArchivo,".bin");
-        FILE* file=fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "w");
-        fclose(file);
+void crearBinarios(char *nombreTabla, int particiones) {
+    for(int i = 0; i < particiones; i++) {
+        int bloque = obtenerBloqueLibreAsignado();
+        if(bloque != -1) {
+            char *nombreArchivo = string_new();
+            string_append(&nombreArchivo, string_from_format("%i", i));
+            string_append(&nombreArchivo, ".bin");
+            FILE *file = fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "w");
+            char *contenido = string_new();
+            string_append(&contenido, "SIZE=");
+            int tamanio = obtenerTamanioBloque(bloque);
+            string_append(&contenido, string_from_format("%i", tamanio));
+            string_append(&contenido, "\n");
+            string_append(&contenido, "BLOCKS=[");
+            string_append(&contenido, string_from_format("%i", bloque));
+            string_append(&contenido, "]");
+            string_append(&contenido, "\n");
+            fwrite(contenido, sizeof(char) * strlen(contenido), 1, file);
+            fclose(file);
+        }
     }
 }
+
+int obtenerTamanioBloque(int bloque) {
+    char *pathBloque = obtenerPathBloque(bloque);
+    if(archivoVacio(pathBloque)) {
+        return 0;
+    } else {
+        FILE *bloque = fopen(pathBloque, "r");
+        char ch;
+        int count = 0;
+        while((ch = fgetc(bloque)) != EOF) {
+            if(ch != '\n') {
+                count++;
+            }
+        }
+        fclose(bloque);
+        return count;
+    }
+}
+
+int estaLibreElBloque(int bloque) { //TODO: Implementar el test bit
+    return 1;
+}
+
+int obtenerBloqueLibreAsignado() {
+    for(int i = 0; i < obtenerCantidadBloques(configuracion.puntoMontaje); i++) {
+        if(estaLibreElBloque(i)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
     if (validarConsistencia(tipoConsistencia) != 0) {
         log_warning(logger, "El Tipo de Consistencia no es valido. Este puede ser SC, SHC o EC.");
     } else {
-        char *tablePath = obtenerPathTabla(nombreTabla);
+        char *tablePath = obtenerPathTabla(nombreTabla,configuracion.puntoMontaje);
         // Verificar que la tabla no exista en el file system.
         if (existeElArchivo(tablePath)) {
-            char *path = obtenerPathMetadata(nombreTabla);
+            char *path = obtenerPathMetadata(nombreTabla,configuracion.puntoMontaje);
             // En caso que exista, se guardará el resultado en un archivo .log y se retorna un error indicando dicho resultado.
             log_info(logger, "La tabla %s ya existe.\n", nombreTabla);
             if (!existeElArchivo(path)) {
@@ -155,16 +221,13 @@ void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, cha
             }
         } else {
             // Crear el directorio para dicha tabla.
-            char *createDir = string_new();
-            string_append(&createDir, "../tables/");
-            string_append(&createDir, nombreTabla);
-            mkdir(createDir, 0777);
+            mkdir(tablePath, 0777);
             // Crear el directorio para dicha tabla.
             // Grabar en dicho archivo los parámetros pasados por el request.
             crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
             printf("Se creo la Metadata de la tabla %s.\n", nombreTabla);
             // Crear los archivos binarios asociados a cada partición de la tabla y
-            //  TODO: asignar a cada uno un bloque (?)
+            // asignar a cada uno un bloque
             crearBinarios(nombreTabla,atoi(particiones));
         }
     }
@@ -177,7 +240,7 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
         // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
         if (existeTabla(nombreTabla) == 0) {
             // Obtener la metadata asociada a dicha tabla.
-            char *path = obtenerPathMetadata(nombreTabla);
+            char *path = obtenerPathMetadata(nombreTabla,configuracion.puntoMontaje);
             if (existeElArchivo(path)) {
                 printf("Existe metadata en %s\n", path);
                 // TODO: Verificar si existe en memoria una lista de datos a dumpear. De no existir, alocar dicha memoria.
@@ -265,7 +328,6 @@ void lfsSelect(char *nombreTabla, char *key) {
 }
 
 void ejecutarConsola(void *parametrosConsola) {
-
     parametros_consola *parametros = (parametros_consola *) parametrosConsola;
 
     t_log *logger = parametros->logger;
@@ -291,7 +353,6 @@ void ejecutarConsola(void *parametrosConsola) {
 void *procesarComandoPorRequest(void *params) {
     parametros_thread_request *parametros = (parametros_thread_request *) params;
     return procesarComando(parametros->comando);
-
 }
 
 char *procesarComando(char *comando) {
@@ -385,7 +446,7 @@ int gestionarRequest(char **request) {
 }
 
 int existeTabla(char *tabla) {
-    char *tablePath = obtenerPathTabla(tabla);
+    char *tablePath = obtenerPathTabla(tabla,configuracion.puntoMontaje);
     if (!existeElArchivo(tablePath)) {
         log_error(logger, "No se encontro o no tiene permisos para acceder a la tabla %s.", tabla);
         return -1;
@@ -394,7 +455,7 @@ int existeTabla(char *tabla) {
 }
 
 void obtenerMetadata(char *tabla) {
-    char *metadataPath = obtenerPathMetadata(tabla);
+    char *metadataPath = obtenerPathMetadata(tabla, configuracion.puntoMontaje);
     t_config *config = config_create(metadataPath);
     t_metadata *metadata = (t_metadata *) malloc(sizeof(t_metadata));
 
@@ -440,6 +501,113 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, int *fdMemoria, se
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
     return hiloConexiones;
+}
+
+char* crearDirEnPuntoDeMontaje(char *puntoMontaje, char *nombreDir) {
+    char *nombreArchivo = string_new();
+    string_append(&nombreArchivo, "..");
+    string_append(&nombreArchivo, puntoMontaje);
+    string_append(&nombreArchivo, nombreDir);
+
+    if (!existeElArchivo(nombreArchivo)) {
+        mkdir_recursive(nombreArchivo);
+    }
+
+    return nombreArchivo;
+}
+
+void crearDirTables(char* puntoMontaje) {
+    char* nombreArchivo = crearDirEnPuntoDeMontaje(puntoMontaje,"/Tables");
+}
+
+int archivoVacio(char *path) {
+    FILE *f = fopen(path, "r");
+    int c = fgetc(f);
+    fclose(f);
+    return c == EOF;
+}
+
+int obtenerCantidadBloques(char *puntoMontaje) {
+    char *nombreArchivo = string_new();
+    string_append(&nombreArchivo, "..");
+    string_append(&nombreArchivo, puntoMontaje);
+    string_append(&nombreArchivo, "/Metadata/Metadata.bin");
+    if (existeElArchivo(nombreArchivo) && !archivoVacio(nombreArchivo)) {
+        t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
+        int cantidadDeBloques = config_get_int_value(archivoConfig, "BLOCKS");
+        return cantidadDeBloques;
+    }
+    return -1;
+}
+
+void crearDirBloques(char *puntoMontaje) {
+    char* nombreArchivo = crearDirEnPuntoDeMontaje(puntoMontaje, "/Bloques");
+    int bloques = obtenerCantidadBloques(puntoMontaje);
+    if(bloques != -1) {
+
+        int tamanioBitarray = bloques / 8;
+        char data[tamanioBitarray];
+
+        for(int i = 0; i < tamanioBitarray; i++){
+            data[i] = 0;
+        }
+
+        bitmap = bitarray_create_with_mode(data, sizeof(data), LSB_FIRST);
+
+        for(int i = 0; i < bloques; i++) {
+            char * unArchivoDeBloque = string_duplicate(nombreArchivo);
+            string_append(&unArchivoDeBloque, "/");
+            string_append(&unArchivoDeBloque, string_from_format("%i", i));
+            string_append(&unArchivoDeBloque, ".bin");
+            if(!existeElArchivo(unArchivoDeBloque)) {
+                FILE *file = fopen(unArchivoDeBloque, "w");
+                fclose(file);
+            }
+            //printf("%i", bitarray_test_bit(bitmap, i));
+        }
+    }
+}
+
+void crearDirMetadata(char *puntoMontaje) {
+    char* nombreArchivo = crearDirEnPuntoDeMontaje(puntoMontaje, "/Metadata");
+    char *pathArchivoMetadata = string_new();
+    string_append(&pathArchivoMetadata, nombreArchivo);
+    string_append(&pathArchivoMetadata, "/Metadata.bin");
+    char *pathArchivoBitmap = string_new();
+    string_append(&pathArchivoBitmap, nombreArchivo);
+    string_append(&pathArchivoBitmap, "/Bitmap.bin");
+    if (!existeElArchivo(pathArchivoMetadata)) {
+        FILE *f = fopen(pathArchivoMetadata, "w");
+        fclose(f);
+    }
+    if (!existeElArchivo(pathArchivoBitmap)) {
+        FILE *f = fopen(pathArchivoBitmap, "w");
+        fclose(f);
+    }
+}
+
+int crearDirectoriosBase(char *puntoMontaje) {
+    crearDirMetadata(puntoMontaje);
+    crearDirTables(puntoMontaje);
+    crearDirBloques(puntoMontaje);
+}
+
+void mkdir_recursive(char *path) {
+    char *subpath, *fullpath;
+
+    fullpath = strdup(path);
+    subpath = dirname(fullpath);
+    if (strlen(subpath) > 1)
+        mkdir_recursive(subpath);
+    mkdir(path, 0777);
+    free(fullpath);
+}
+
+void inicializarLFS(char* puntoMontaje){
+    crearDirectoriosBase(puntoMontaje);
+    // TODO: Si no existen los directorios tables y bloques (suponiendo que la metadata ya existe), los crea.
+    // TODO: Si no existen los bloques, los crea.
+
 }
 
 void *atenderConexiones(void *parametrosThread) {
@@ -524,6 +692,7 @@ int main(void) {
 
     configuracion = cargarConfiguracion("../lfs.cfg", logger);
     metadatas = dictionary_create();
+    inicializarLFS(configuracion.puntoMontaje);
 
     log_info(logger, "Puerto Escucha: %i", configuracion.puertoEscucha);
     log_info(logger, "Punto Montaje: %s", configuracion.puntoMontaje);
@@ -534,6 +703,7 @@ int main(void) {
     GestorConexiones *misConexiones = inicializarConexion();
 
     levantarServidor(configuracion.puertoEscucha, misConexiones, logger);
+
 
     int fdMemoria = 0;
 

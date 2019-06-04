@@ -14,8 +14,10 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <libgen.h>
 #include <stdlib.h>
 #include <time.h>
+#include <libgen.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <commons/config.h>
@@ -59,6 +61,7 @@ typedef struct {
 t_configuracion configuracion;
 t_log *logger;
 t_dictionary *metadatas;
+t_bitarray *bitmap;
 
 
 //Header de funciones
@@ -72,17 +75,29 @@ pthread_t *crearHiloRequest(char *mensaje);
 
 char *procesarComando(char *comando);
 
+void mkdir_recursive(char *path);
+
 int validarConsistencia(char *tipoConsistencia);
 
 void crearBinarios(char *nombreTabla, int particiones);
 
 void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
+int obtenerBloqueLibreAsignado();
+
 void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
 void *procesarComandoPorRequest(void *params);
 
+int obtenerTamanioBloque(int bloque);
+
+int archivoVacio(char * path);
+
 void lfsSelect(char *nombreTabla, char *key);
+
+void mkdir_recursive(char *path);
+
+int obtenerCantidadBloques(char *puntoMontaje);
 
 /**
 * @NAME: gestionarRequest

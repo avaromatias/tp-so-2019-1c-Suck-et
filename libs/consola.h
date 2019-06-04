@@ -11,20 +11,37 @@
 #include <string.h>
 #include "../libs/sockets.h"
 #include <readline/readline.h>
+#include "../libs/config.h"
 
-bool validarComandosComunes(t_comando comando);
 //int validarComandosKernel(char** comando);
 //void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProceso, t_log *logger);
 //void ejecutarConsola(void *);
-char *obtenerPathTabla(char *nombreTabla, char* puntoMontaje);
-char *obtenerPathMetadata(char *nombreTabla,char* puntoMontaje);
+char *obtenerPathTabla(char *nombreTabla, char *puntoMontaje);
+
+char *obtenerPathMetadata(char *nombreTabla, char *puntoMontaje);
+
 void imprimirErrorParametros();
 
-typedef struct{
-    t_log* logger;
-    Componente unComponente;
-    int (*gestionarComando)(char**);
+int parametrosValidos(t_comando comando);
 
-}parametros_consola;
+void comandoInvalido();
+
+void imprimirErrorParametros();
+
+void cantidadIncorrectaParametros();
+
+bool matchea(char *palabra, char *expresion);
+
+bool esEntero(char *palabra);
+
+bool esString(char *palabra);
+
+typedef struct {
+    t_log *logger;
+    Componente unComponente;
+
+    int (*gestionarComando)(char **);
+
+} parametros_consola;
 
 #endif //LIBS_CONSOLA_H

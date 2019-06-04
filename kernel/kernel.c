@@ -15,7 +15,7 @@ int main(void) {
     logger = log_create("../kernel.log", "kernel", false, LOG_LEVEL_INFO);
     log_info(logger, "Iniciando el proceso Kernel");
 
-	configuracion = cargarConfiguracion("kernel.cfg", logger);
+    configuracion = cargarConfiguracion("kernel.cfg", logger);
 
     log_info(logger, "IP Memoria: %s", configuracion.ipMemoria);
     log_info(logger, "Puerto Memoria: %i", configuracion.puertoMemoria);
@@ -25,69 +25,71 @@ int main(void) {
     log_info(logger, "Retardo de Ejecución : %i", configuracion.refreshMetadata);
     Componente nombreDelProceso = KERNEL;
 
-    GestorConexiones* conexion = inicializarConexion();
-	//conectar con memoria y luego el paso de abajo
+    GestorConexiones *conexion = inicializarConexion();
+    //conectar con memoria y luego el paso de abajo
     int fdMemoria = conectarseAServidor(configuracion.ipMemoria, configuracion.puertoMemoria, conexion, logger);
 
-    pthread_t* hiloRespuestas = crearHiloConexiones(conexion, logger);
+    pthread_t *hiloRespuestas = crearHiloConexiones(conexion, logger);
 
     //parametros_consola* parametros = (parametros_consola*) malloc(sizeof(parametros_consola));
 
     ejecutarConsola(gestionarComando, nombreDelProceso, logger);
 
-	/*while(1)	{
+    /*while(1)	{
     enviarPaquete(fdMemoria, REQUEST, "DESCRIBE TABLE 2\n");
     sleep(3);}*/
 
-	return EXIT_SUCCESS;
+    return EXIT_SUCCESS;
 }
 
-t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logger)	{
-	t_configuracion configuracion;
+t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logger) {
+    t_configuracion configuracion;
 
-	t_config* archivoConfig = abrirArchivoConfiguracion(pathArchivoConfiguracion, logger); //nos devuelve un archivoConfig
+    t_config *archivoConfig = abrirArchivoConfiguracion(pathArchivoConfiguracion,
+                                                        logger); //nos devuelve un archivoConfig
 
-	bool existenTodasLasClavesObligatorias(t_config* archivoConfig, t_configuracion configuracion)	{
-		char* clavesObligatorias[6] = {
-				"IP_MEMORIA",
-				"PUERTO_MEMORIA",
-				"QUANTUM",
-				"MULTIPROCESAMIENTO",
-				"METADATA_REFRESH",
-				"SLEEP_EJECUCION"
-		};
+    bool existenTodasLasClavesObligatorias(t_config *archivoConfig, t_configuracion configuracion) {
+        char *clavesObligatorias[6] = {
+                "IP_MEMORIA",
+                "PUERTO_MEMORIA",
+                "QUANTUM",
+                "MULTIPROCESAMIENTO",
+                "METADATA_REFRESH",
+                "SLEEP_EJECUCION"
+        };
 
-		for(int i = 0; i < COUNT_OF(clavesObligatorias); i++)	{
-			if(!config_has_property(archivoConfig, clavesObligatorias[i]))
-				return false;
-		}
-		return true;
-	}
+        for (int i = 0; i < COUNT_OF(clavesObligatorias); i++) {
+            if (!config_has_property(archivoConfig, clavesObligatorias[i]))
+                return false;
+        }
+        return true;
+    }
 
-	if(!existenTodasLasClavesObligatorias(archivoConfig, configuracion)){
-		log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
+    if (!existenTodasLasClavesObligatorias(archivoConfig, configuracion)) {
+        log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
         config_destroy(archivoConfig);
-		exit(1); // settear algún código de error para cuando falte alguna key
-	}	else	{
-	    char* ipMemoria = config_get_string_value(archivoConfig, "IP_MEMORIA");
-	    configuracion.ipMemoria = (char*) malloc(sizeof(char) * strlen(ipMemoria));
-	    strcpy(configuracion.ipMemoria, ipMemoria);
-		configuracion.puertoMemoria = config_get_int_value(archivoConfig, "PUERTO_MEMORIA");
-		configuracion.quantum = config_get_int_value(archivoConfig, "QUANTUM");
-		configuracion.multiprocesamiento = config_get_int_value(archivoConfig, "MULTIPROCESAMIENTO");
-		configuracion.refreshMetadata = config_get_int_value(archivoConfig, "METADATA_REFRESH");
-		configuracion.retardoEjecucion = config_get_int_value(archivoConfig, "SLEEP_EJECUCION");
+        exit(1); // settear algún código de error para cuando falte alguna key
+    } else {
+        char *ipMemoria = config_get_string_value(archivoConfig, "IP_MEMORIA");
+        configuracion.ipMemoria = (char *) malloc(sizeof(char) * strlen(ipMemoria));
+        strcpy(configuracion.ipMemoria, ipMemoria);
+        configuracion.puertoMemoria = config_get_int_value(archivoConfig, "PUERTO_MEMORIA");
+        configuracion.quantum = config_get_int_value(archivoConfig, "QUANTUM");
+        configuracion.multiprocesamiento = config_get_int_value(archivoConfig, "MULTIPROCESAMIENTO");
+        configuracion.refreshMetadata = config_get_int_value(archivoConfig, "METADATA_REFRESH");
+        configuracion.retardoEjecucion = config_get_int_value(archivoConfig, "SLEEP_EJECUCION");
 
         config_destroy(archivoConfig);
 
-		return configuracion;
-	}
+        return configuracion;
+    }
 }
-void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProceso, t_log *logger){
-    char* comando;
-    char* nombreDelGrupo = "@suck-ets:~$ ";
-    char* prompt = string_new();
-    switch (nombreDelProceso){
+
+void ejecutarConsola(int (*gestionarComando)(t_comando), Componente nombreDelProceso, t_log *logger) {
+    char *comando;
+    char *nombreDelGrupo = "@suck-ets:~$ ";
+    char *prompt = string_new();
+    switch (nombreDelProceso) {
         case KERNEL:
             string_append(&prompt, "Kernel");
             break;
@@ -106,27 +108,65 @@ void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProces
             memcpy(comando, leido, strlen(leido));
             comando[strlen(leido)] = '\0';
             char **comandoParseado = parser(comando);
-            if (validarComandosComunes(comandoParseado) == 1) {
-                if (gestionarComando(comandoParseado) == 0) {
+            t_comando requestParseada = instanciarComando(comandoParseado);
+            if (validarComandosComunes(requestParseada)) { //habría que cambiarle el nombre, porque va a tener todos ahora
+                if (gestionarComando(requestParseada) == 1) {
                     log_info(logger, "Request procesada correctamente.");
                 } else {
                     log_error(logger, "No se pudo procesar la request solicitada.");
                 };
+            } else {
+                cantidadIncorrectaParametros();
             }
             string_to_lower(comando);
         }
-    } while(strcmp(comando, "exit") != 0);
+    } while (strcmp(comando, "exit") != 0);
     free(comando);
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
-int gestionarComando(char **request) {
+
+int gestionarComando(t_comando requestParseada) {
+    switch(requestParseada.tipoRequest){
+        case SELECT:
+            //kernelSelect();
+            break;
+        case INSERT:
+            //kernelInsert();
+            break;
+        case CREATE:
+            //kernelCreate();
+            break;
+        case DROP:
+            //kernelDrop();
+            break;
+        case DESCRIBE:
+            //kernelDescribe();
+            break;
+        case JOURNAL:
+            //kernelJournal();
+            break;
+        case ADD:
+            //gestionarAdd();
+            break;
+        case RUN:
+            //gestionarRun();
+            break;
+        case METRICS:
+            //gestionarMetricas();
+            break;
+        default:
+            return printf("Comando inválido.\n");
+        }
+}
+
+/*int gestionarComando(char **requestParseada) {
     char *tipoDeRequest = request[0];
     char *nombreTabla = request[1];
     char *param1 = request[2];
     char *param2 = request[3];
     char *param3 = request[4];
-    if (validarComandosKernel(tipoDeRequest, nombreTabla, param1, param2, param3) == 1){
+    if (validarComandosKernel(tipoDeRequest, nombreTabla, param1, param2, param3) == 1) {
         if (strcmp(tipoDeRequest, "SELECT") == 0) {
             printf("Tipo de Request: %s\n", tipoDeRequest);
             printf("Tabla: %s\n", nombreTabla);
@@ -140,11 +180,11 @@ int gestionarComando(char **request) {
             printf("Key: %s\n", param1);
             printf("Valor: %s\n", param2);
             time_t timestamp;
-                if (param3 != NULL) {
+            if (param3 != NULL) {
                 timestamp = (time_t) strtol(param3, NULL, 10);
-                } else {
+            } else {
                 timestamp = (time_t) time(NULL);
-                }
+            }
             printf("Timestamp: %i\n", (int) timestamp);
             //kernelInsert(nombreTabla, param1, param2, timestamp);
             return 0;
@@ -162,7 +202,7 @@ int gestionarComando(char **request) {
             printf("Tipo de Request: %s\n", tipoDeRequest);
             if (nombreTabla == NULL) {
                 // Hacer describe global
-                } else {
+            } else {
                 printf("Tabla: %s\n", nombreTabla);
                 // Hacer describe de una tabla especifica
             }
@@ -202,49 +242,6 @@ int gestionarComando(char **request) {
             return -2;
         }
     }
-}
+}*/
 
-int validarComandosKernel(char* tipoDeRequest, char* nombreTabla, char* param1, char* param2, char* param3){
-    char *palabraMemory = nombreTabla;
-    if (palabraMemory != NULL) string_to_upper(palabraMemory);
-    //TODO: palabra MEMORY" necesaria para hacer el ADD o "PATH" para el comando RUN
-    char *palabraTO = param2;
-    //TODO: el TO necesario para hacer el ADD
-    char *criterio = param3;
-    if (criterio == "sc" || criterio == "shc" || criterio == "ec") string_to_upper(criterio);
-    if (strcmp(tipoDeRequest, "ADD") == 0) {
-        if (palabraMemory != "MEMORY" || param1 == NULL || palabraTO != "TO" ||
-            (criterio != "SC" || criterio != "SHC" || criterio != "EC")) {
-            imprimirErrorParametros();
-            return -1;
-        } else {
-            printf("Agregando memoria a la tabla\n");
-            return 0;
-        }
-    } else if (strcmp(tipoDeRequest, "RUN") == 0) {
-        char *path = palabraMemory;
-        if (sePuedeLeerElArchivo(path)) {
-            printf("El PATH es correcto y se podrá ejecutarse.\n");
-        } else {
-            printf("El PATH recibido es inválido.\n");
-            return -1;
-        }
-    } else if (strcmp(tipoDeRequest, "JOURNAL") == 0) {
-        if (palabraMemory != NULL) {
-            printf("Los parámetros son innecesarios.\n");
-            return -1;
-        } else {
-            printf("Ejecutando Journal...\n");
-            return 0;
-        }
-    } else if (strcmp(tipoDeRequest, "METRICS") == 0) {
-        if (palabraMemory != NULL || param1 != NULL) {
-            printf("Los parámetros son innecesarios.\n");
-            return -1;
-        } else {
-            printf("Ejecutando Metricas...\n");
-            return 0;
-        }
-        return 0;
-    }
-}
+//para hacer los comandosKernel

@@ -44,8 +44,12 @@ t_list* finalizados;
 
 //Funciones propias de Kernel
 t_configuracion cargarConfiguracion(char*, t_log*);
-int gestionarComando(char **);
-int validarComandosKernel(char* tipoDeRequest, char* nombreTabla, char* param1, char* param2, char* param3);
-void ejecutarConsola(int (*gestionarComando)(char**), Componente nombreDelProceso, t_log *logger);
+int gestionarComando(t_comando);
+//int validarComandosKernel(char* tipoDeRequest, char* nombreTabla, char* param1, char* param2, char* param3);
+void ejecutarConsola(int (*gestionarComando)(t_comando), Componente nombreDelProceso, t_log *logger);
+
+bool validarComandosComunes(t_comando comando);
+
+
 
 #endif /* KERNEL_H_ */

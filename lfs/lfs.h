@@ -61,6 +61,7 @@ typedef struct {
 t_configuracion configuracion;
 t_log *logger;
 t_dictionary *metadatas;
+t_bitarray *bitmap;
 
 
 //Header de funciones
@@ -82,16 +83,21 @@ void crearBinarios(char *nombreTabla, int particiones);
 
 void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
+int obtenerBloqueLibreAsignado();
+
 void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
 void *procesarComandoPorRequest(void *params);
 
 int obtenerTamanioBloque(int bloque);
+
 int archivoVacio(char * path);
 
 void lfsSelect(char *nombreTabla, char *key);
 
 void mkdir_recursive(char *path);
+
+int obtenerCantidadBloques(char *puntoMontaje);
 
 /**
 * @NAME: gestionarRequest

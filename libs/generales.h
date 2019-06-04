@@ -29,7 +29,7 @@ typedef struct{
     TipoRequest tipoRequest;
     char** parametros;
     int cantidadParametros;
-}t_comando;
+} t_comando;
 
 void printArrayDeStrings(char** arrayDeStrings);
 int tamanioDeArrayDeStrings(char** arrayDeString);

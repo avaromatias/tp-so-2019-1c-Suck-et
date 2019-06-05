@@ -170,8 +170,8 @@ char *obtenerPathTabla(char *nombreTabla, char* puntoMontaje) {
     return tablePath;
 }
 
-char *obtenerPathMetadata(char *nombreTabla,char* puntoMontaje) {
-    char *tablePath = obtenerPathTabla(nombreTabla,puntoMontaje);
+char *obtenerPathMetadata(char *nombreTabla, char* puntoMontaje) {
+    char *tablePath = obtenerPathTabla(nombreTabla, puntoMontaje);
     string_append(&tablePath, "/Metadata");
     return tablePath;
 }

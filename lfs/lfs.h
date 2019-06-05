@@ -93,6 +93,12 @@ int archivoVacio(char * path);
 
 void lfsSelect(char *nombreTabla, char *key);
 
+char *obtenerNombreArchivoParticion(int particion);
+
+char *obtenerNombreArchivoParticion(int particion);
+
+char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo);
+
 void mkdir_recursive(char *path);
 
 int obtenerCantidadBloques(char *puntoMontaje);

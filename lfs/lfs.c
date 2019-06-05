@@ -278,12 +278,11 @@ void lfsSelect(char *nombreTabla, char *key) {
         int particion = calcularParticion(key, meta);
 
         //4. Escanear la partición objetivo, todos los archivos temporales y la memoria temporal de dicha tabla (si existe) buscando la key deseada
-        char *nombreArchivo = string_new();
-        char *p = string_itoa(particion);
-        string_append(&nombreArchivo, p);
-        string_append(&nombreArchivo, ".bin");
-        char *archivePath = obtenerPathArchivo(nombreTabla, nombreArchivo);
-        FILE *fd = fopen(archivePath, "r");
+
+        char *nombreArchivoParticion = obtenerNombreArchivoParticion(particion);
+        char *binaryPath = obtenerPathArchivo(nombreTabla, nombreArchivoParticion);
+        FILE *binarioParticion = fopen(binaryPath, "r");
+        FILE *binarioBloque;
 
         char seek;
         char **palabras;
@@ -296,15 +295,19 @@ void lfsSelect(char *nombreTabla, char *key) {
         char *valorMayorTimestamp;
 
         //4.0 Obtengo los bloques asignados a la particion obtenida
-        int tamanioArray = tamanioDeArrayDeStrings(obtenerBloquesDe(particion); //TODO: Cambiar obtenerBloquesDe(particion) por el header de la funcion verdadera
-        char bloques[tamanioArray] = obtenerBloquesDe(particion);
-        for(int i = 0; i < tamanioArray; i++){
+        int tamanioArray = tamanioDeArrayDeStrings(bloquesEnParticion(nombreTabla, nombreArchivoParticion));
+        char **bloques = bloquesEnParticion(nombreTabla, nombreArchivoParticion);
+        for(int i = 0; i < tamanioArray; i++) {
+
             //4.1. Escaneo particion objetivo
-            while (!feof(fd)) {
+            char *blockPath = obtenerPathBloque(atoi(bloques[i]));
+            binarioBloque = fopen(blockPath, "r");
+
+            while (!feof(binarioBloque)) {
                 linea = string_new();
                 keyEncontrado = string_new();
                 timestampEncontrado = string_new();
-                while ((seek = getc(fd)) != EOF && seek != '\n') {
+                while ((seek = getc(binarioBloque)) != EOF && seek != '\n') {
                     str[0] = seek;
                     string_append(&linea, str);
                 }
@@ -319,7 +322,8 @@ void lfsSelect(char *nombreTabla, char *key) {
             }
         }
 
-        fclose(fd);
+        fclose(binarioBloque);
+        fclose(binarioParticion);
 
         //4.2. Escaneo los archivos temporales
 
@@ -330,6 +334,20 @@ void lfsSelect(char *nombreTabla, char *key) {
         //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
         printf("Value: %s\n", valorMayorTimestamp);
     }
+}
+
+char *obtenerNombreArchivoParticion(int particion) {
+    char *nombreArchivo = string_new();
+    string_append(&nombreArchivo, string_itoa(particion));
+    string_append(&nombreArchivo, ".bin");
+    return nombreArchivo;
+}
+
+char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo) {
+    t_config *archivoConfig = abrirArchivoConfiguracion(obtenerPathArchivo(nombreTabla, nombreArchivo), logger);
+    char **arrayDeBloques = string_get_string_as_array(config_get_string_value(archivoConfig, "BLOCKS"));
+
+    return arrayDeBloques;
 }
 
 void ejecutarConsola(void *parametrosConsola) {

@@ -33,52 +33,13 @@ void imprimirErrorParametros() {
     printf("Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n");
 }
 
-/*void ejecutarConsola(void* parametrosConsola){
-
-    parametros_consola* parametros = (parametros_consola*) parametrosConsola;
-
-    t_log* logger = parametros->logger;
-    int (*gestionarComando)(char**) = parametros->gestionarComando;
-    Componente nombreDelProceso = parametros->unComponente;
-
-    char* comando;
-    char* nombreDelGrupo = "@suck-ets:~$ ";
-    char* prompt = string_new();
-    switch (nombreDelProceso){
-        case KERNEL:
-            string_append(&prompt, "Kernel");
-            break;
-        case MEMORIA:
-            string_append(&prompt, "Memoria");
-            break;
-        case LISSANDRA:
-            string_append(&prompt, "Lissandra");
-            break;
-    }
-    string_append(&prompt, nombreDelGrupo);
-    do {
-        char* leido = readline(prompt);
-        comando = malloc(sizeof(char) * strlen(leido) + 1);
-        memcpy(comando, leido, strlen(leido));
-        comando[strlen(leido)] = '\0';
-        char** comandoParseado = parser(comando);
-        if(validarComandosComunes(comandoParseado)== 1){
-            if(gestionarComando(comandoParseado) == 0){
-                log_info(logger, "Request procesada correctamente.");
-            } else {
-                log_error(logger, "No se pudo procesar la request solicitada.");
-            };
-        }
-        string_to_lower(comando);
-    } while(strcmp(comando, "exit") != 0);
-    free(comando);
-    printf("Ya analizamos todo lo solicitado.\n");
-}*/
 
 char *obtenerPathTabla(char *nombreTabla, char* puntoMontaje) {
     char *basePath = string_new();
-    string_append(&basePath, "..");
     string_append(&basePath, puntoMontaje);
+    if(!string_ends_with(puntoMontaje,"/")){
+        string_append(&basePath, "/");
+    }
     string_append(&basePath, "Tables/");
     char *tablePath = string_new();
     string_append(&tablePath, basePath);
@@ -90,4 +51,19 @@ char *obtenerPathMetadata(char *nombreTabla,char* puntoMontaje) {
     char *tablePath = obtenerPathTabla(nombreTabla,puntoMontaje);
     string_append(&tablePath, "/Metadata");
     return tablePath;
+}
+
+bool matchea(char* palabra, char* expresion) {
+    regex_t regex;
+    regcomp(&regex, expresion, REG_EXTENDED);
+
+    return regexec(&regex, palabra, 0, NULL, 0) != REG_NOMATCH;
+}
+
+bool esEntero(char* palabra) {
+    return matchea(palabra, "[[:digit:]]+");
+}
+
+bool esString(char* palabra)    {
+    return matchea(palabra, "[[:alnum:]]+");
 }

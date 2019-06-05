@@ -28,6 +28,7 @@
 #include <commons/bitarray.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <dirent.h>
 
 #include "../libs/config.h"
 #include "../libs/sockets.h"
@@ -63,6 +64,7 @@ typedef struct {
 t_configuracion configuracion;
 t_log *logger;
 t_dictionary *metadatas;
+t_dictionary *bloquesAsignados;
 t_bitarray *bitmap;
 
 
@@ -73,9 +75,9 @@ void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parame
 
 void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
-pthread_t *crearHiloRequest(char *mensaje);
+char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo);
 
-char *procesarComando(char *comando);
+pthread_t *crearHiloRequest(char *mensaje);
 
 void mkdir_recursive(char *path);
 
@@ -85,15 +87,13 @@ void crearBinarios(char *nombreTabla, int particiones);
 
 void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
-int obtenerBloqueLibreAsignado();
+int obtenerBloqueDisponible();
 
 void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
-void *procesarComandoPorRequest(void *params);
-
 int obtenerTamanioBloque(int bloque);
 
-int archivoVacio(char * path);
+int archivoVacio(char *path);
 
 void lfsSelect(char *nombreTabla, char *key);
 
@@ -110,7 +110,7 @@ int obtenerCantidadBloques(char *puntoMontaje);
 * -1: Numero de parametros invalido
 * 0: Ejecucion exitosa
 */
-int gestionarRequest(char **request);
+int gestionarRequest(t_comando comando);
 
 /**
 * @NAME: existeTabla

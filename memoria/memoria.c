@@ -100,13 +100,14 @@ char* gestionarSelect(char* nombreTabla, char* key, int fdLissandra, t_memoria* 
     t_pagina* paginaEncontrada = cmdSelect(nombreTabla, key, memoria);
     if(paginaEncontrada != NULL)
         return paginaEncontrada->marco->base;
-    char* request = string_from_format("SELECT %s %s", nombreTabla, key);
+    char* request = string_from_format("select %s %s", nombreTabla, key);
     enviarPaquete(fdLissandra, REQUEST, request);
     free(request);
     return recibirMensaje(&fdLissandra);
 }
 
 char* gestionarRequest(t_comando comando, t_memoria* memoria, int fdLissandra) {
+
     switch(comando.tipoRequest) {
         case SELECT:
             return gestionarSelect(comando.parametros[0], comando.parametros[1], fdLissandra, memoria);
@@ -149,6 +150,14 @@ void* ejecutarConsola(void* parametrosConsola){
 }
 
 pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, int fdLissandra, sem_t* lissandraConectada ){
+
+    /*int value;
+    sem_getvalue(lissandraConectada, &value);
+    printf("Valor del semaforo %d\n", value);*/
+
+
+    sem_wait(lissandraConectada);
+
     pthread_t* hiloConsola = malloc(sizeof(pthread_t));
     parametros_consola_memoria* parametros = (parametros_consola_memoria*) malloc(sizeof(parametros_consola_memoria));
 
@@ -342,6 +351,9 @@ int main(void) {
 
 //    drop("tableA", memoriaPrincipal);
 //    drop("tableB", memoriaPrincipal);
+
+    //Simulo que está conectado kernel
+    //sem_post(&kernelConectado);
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, fdLissandra, &lissandraConectada);

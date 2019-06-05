@@ -5,6 +5,11 @@
 #include "conexiones.h"
 
 pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, int* fdKernel, sem_t* kernelConectado, t_log* logger)    {
+
+    /*int value;
+    sem_getvalue(kernelConectado, &value);
+    printf("El valor del semaforo es %d\n", value);*/
+
     pthread_t* hiloConexiones = malloc(sizeof(pthread_t));
 
     parametros_thread_memoria* parametros = (parametros_thread_memoria*) malloc(sizeof(parametros_thread_memoria));
@@ -25,6 +30,7 @@ void* atenderConexiones(void* parametrosThread)    {
     t_log* logger = parametros->logger;
     int* fdKernel = parametros->fdKernel;
     sem_t* kernelConectado = parametros->kernelConectado;
+
 
     fd_set emisores;
 
@@ -184,8 +190,8 @@ int conectarseALissandra(char* ipLissandra, int puertoLissandra, sem_t* lissandr
 //        exit(-1);
     }
     else{
-        sem_post(&lissandraConectada);
-        sem_post(&lissandraConectada);
+        sem_post(lissandraConectada);
+        sem_post(lissandraConectada);
     }
 
     return fdLissandra;

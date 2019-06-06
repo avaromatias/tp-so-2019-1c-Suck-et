@@ -80,6 +80,10 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
 pthread_t *crearHiloRequest(char *mensaje);
 
+int obtenerBloqueDisponible(char* nombreTabla);
+
+int cargarBloquesAsignados(char *path);
+
 void mkdir_recursive(char *path);
 
 int validarConsistencia(char *tipoConsistencia);

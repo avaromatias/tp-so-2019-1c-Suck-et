@@ -57,6 +57,7 @@ lfs/.settings/
 memoria/.settings/
 
 .idea
+kernel/cmake-build-debug/
 lfs/cmake-build-debug/
 lfs/tables/
 *.log

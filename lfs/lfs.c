@@ -263,7 +263,8 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
                 char *p = string_itoa(particion);
                 string_append(&nombreArchivo, p);
                 string_append(&nombreArchivo, ".bin");
-                FILE *f = fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "a");
+                int bloque=obtenerBloqueDisponible(nombreTabla,particion);
+                FILE *f = fopen(obtenerPathBloque(bloque), "a");
                 printf("Linea %s\n", linea);
                 // TODO: Insertar en la memoria temporal del punto anterior una nueva entrada que contenga los datos enviados en la request.
                 fwrite(linea, sizeof(char) * strlen(linea), 1, f);
@@ -376,7 +377,6 @@ void ejecutarConsola(void *parametrosConsola) {
         char *leido = readline("Lissandra@suck-ets:~$ ");
         char **comandoParseado = parser(leido);
         comando = instanciarComando(comandoParseado);
-        free(comandoParseado);
         free(leido);
         printf(validarComandosComunes(comando) ? "%d"
                                                : "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n",
@@ -396,10 +396,6 @@ int gestionarRequest(t_comando comando) {
             printf("Tabla: %s\n", nombreTabla);
             printf("Key: %s\n", param1);
             lfsSelect(nombreTabla, param1);
-            free(nombreTabla);
-            free(param1);
-            free(param2);
-            free(param3);
             return 0;
 
         case INSERT:
@@ -410,17 +406,13 @@ int gestionarRequest(t_comando comando) {
             // El parámetro Timestamp es opcional.
             // En caso que un request no lo provea (por ejemplo insertando un valor desde la consola),
             // se usará el valor actual del Epoch UNIX.
-            if (param3 != NULL) {
+            if (comando.cantidadParametros==4 && param3 != NULL) {
                 timestamp = (time_t) strtol(param3, NULL, 10);
             } else {
                 timestamp = (time_t) time(NULL);
             }
             printf("Timestamp: %i\n", (int) timestamp);
             lfsInsert(nombreTabla, param1, param2, timestamp);
-            free(nombreTabla);
-            free(param1);
-            free(param2);
-            free(param3);
             return 0;
 
         case CREATE:
@@ -429,10 +421,6 @@ int gestionarRequest(t_comando comando) {
             printf("Numero de particiones: %s\n", param2);
             printf("Tiempo de compactacion: %s\n", param3);
             lfsCreate(nombreTabla, param1, param2, param3);
-            free(nombreTabla);
-            free(param1);
-            free(param2);
-            free(param3);
             return 0;
 
         case DESCRIBE:
@@ -442,18 +430,10 @@ int gestionarRequest(t_comando comando) {
                 printf("Tabla: %s\n", nombreTabla);
                 // Hacer describe de una tabla especifica
             }
-            free(nombreTabla);
-            free(param1);
-            free(param2);
-            free(param3);
             return 0;
 
         case DROP:
             printf("Tabla: %s\n", nombreTabla);
-            free(nombreTabla);
-            free(param1);
-            free(param2);
-            free(param3);
             return 0;
 
         case HELP:
@@ -464,25 +444,13 @@ int gestionarRequest(t_comando comando) {
             printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
             printf("- DROP [NOMBRE_TABLA]\n");
             printf("- EXIT\n");
-            free(nombreTabla);
-            free(param1);
-            free(param2);
-            free(param3);
             return 0;
 
         case EXIT:
-            free(nombreTabla);
-            free(param1);
-            free(param2);
-            free(param3);
             return 0;
 
         default:
             printf("Ingrese un comando valido.\n");
-            free(nombreTabla);
-            free(param1);
-            free(param2);
-            free(param3);
             return -2;
     }
 

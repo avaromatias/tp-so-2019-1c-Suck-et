@@ -28,6 +28,8 @@
 #include <commons/bitarray.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <stdarg.h>
+#include <dirent.h>
 
 #include "../libs/config.h"
 #include "../libs/sockets.h"
@@ -62,6 +64,7 @@ typedef struct {
 
 t_configuracion configuracion;
 t_log *logger;
+t_dictionary *bloquesAsignados;
 t_dictionary *metadatas;
 t_bitarray *bitmap;
 
@@ -70,6 +73,8 @@ t_bitarray *bitmap;
 t_configuracion cargarConfiguracion(char *path, t_log *logger);
 
 void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros);
+
+char* concat(int count, ...);
 
 void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 

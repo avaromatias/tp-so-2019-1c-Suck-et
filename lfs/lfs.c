@@ -144,9 +144,12 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 
 void crearBinarios(char *nombreTabla, int particiones) {
     for (int i = 0; i < particiones; i++) {
-        int bloque = obtenerBloqueDisponible(nombreTabla);
+        int bloque = obtenerBloqueDisponible(nombreTabla,i);
         if (bloque != -1) {
-            dictionary_put(bloquesAsignados, string_from_format("%i", bloque), nombreTabla);
+            t_bloqueAsignado *bloqueA= (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+            bloqueA->tabla = concat(1,nombreTabla);
+            bloqueA->particion = i;
+            dictionary_put(bloquesAsignados, (char*)string_from_format("%i", bloque), bloqueA);
             char *nombreArchivo = string_new();
             string_append(&nombreArchivo, string_from_format("%i", i));
             string_append(&nombreArchivo, ".bin");
@@ -191,19 +194,22 @@ int estaLibreElBloque(int bloque) { //TODO: Implementar el test bit
     return 0;
 }
 
-int estaDisponibleElBloqueParaTabla(int i, char *nombreTabla) {
-    return estaLibreElBloque(i) == 1 && (bloquesAsignados->table_current_size > 0 &&
-                                         (
-                                                 strcmp(dictionary_get(bloquesAsignados, string_from_format("%i", i)),
-                                                        nombreTabla) == 0 ||
-                                                 strcmp(dictionary_get(bloquesAsignados, string_from_format("%i", i)),
-                                                        "") == 0)
-    );
+int estaDisponibleElBloqueParaTabla(int i, char *nombreTabla, int particion) {
+    int bloqueDisponible = 0;
+    int bloqueLibre = estaLibreElBloque(i) == 1;
+    if (bloquesAsignados->elements_amount > 0) {
+        t_bloqueAsignado * bloque=dictionary_get(bloquesAsignados, (char*)string_from_format("%i", i));
+        if(strcmp(bloque->tabla,"") == 0 || (strcmp(bloque->tabla,nombreTabla) == 0 && bloque->particion==particion)){
+            bloqueDisponible=1;
+        }
+    }
+
+    return bloqueDisponible && bloqueLibre;
 }
 
-int obtenerBloqueDisponible(char *nombreTabla) {
+int obtenerBloqueDisponible(char *nombreTabla,int particion) {
     for (int i = 0; i < obtenerCantidadBloques(configuracion.puntoMontaje); i++) {
-        if (estaDisponibleElBloqueParaTabla(i, nombreTabla)) {
+        if (estaDisponibleElBloqueParaTabla(i, nombreTabla,particion)) {
             return i;
         }
     }
@@ -567,7 +573,7 @@ void crearDirTables(char *puntoMontaje) {
     free(nombreArchivo);
 }
 
-int cargarBloquesAsignados(char *path) {
+void cargarBloquesAsignados(char *path) {
     DIR *d;
     struct dirent *dir;
     d = opendir(path);
@@ -579,17 +585,18 @@ int cargarBloquesAsignados(char *path) {
                 t_metadata *meta = dictionary_get(metadatas, nombreTabla);
                 int partitions = meta->partitions;
                 for (int i = 0; i < partitions; i++) {
-                    int asd = 0;
                     char *nombreArchivo = string_new();
                     string_append(&nombreArchivo, string_from_format("%i", i));
                     string_append(&nombreArchivo, ".bin");
                     char **arrayDeBloques = bloquesEnParticion(nombreTabla, nombreArchivo);
                     for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
-                        dictionary_put(bloquesAsignados, arrayDeBloques[j], nombreTabla);
+                        t_bloqueAsignado * bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+                        bloque->tabla = concat(1,nombreTabla);
+                        bloque->particion = i;
+                        dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
                     }
                     free(nombreArchivo);
                 }
-                free(meta);
             }
         }
         closedir(d);
@@ -669,7 +676,10 @@ void crearDirBloques(char *puntoMontaje) {
 
         for (int i = 0; i < bloques; i++) {
             char *unArchivoDeBloque = concat(4, nombreArchivo, "/", string_from_format("%i", i), ".bin");
-            dictionary_put(bloquesAsignados, string_from_format("%i", i), "");
+            t_bloqueAsignado *bloque= (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+            bloque->tabla = concat(1,"");
+            bloque->particion = NULL;
+            dictionary_put(bloquesAsignados, (char *)string_from_format("%i", i), bloque);
             if (!existeElArchivo(unArchivoDeBloque)) {
                 FILE *file = fopen(unArchivoDeBloque, "w");
                 fclose(file);

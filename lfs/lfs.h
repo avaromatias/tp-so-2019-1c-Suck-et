@@ -62,6 +62,11 @@ typedef struct {
     char *comando;
 } parametros_thread_request;
 
+typedef struct {
+    char *tabla;
+    int particion;
+} t_bloqueAsignado;
+
 t_configuracion configuracion;
 t_log *logger;
 t_dictionary *bloquesAsignados;
@@ -80,9 +85,9 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
 pthread_t *crearHiloRequest(char *mensaje);
 
-int obtenerBloqueDisponible(char* nombreTabla);
+int obtenerBloqueDisponible(char* nombreTabla, int particion);
 
-int cargarBloquesAsignados(char *path);
+void cargarBloquesAsignados(char *path);
 
 void mkdir_recursive(char *path);
 
@@ -101,8 +106,6 @@ int obtenerTamanioBloque(int bloque);
 int archivoVacio(char * path);
 
 void lfsSelect(char *nombreTabla, char *key);
-
-char *obtenerNombreArchivoParticion(int particion);
 
 char *obtenerNombreArchivoParticion(int particion);
 

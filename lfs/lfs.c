@@ -405,7 +405,7 @@ int gestionarRequest(t_comando comando) {
             // El parámetro Timestamp es opcional.
             // En caso que un request no lo provea (por ejemplo insertando un valor desde la consola),
             // se usará el valor actual del Epoch UNIX.
-            if (comando.parametros[3] != NULL) {
+            if (comando.cantidadParametros==4 && comando.parametros[3] != NULL) {
                 timestamp = (time_t) strtol(comando.parametros[3], NULL, 10);
             } else {
                 timestamp = (time_t) time(NULL);

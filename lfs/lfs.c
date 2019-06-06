@@ -146,10 +146,10 @@ void crearBinarios(char *nombreTabla, int particiones) {
     for (int i = 0; i < particiones; i++) {
         int bloque = obtenerBloqueDisponible(nombreTabla,i);
         if (bloque != -1) {
-            t_bloqueAsignado *bloqueA= (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+            t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
             bloqueA->tabla = concat(1,nombreTabla);
             bloqueA->particion = i;
-            dictionary_put(bloquesAsignados, (char*)string_from_format("%i", bloque), bloqueA);
+            dictionary_put(bloquesAsignados, (char*) string_from_format("%i", bloque), bloqueA);
             char *nombreArchivo = string_new();
             string_append(&nombreArchivo, string_from_format("%i", i));
             string_append(&nombreArchivo, ".bin");
@@ -378,62 +378,61 @@ void ejecutarConsola(void *parametrosConsola) {
         char **comandoParseado = parser(leido);
         comando = instanciarComando(comandoParseado);
         free(leido);
-        printf(validarComandosComunes(comando) ? "%d"
-                                               : "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n",
-               gestionarRequest(comando));
+        if (validarComandosComunes(comando)) {
+            if(gestionarRequest(comando) == 0) {
+                log_info(logger, "Request procesada correctamente.");
+            }
+        }
+
     } while (comando.tipoRequest != EXIT);
     printf("Ya se analizo todo lo solicitado.\n");
 }
 
 int gestionarRequest(t_comando comando) {
-    char *nombreTabla = comando.parametros[0];
-    char *param1 = comando.parametros[1];
-    char *param2 = comando.parametros[2];
-    char *param3 = comando.parametros[3];
 
     switch (comando.tipoRequest) {
         case SELECT:
-            printf("Tabla: %s\n", nombreTabla);
-            printf("Key: %s\n", param1);
-            lfsSelect(nombreTabla, param1);
+            printf("Tabla: %s\n", comando.parametros[0]);
+            printf("Key: %s\n", comando.parametros[1]);
+            lfsSelect(comando.parametros[0], comando.parametros[1]);
             return 0;
 
         case INSERT:
-            printf("Tabla: %s\n", nombreTabla);
-            printf("Key: %s\n", param1);
-            printf("Valor: %s\n", param2);
+            printf("Tabla: %s\n", comando.parametros[0]);
+            printf("Key: %s\n", comando.parametros[1]);
+            printf("Valor: %s\n", comando.parametros[2]);
             time_t timestamp;
             // El parámetro Timestamp es opcional.
             // En caso que un request no lo provea (por ejemplo insertando un valor desde la consola),
             // se usará el valor actual del Epoch UNIX.
-            if (comando.cantidadParametros==4 && param3 != NULL) {
-                timestamp = (time_t) strtol(param3, NULL, 10);
+            if (comando.parametros[3] != NULL) {
+                timestamp = (time_t) strtol(comando.parametros[3], NULL, 10);
             } else {
                 timestamp = (time_t) time(NULL);
             }
             printf("Timestamp: %i\n", (int) timestamp);
-            lfsInsert(nombreTabla, param1, param2, timestamp);
+            lfsInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], timestamp);
             return 0;
 
         case CREATE:
-            printf("Tabla: %s\n", nombreTabla);
-            printf("TIpo de consistencia: %s\n", param1);
-            printf("Numero de particiones: %s\n", param2);
-            printf("Tiempo de compactacion: %s\n", param3);
-            lfsCreate(nombreTabla, param1, param2, param3);
+            printf("Tabla: %s\n", comando.parametros[0]);
+            printf("TIpo de consistencia: %s\n", comando.parametros[1]);
+            printf("Numero de particiones: %s\n", comando.parametros[2]);
+            printf("Tiempo de compactacion: %s\n", comando.parametros[3]);
+            lfsCreate(comando.parametros[0], comando.parametros[1], comando.parametros[2], comando.parametros[3]);
             return 0;
 
         case DESCRIBE:
-            if (nombreTabla == NULL) {
+            if (comando.parametros[0] == NULL) {
                 // Hacer describe global
             } else {
-                printf("Tabla: %s\n", nombreTabla);
+                printf("Tabla: %s\n", comando.parametros[0]);
                 // Hacer describe de una tabla especifica
             }
             return 0;
 
         case DROP:
-            printf("Tabla: %s\n", nombreTabla);
+            printf("Tabla: %s\n", comando.parametros[0]);
             return 0;
 
         case HELP:

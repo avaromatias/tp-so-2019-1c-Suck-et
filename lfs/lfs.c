@@ -46,14 +46,9 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
 }
 
 void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros) {
-    if (header.tipoMensaje == HANDSHAKE) {
-        enviarPaquete(header.fdRemitente, REQUEST, "Hola, soy Lissandra");
-        printf("Estoy recibiendo un mensaje del File Descriptor %i: %s", header.fdRemitente, mensaje);
-        fflush(stdout);
-    } else if (header.tipoMensaje == REQUEST) {
-        //pthread_t *hiloRequest = crearHiloRequest(mensaje);
-    }
-
+    char** comandoParseado = parser(mensaje);
+    t_comando comando = instanciarComando(comandoParseado);
+    gestionarRequest(comando);
 }
 
 /*pthread_t *crearHiloRequest(char *mensaje) {
@@ -513,15 +508,14 @@ int calcularParticion(char *key, t_metadata *metadata) {
     return k % b;
 }
 
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, int *fdMemoria, sem_t *kernelConectado, t_log *logger) {
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, int tamanioValue, t_log *logger) {
     pthread_t *hiloConexiones = malloc(sizeof(pthread_t));
 
     parametros_thread_lfs *parametros = (parametros_thread_lfs *) malloc(sizeof(parametros_thread_lfs));
 
     parametros->conexion = unaConexion;
     parametros->logger = logger;
-    parametros->fdMemoria = fdMemoria;
-    parametros->memoriaConectada = kernelConectado;
+    parametros->tamanioValue = tamanioValue;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -712,12 +706,18 @@ void inicializarLFS(char *puntoMontaje) {
 
 }
 
+void atenderHandshake(Header header, Componente componente, parametros_thread_lfs* parametros) {
+    if(componente == MEMORIA) {
+        char* tamanioValue = string_itoa(parametros->tamanioValue);
+        int resultado = enviarPaquete(header.fdRemitente, HANDSHAKE, tamanioValue);
+        free(tamanioValue);
+    }
+}
+
 void *atenderConexiones(void *parametrosThread) {
     parametros_thread_lfs *parametros = (parametros_thread_lfs *) parametrosThread;
     GestorConexiones *unaConexion = parametros->conexion;
     t_log *logger = parametros->logger;
-    int *fdMemoria = parametros->fdMemoria;
-    sem_t *memoriaConectada = parametros->memoriaConectada;
 
     fd_set emisores;
 
@@ -760,7 +760,12 @@ void *atenderConexiones(void *parametrosThread) {
                             } else {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
-                                atenderMensajes(header, mensaje, parametrosThread);
+                                if(header.tipoMensaje == HANDSHAKE) {
+                                    Componente componente = *((Componente*) mensaje);
+                                    atenderHandshake(header, componente, parametros);
+                                }
+                                else
+                                    atenderMensajes(header, mensaje, parametrosThread);
                             }
                             free(mensaje);
                             break;
@@ -775,10 +780,6 @@ void *atenderConexiones(void *parametrosThread) {
                 list_add(unaConexion->conexiones, fdNuevoCliente);
                 //me fijo si hay que actualizar el file descriptor máximo con el del nuevo cliente
                 unaConexion->descriptorMaximo = getFdMaximo(unaConexion);
-
-                // hacemos handshake
-                hacerHandshake(*fdNuevoCliente, KERNEL);
-                free(fdNuevoCliente);
                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le conecta un nuevo cliente
                 // nombre_maravillosa_funcion();
             }
@@ -807,14 +808,7 @@ int main(void) {
 
     levantarServidor(configuracion.puertoEscucha, misConexiones, logger);
 
-
-    int fdMemoria = 0;
-
-    sem_t memoriaConectada;
-
-    sem_init(&memoriaConectada, 0, 0);
-
-    pthread_t *hiloConexiones = crearHiloConexiones(misConexiones, &fdMemoria, &memoriaConectada, logger);
+    pthread_t *hiloConexiones = crearHiloConexiones(misConexiones, configuracion.tamanioValue, logger);
 
     parametros_consola *parametros = (parametros_consola *) malloc(sizeof(parametros_consola));
 
@@ -826,23 +820,25 @@ int main(void) {
     // crearHiloServidor(configuracion.puertoEscucha, &atenderMensajes, NULL, NULL);
     //int cliente = crearSocketCliente("192.168.0.30", 8000);
 
-    while (1) {
-        sem_wait(&memoriaConectada);
-        if (fdMemoria > 0) {
-            Header header;
-            int bytesRecibidos = recv(fdMemoria, &header, sizeof(Header), MSG_WAITALL);
-            if (bytesRecibidos == 0)
-                fdMemoria = 0;
-            else {
-                header = deserializarHeader(&header);
-                char *request = (char *) malloc(header.tamanioMensaje);
-                bytesRecibidos = recv(fdMemoria, &request, header.tamanioMensaje, MSG_WAITALL);
-                printf("Request recibida: %s\n", request);
-                fflush(stdout);
-                free(request);
-            }
-        }
-    }
+//    while (1) {
+//        sem_wait(&memoriaConectada);
+//        if (fdMemoria > 0) {
+//            Header header;
+//            int bytesRecibidos = recv(fdMemoria, &header, sizeof(Header), MSG_WAITALL);
+//            if (bytesRecibidos == 0)
+//                fdMemoria = 0;
+//            else {
+//                header = deserializarHeader(&header);
+//                char *request = (char *) malloc(header.tamanioMensaje);
+//                bytesRecibidos = recv(fdMemoria, &request, header.tamanioMensaje, MSG_WAITALL);
+//                printf("Request recibida: %s\n", request);
+//                fflush(stdout);
+//                free(request);
+//            }
+//        }
+//    }
+
+    pthread_join(&hiloConexiones, NULL);
 
     return 0;
 }

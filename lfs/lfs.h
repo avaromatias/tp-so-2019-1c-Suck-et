@@ -54,8 +54,7 @@ typedef struct {
 typedef struct {
     GestorConexiones *conexion;
     t_log *logger;
-    sem_t *memoriaConectada;
-    int *fdMemoria;
+    int tamanioValue;
 } parametros_thread_lfs;
 
 typedef struct {

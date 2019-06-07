@@ -315,7 +315,7 @@ void lfsSelect(char *nombreTabla, char *key) {
             char *blockPath = obtenerPathBloque(atoi(bloques[i]));
             binarioBloque = fopen(blockPath, "r");
 
-            while (!feof(binarioBloque)) {
+            while (!feof(binarioBloque) && seek != '\n') {
                 linea = string_new();
                 keyEncontrado = string_new();
                 timestampEncontrado = string_new();

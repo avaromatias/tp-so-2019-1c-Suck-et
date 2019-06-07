@@ -315,7 +315,7 @@ void lfsSelect(char *nombreTabla, char *key) {
             char *blockPath = obtenerPathBloque(atoi(bloques[i]));
             binarioBloque = fopen(blockPath, "r");
 
-            while (!feof(binarioBloque) && seek != '\n') {
+            while (!feof(binarioBloque)) {
                 linea = string_new();
                 keyEncontrado = string_new();
                 timestampEncontrado = string_new();
@@ -323,13 +323,15 @@ void lfsSelect(char *nombreTabla, char *key) {
                     str[0] = seek;
                     string_append(&linea, str);
                 }
-                palabras = desarmarLinea(linea);
-                string_append(&timestampEncontrado, palabras[0]);
-                string_append(&keyEncontrado, palabras[1]);
-                if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
-                    mayorTimestamp = atoi(timestampEncontrado);
-                    valorMayorTimestamp = string_new();
-                    string_append(&valorMayorTimestamp, palabras[2]);
+                if(strcmp(linea, "") != 0) {
+                    palabras = desarmarLinea(linea);
+                    string_append(&timestampEncontrado, palabras[0]);
+                    string_append(&keyEncontrado, palabras[1]);
+                    if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
+                        mayorTimestamp = atoi(timestampEncontrado);
+                        valorMayorTimestamp = string_new();
+                        string_append(&valorMayorTimestamp, palabras[2]);
+                    }
                 }
             }
         }

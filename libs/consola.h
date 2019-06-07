@@ -34,7 +34,7 @@ bool esEntero(char *palabra);
 
 bool esString(char *palabra);
 
-bool validarComandosComunes(t_comando comando);
+bool validarComandosComunes(t_comando comando, t_log* logger);
 
 typedef struct {
     t_log *logger;

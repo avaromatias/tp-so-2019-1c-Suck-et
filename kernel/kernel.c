@@ -109,7 +109,7 @@ void ejecutarConsola(int (*gestionarComando)(t_comando), Componente nombreDelPro
             comando[strlen(leido)] = '\0';
             char **comandoParseado = parser(comando);
             t_comando requestParseada = instanciarComando(comandoParseado);
-            if (validarComandosComunes(requestParseada)) { //habría que cambiarle el nombre, porque va a tener todos ahora
+            if (validarComandosComunes(requestParseada, logger)) { //habría que cambiarle el nombre, porque va a tener todos ahora
                 if (gestionarComando(requestParseada) == 1) {
                     log_info(logger, "Request procesada correctamente.");
                 } else {

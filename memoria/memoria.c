@@ -131,15 +131,13 @@ void* ejecutarConsola(void* parametrosConsola){
     sem_t* lissandraConectada = (sem_t* ) parametros->lissandraConectada;
     t_comando comando;
 
-    int value;
-    sem_getvalue(lissandraConectada, &value);
-    printf("Valor del semaforo en ejecutarConsola %d\n", value);
-
 
     do {
-        sem_wait(lissandraConectada);
+
 
         char* leido = readline("Memoria@suck-ets:~$ ");
+        logearValorDeSemaforo(lissandraConectada, logger, "consola");
+        sem_wait(lissandraConectada);
         char** comandoParseado = parser(leido);
 
         if (comandoParseado == NULL){
@@ -319,6 +317,28 @@ bool hayMarcosLibres(t_memoria memoria)  {
 }
 
 
+void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString){
+    int value;
+   if (sem_getvalue(unSemaforo, &value) == 0){
+       if (strcmp("kernel", unString) == 0){
+            log_info(logger, "Se está ejecutando una request por CONSOLA, espero para la ejecucion");
+       }
+       if (strcmp("consola", unString) == 0){
+           log_info(logger, "Se está ejecutando una request de KERNEL, espero para la ejecucion");
+       }
+   }else{
+       if (strcmp("kernel", unString) == 0){
+           log_info(logger, "Puedo ejecutar request de KERNEL");
+       }
+       if (strcmp("consola", unString) == 0){
+           log_info(logger, "Puedo ejecutar request por CONSOLA");
+       }
+   }
+
+
+
+}
+
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
 	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
@@ -362,16 +382,14 @@ int main(void) {
     while(1)    {
 		sem_wait(&kernelConectado);
 
-        /*int value;
-        sem_getvalue(&lissandraConectada, &value);
-        printf("Valor del semaforo en main %d\n", value);*/
-
-		sem_wait(&lissandraConectada);
 		if(fdKernel > 0)	{
 			char* request = recibirMensaje(&fdKernel);
+			logearValorDeSemaforo(&lissandraConectada, logger, "kernel");
+            sem_wait(&lissandraConectada);
 			if(request == NULL) {
 			    // tengo que habilitar el semáforo de Lissandra por si ésta sigue conectada, si no lo sigue se lo deshabilitará en otra vuelta del ciclo
 			    sem_post(&lissandraConectada);
+			    //request == NULL es que se desconecto kernel?
 				continue;
 			}
 			else    {

@@ -24,6 +24,9 @@ void printArrayDeStrings(char** arrayDeStrings){
 int tamanioDeArrayDeStrings(char** arrayDeString){
 
     int count=0;
+    if(arrayDeString == NULL){
+        return 0;
+    }
     while (arrayDeString[count] != NULL) {
         count++;
     }
@@ -65,8 +68,9 @@ bool cantidadDeParametrosEsValida(char* request, int cantidadDeParametros){
 }
 t_comando instanciarComando(char** request) {//request ya parseada
     int cantidadParametros = obtenerCantidadParametros(request);
-
-    t_comando comando = {.cantidadParametros = cantidadParametros, .parametros = malloc(sizeof(char*))};
+    t_comando comando;
+    comando.cantidadParametros=cantidadParametros;
+    comando.parametros=malloc(cantidadParametros*sizeof(char*));
     for (int i = 0; i < cantidadParametros; i++) {
         comando.parametros[i] = string_duplicate(request[i + 1]);//primero lo evitamos porque es de "TipoRequest"
     }

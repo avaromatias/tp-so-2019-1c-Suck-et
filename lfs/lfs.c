@@ -304,7 +304,7 @@ void lfsSelect(char *nombreTabla, char *key) {
         char *keyEncontrado;
         char *timestampEncontrado;
         int mayorTimestamp = 0;
-        char *valorMayorTimestamp;
+        char *valorMayorTimestamp = string_new();
 
         //4.0 Obtengo los bloques asignados a la particion obtenida
         int tamanioArray = tamanioDeArrayDeStrings(bloquesEnParticion(nombreTabla, nombreArchivoParticion));
@@ -346,7 +346,11 @@ void lfsSelect(char *nombreTabla, char *key) {
 
 
         //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
-        printf("Value: %s\n", valorMayorTimestamp);
+        if(strcmp(valorMayorTimestamp, "") != 0) {
+            printf("Value: %s\n", valorMayorTimestamp);
+        } else {
+            printf("No se encontro ningun valor con esa key.\n");
+        }
     }
 }
 

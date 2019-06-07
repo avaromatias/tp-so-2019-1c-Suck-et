@@ -376,9 +376,14 @@ void ejecutarConsola(void *parametrosConsola) {
     do {
         char *leido = readline("Lissandra@suck-ets:~$ ");
         char **comandoParseado = parser(leido);
+        if(comandoParseado == NULL) {
+            free(comandoParseado);
+            continue;
+        }
         comando = instanciarComando(comandoParseado);
         free(leido);
-        if (validarComandosComunes(comando)) {
+        free(comandoParseado);
+        if (validarComandosComunes(comando, logger)) {
             if(gestionarRequest(comando) == 0) {
                 log_info(logger, "Request procesada correctamente.");
             }

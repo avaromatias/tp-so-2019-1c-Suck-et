@@ -1,30 +1,39 @@
 #include "consola.h"
 
-bool validarComandosComunes(t_comando comando) {
-    bool esValido;
+bool cantidadParametrosEsValida(t_comando comando)  {
     switch(comando.tipoRequest) {
         case JOURNAL:
         case METRICS:
-            esValido = comando.cantidadParametros == 0;
-            break;
+            return comando.cantidadParametros == 0;
         case DROP:
         case DESCRIBE:
         case RUN:
-            esValido = comando.cantidadParametros == 1;
-            break;
+            return comando.cantidadParametros == 1;
         case SELECT:
-            esValido = comando.cantidadParametros == 2;
-            break;
+            return comando.cantidadParametros == 2;
         case INSERT:
-            esValido = comando.cantidadParametros == 3;
-            break;
+            return comando.cantidadParametros == 3;
         case CREATE:
-            esValido = comando.cantidadParametros == 4;
-            break;
+            return comando.cantidadParametros == 4;
     }
+}
 
-    /*if(!esValido)
-        imprimirErrorParametros();*/
+bool parametrosSonValidos(t_comando comando)    {
+    switch(comando.tipoRequest) {
+        case SELECT:
+            return esString(comando.parametros[0]) && esEntero(comando.parametros[1]) && (comando.cantidadParametros == 2 || (comando.cantidadParametros == 3 && esEntero(comando.parametros[3])));
+        case INSERT:
+            return esString(comando.parametros[0]) && esEntero(comando.parametros[1]) && esString(comando.parametros[2]);
+        case CREATE:
+            return esString(comando.parametros[0]) && esString(comando.parametros[1]) && esEntero(comando.parametros[2]) && esEntero(comando.parametros[3]);
+    }
+}
+
+bool validarComandosComunes(t_comando comando, t_log* logger) {
+    bool esValido = cantidadParametrosEsValida(comando) && parametrosSonValidos(comando);
+
+    if(!esValido)
+        log_warning(logger, "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.");
 
     return esValido;
 }
@@ -36,11 +45,11 @@ void imprimirErrorParametros() {
 
 char *obtenerPathTabla(char *nombreTabla, char* puntoMontaje) {
     char *basePath = string_new();
-    string_append(&basePath, puntoMontaje);
+    string_append(&basePath, string_duplicate(puntoMontaje));
     if(!string_ends_with(puntoMontaje,"/")){
         string_append(&basePath, "/");
     }
-    string_append(&basePath, "Tables/");
+    string_append(&basePath, string_duplicate("Tables/"));
     char *tablePath = string_new();
     string_append(&tablePath, basePath);
     string_append(&tablePath, nombreTabla);

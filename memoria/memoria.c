@@ -131,8 +131,14 @@ void* ejecutarConsola(void* parametrosConsola){
     sem_t* lissandraConectada = (sem_t* ) parametros->lissandraConectada;
     t_comando comando;
 
-    sem_wait(&lissandraConectada);
+    int value;
+    sem_getvalue(lissandraConectada, &value);
+    printf("Valor del semaforo en ejecutarConsola %d\n", value);
+
+
     do {
+        sem_wait(lissandraConectada);
+
         char* leido = readline("Memoria@suck-ets:~$ ");
         char** comandoParseado = parser(leido);
 
@@ -145,18 +151,13 @@ void* ejecutarConsola(void* parametrosConsola){
         comando = instanciarComando(comandoParseado);
         free(comandoParseado);
         printf(validarComandosComunes(comando)? "%s" : "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n", gestionarRequest(comando, memoria, fdLissandra));
+        sem_post(lissandraConectada);
     } while(comando.tipoRequest != EXIT);
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
 pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, int fdLissandra, sem_t* lissandraConectada ){
-
-    /*int value;
-    sem_getvalue(lissandraConectada, &value);
-    printf("Valor del semaforo %d\n", value);*/
-
-
-    sem_wait(lissandraConectada);
+    //sem_wait(lissandraConectada);
 
     pthread_t* hiloConsola = malloc(sizeof(pthread_t));
     parametros_consola_memoria* parametros = (parametros_consola_memoria*) malloc(sizeof(parametros_consola_memoria));
@@ -334,9 +335,9 @@ int main(void) {
 	GestorConexiones* misConexiones = inicializarConexion();
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
-    t_pagina* unaPagina = insert("tableA", "5", "QUÉ ONDA GUACHOOOOO", memoriaPrincipal);
-    t_pagina* paginaDos = insert("tableB", "2", "qué onda guachín", memoriaPrincipal);
-    t_pagina* paginaTres = insert("tableA", "3", "lalalalala", memoriaPrincipal);
+    t_pagina* unaPagina = insert("tableA", "5", "corki", memoriaPrincipal);
+    t_pagina* paginaDos = insert("tableB", "2", "shaco", memoriaPrincipal);
+    t_pagina* paginaTres = insert("tableA", "3", "lissandra", memoriaPrincipal);
 
     char* direccion = cmdSelect("tableA", "5", memoriaPrincipal)->marco->base;
     char* otraPalabra = cmdSelect("tableA", "3", memoriaPrincipal)->marco->base;
@@ -345,7 +346,7 @@ int main(void) {
     printf("%s\n", direccion);
     printf("%s\n", otraPalabra);
     printf("%s\n", word);
-    insert("tableA", "3", "ñacañacañaca", memoriaPrincipal);
+    insert("tableA", "3", "Teemo", memoriaPrincipal);
     printf("%s\n", otraPalabra);
     fflush(stdout);
 
@@ -360,14 +361,17 @@ int main(void) {
 
     while(1)    {
 		sem_wait(&kernelConectado);
+
+        /*int value;
+        sem_getvalue(&lissandraConectada, &value);
+        printf("Valor del semaforo en main %d\n", value);*/
+
 		sem_wait(&lissandraConectada);
-		printf("Todavia no entre aca");
 		if(fdKernel > 0)	{
 			char* request = recibirMensaje(&fdKernel);
 			if(request == NULL) {
 			    // tengo que habilitar el semáforo de Lissandra por si ésta sigue conectada, si no lo sigue se lo deshabilitará en otra vuelta del ciclo
 			    sem_post(&lissandraConectada);
-                sem_post(&lissandraConectada);
 				continue;
 			}
 			else    {
@@ -376,11 +380,13 @@ int main(void) {
 				    enviarPaquete(fdLissandra, REQUEST, request);
                 char* respuestaLissandra = recibirMensaje(&fdLissandra);
                 if(respuestaLissandra == NULL)	{
+                    sem_post(&lissandraConectada);
                 	continue;
                 }
                 else	{
                 	if(fdKernel > 0)
                 		enviarPaquete(fdKernel, REQUEST, respuestaLissandra);
+                        sem_post(&lissandraConectada);
                 }
 			}
 		}

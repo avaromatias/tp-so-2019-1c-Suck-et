@@ -119,7 +119,7 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
         enviarPaquete(header.fdRemitente, confirmacion, NULL);
     }
     else if(componente == MEMORIA)  {
-
+        //
     }
 }
 
@@ -190,7 +190,7 @@ int conectarseALissandra(char* ipLissandra, int puertoLissandra, sem_t* lissandr
 //        exit(-1);
     }
     else{
-        sem_post(lissandraConectada);
+        printf("Me conecté a lissandra entonces habilito el semaforo lissandraConectada\n");
         sem_post(lissandraConectada);
     }
 

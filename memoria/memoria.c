@@ -66,14 +66,17 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 }
 
 t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamanioPagina, t_log* logger)    {
-    log_info(logger, "Inicia el proceso de inicializar la memoria princial");
+    log_info(logger, "Inicializamos la memoria princial");
     t_memoria* memoriaPrincipal = (t_memoria*) malloc(sizeof(t_memoria));
     memoriaPrincipal->tamanioMemoria = configuracion.tamanioMemoria;
+    log_info(logger, "Tamaño de memoria: %i", memoriaPrincipal->tamanioMemoria);
     memoriaPrincipal->direcciones = (char*) malloc(sizeof(char) * configuracion.tamanioMemoria);
     memoriaPrincipal->tablaDeSegmentos = dictionary_create();
     memoriaPrincipal->marcosOcupados = 0;
     memoriaPrincipal->tamanioPagina = tamanioPagina;
+    log_info(logger, "Tamaño de página: %i", memoriaPrincipal->tamanioPagina);
     memoriaPrincipal->cantidadTotalMarcos = cantidadTotalMarcosMemoria(*memoriaPrincipal);
+    log_info(logger, "Cantidad total de marcos: %i", memoriaPrincipal->cantidadTotalMarcos);
 
     inicializarTablaDeMarcos(memoriaPrincipal);
     return memoriaPrincipal;
@@ -91,32 +94,43 @@ void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
     }
 }
 
-char* gestionarInsert(char* nombreTabla, char* key, char* value, t_memoria* memoria)    {
-    t_pagina* nuevaPagina = insert(nombreTabla, key, value, memoria);
+char* gestionarInsert(char* nombreTabla, char* key, char* value, t_memoria* memoria, t_log* logger)    {
+    t_pagina* nuevaPagina = insert(nombreTabla, key, value, memoria, NULL, logger);
     return string_from_format("Valor insertado: %s", nuevaPagina->marco->base);
 }
 
-char* gestionarSelect(char* nombreTabla, char* key, int fdLissandra, t_memoria* memoria) {
+char* gestionarSelect(char* nombreTabla, char* key, t_control_conexion* conexionLissandra, t_memoria* memoria, t_log* logger) {
     t_pagina* paginaEncontrada = cmdSelect(nombreTabla, key, memoria);
     if(paginaEncontrada != NULL)
         return paginaEncontrada->marco->base;
-    char* request = string_from_format("select %s %s", nombreTabla, key);
-    enviarPaquete(fdLissandra, REQUEST, request);
+    char* request = string_from_format("SELECT %s %s", nombreTabla, key);
+    log_info(logger, "Valor no encontrado en memoria. Se enviará la siguiente request a Lissandra: %s", request);
+    enviarPaquete(conexionLissandra->fd, REQUEST, request);
     free(request);
-    return recibirMensaje(&fdLissandra);
+    char* respuesta = recibirMensaje(conexionLissandra);
+    char** componentesSelect = string_split(respuesta, ";");
+    insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger);
+    return respuesta;
 }
 
-char* gestionarRequest(t_comando comando, t_memoria* memoria, int fdLissandra) {
+char* gestionarCreate(char* nombreTabla, char* tipoConsistencia, char* cantidadParticiones, char* tiempoCompactacion, t_control_conexion* conexionLissandra, t_log* logger)   {
+    char* request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones, tiempoCompactacion);
+    enviarPaquete(conexionLissandra->fd, REQUEST, request);
+    free(request);
+//    char* respuesta = recibirMensaje(conexionLissandra);
+    return "Tabla creada correctamente.";
+}
 
+char* gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger) {
     switch(comando.tipoRequest) {
         case SELECT:
-            return gestionarSelect(comando.parametros[0], comando.parametros[1], fdLissandra, memoria);
+            return gestionarSelect(comando.parametros[0], comando.parametros[1], conexionLissandra, memoria, logger);
         case INSERT:
-            return gestionarInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], memoria);
+            return gestionarInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], memoria, logger);
 //        case DROP:
 //            return gestionarDrop(comando.parametros[0], memoria);
-//        case CREATE:
-//            return gestionarCreate(comando.parametros[0], comando.parametros[1], comando.parametros[2], comando.parametros[3], memoria);
+        case CREATE:
+            return gestionarCreate(comando.parametros[0], comando.parametros[1], comando.parametros[2], comando.parametros[3], conexionLissandra, logger);
         default:
             return "Comando inválido.";
     }
@@ -127,33 +141,25 @@ void* ejecutarConsola(void* parametrosConsola){
 
     t_memoria* memoria = parametros->memoria;
     t_log* logger = parametros->logger;
-    int fdLissandra = parametros->fdLissandra;
-    sem_t* lissandraConectada = (sem_t* ) parametros->lissandraConectada;
+    t_control_conexion* conexionLissandra = parametros->conexionLissandra;
     t_comando comando;
 
 
     do {
-
-
         char* leido = readline("Memoria@suck-ets:~$ ");
-        sem_wait(lissandraConectada);
-        char** comandoParseado = parser(leido);
-
-        if (comandoParseado == NULL){
-            printf("Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n");
+        if(string_is_empty(leido))
             continue;
-        }
-
-        string_trim(comandoParseado);
+//        logearValorDeSemaforo(lissandraConectada, logger, "consola");
+        // TODO modularizar hasta el printf
+        char** comandoParseado = parser(leido);
         comando = instanciarComando(comandoParseado);
         free(comandoParseado);
-        printf(validarComandosComunes(comando)? "%s" : "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n", gestionarRequest(comando, memoria, fdLissandra));
-        sem_post(lissandraConectada);
+        printf(validarComandosComunes(comando, logger)? "%s" : "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n", gestionarRequest(comando, memoria, conexionLissandra, logger));
     } while(comando.tipoRequest != EXIT);
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
-pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, int fdLissandra, sem_t* lissandraConectada ){
+pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra){
     //sem_wait(lissandraConectada);
 
     pthread_t* hiloConsola = malloc(sizeof(pthread_t));
@@ -161,16 +167,20 @@ pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, int fdLissandra, 
 
     parametros->logger = logger;
     parametros->memoria = memoria;
-    parametros->fdLissandra = fdLissandra;
-    parametros->lissandraConectada = lissandraConectada;
+    parametros->conexionLissandra = conexionLissandra;
 
     pthread_create(hiloConsola, NULL, &ejecutarConsola, parametros);
     return hiloConsola;
 }
 
-char* formatearPagina(char* key, char* value)   {
-    time_t tiempo;
-    return string_from_format("%i%s%s", (int) time(&tiempo), key, value);
+char* formatearPagina(char* key, char* value, char* timestamp)   {
+    long tiempo;
+    if(timestamp == NULL)   {
+        time_t tiempoActual;
+        tiempo = (long) time(&tiempoActual);
+    } else
+        tiempo = atol(timestamp);
+    return string_from_format("%lu%s%s", tiempo, key, value);
 }
 
 t_pagina* reemplazarPagina(char* key, char* nuevoValor, t_dictionary* tablaDePaginas) {
@@ -203,17 +213,21 @@ void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* v
     dictionary_put(tablaDePaginas, nuevaPagina->key, nuevaPagina);
 }
 
-t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria)   {
-    char* contenidoPagina = formatearPagina(key, value);
+t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger)   {
+    char* contenidoPagina = formatearPagina(key, value, timestamp);
+    log_info(logger, "Se insertará el siguiente valor en memoria: %s", contenidoPagina);
     t_pagina* pagina = NULL;
     // tengo la tabla en la memoria?
     if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))   {
+        log_info(logger, "La tabla %s se encuentra en memoria", nombreTabla);
         // obtengo el segmento asociado a la tabla en memoria
         t_segmento* segmento = (t_segmento*) dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
         // tengo la key en la tabla de páginas?
         if(dictionary_has_key(segmento->tablaDePaginas, key))   {
+            log_info(logger, "La key %s ya existe en la tabla %s. Se procede a modificar su valor.", key, nombreTabla);
             pagina = reemplazarPagina(key, contenidoPagina, segmento->tablaDePaginas);
         }   else if(hayMarcosLibres(*memoria))   {
+            log_info(logger, "La key %s no existe en la tabla %s. Se procede a insertarla.", key, nombreTabla);
             pagina = insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria);
         }
 //        else {
@@ -221,7 +235,9 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria) 
 //            insert(nombreTabla, key, value, memoria);
 //        }
     } else if(hayMarcosLibres(*memoria)) {
+        log_info(logger, "La tabla %s no se encuentra en memoria. Se procede a crearla.", nombreTabla);
         t_segmento* nuevoSegmento = crearSegmento(nombreTabla, memoria);
+        log_info(logger, "Se procede a insertar el nuevo valor.");
         pagina = insertarNuevaPagina(key, contenidoPagina, nuevoSegmento->tablaDePaginas, memoria);
     }
 //    else {
@@ -286,15 +302,20 @@ int calcularTamanioDePagina(int tamanioValue){
 }
 
 //Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS
-int getTamanioValue(int fdLissandra, t_log* logger){
-    return 4;
-//    hacerHandshake(fdLissandra, MEMORIA);
-//    int tamanioValue = (int) recibirMensaje(&fdLissandra);
-//    if(tamanioValue != NULL)
-//        log_info(logger, "Tamaño del value obtenido de Lissandra: %i", tamanioValue);
-//    else
-//        log_error(logger, "Hubo un error al intentar obtener el tamaño del value de Lissandra.");
-//    return tamanioValue;
+int getTamanioValue(t_control_conexion* conexionLissandra, t_log* logger){
+    if(conexionLissandra->fd > 0) {
+        hacerHandshake(conexionLissandra->fd, MEMORIA);
+        char* respuesta = recibirMensaje(conexionLissandra);
+        if (respuesta != NULL)  {
+            int tamanioValue = atoi(respuesta);
+            log_info(logger, "Tamaño del value obtenido de Lissandra: %i", tamanioValue);
+            return tamanioValue;
+        }
+        else {
+            log_error(logger, "Se cerró la conexión con Lissandra. Finalizando memoria.");
+            exit(-1);
+        }
+    }
 }
 
 t_marco* getMarcoLibre(t_memoria* memoria)   {
@@ -342,69 +363,46 @@ int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
 	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
 
-    sem_t kernelConectado;
-    sem_t lissandraConectada;
-    sem_init(&kernelConectado, 0, 0);
-    sem_init(&lissandraConectada, 0, 0);
+    t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
+    t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};
 
-    int fdKernel = 0;
-	int fdLissandra = conectarseALissandra(configuracion.ipFileSystem, configuracion.puertoFileSystem, &lissandraConectada, logger);
-	int tamanioPagina = calcularTamanioDePagina(getTamanioValue(fdLissandra, logger));
+    sem_init(conexionKernel.semaforo, 0, 0);
+    sem_init(conexionLissandra.semaforo, 0, 0);
+
+	conectarseALissandra(&conexionLissandra, configuracion.ipFileSystem, configuracion.puertoFileSystem, logger);
+	int tamanioPagina = calcularTamanioDePagina(getTamanioValue(&conexionLissandra, logger));
     t_memoria* memoriaPrincipal = inicializarMemoriaPrincipal(configuracion, tamanioPagina, logger);
 	GestorConexiones* misConexiones = inicializarConexion();
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
-    t_pagina* unaPagina = insert("tableA", "5", "corki", memoriaPrincipal);
-    t_pagina* paginaDos = insert("tableB", "2", "shaco", memoriaPrincipal);
-    t_pagina* paginaTres = insert("tableA", "3", "lissandra", memoriaPrincipal);
-
-    char* direccion = cmdSelect("tableA", "5", memoriaPrincipal)->marco->base;
-    char* otraPalabra = cmdSelect("tableA", "3", memoriaPrincipal)->marco->base;
-    char* word = cmdSelect("tableB", "2", memoriaPrincipal)->marco->base;
-
-    printf("%s\n", direccion);
-    printf("%s\n", otraPalabra);
-    printf("%s\n", word);
-    insert("tableA", "3", "Teemo", memoriaPrincipal);
-    printf("%s\n", otraPalabra);
-    fflush(stdout);
-
-//    drop("tableA", memoriaPrincipal);
-//    drop("tableB", memoriaPrincipal);
-
     //Simulo que está conectado kernel
     //sem_post(&kernelConectado);
 
-    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &fdKernel, &kernelConectado, logger);
-    pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, fdLissandra, &lissandraConectada);
+    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &conexionKernel, logger);
+    pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra);
+    t_comando comando;
 
     while(1)    {
-		sem_wait(&kernelConectado);
-
-		if(fdKernel > 0)	{
-			char* request = recibirMensaje(&fdKernel);
-
-            sem_wait(&lissandraConectada);
-			if(request == NULL) {
-			    // tengo que habilitar el semáforo de Lissandra por si ésta sigue conectada, si no lo sigue se lo deshabilitará en otra vuelta del ciclo
-			    sem_post(&lissandraConectada);
-			    //request == NULL es que se desconecto kernel?
+		sem_wait(conexionKernel.semaforo);
+		if(conexionKernel.fd > 0)	{
+			char* request = recibirMensaje(&conexionKernel);
+//			logearValorDeSemaforo(&lissandraConectada, logger, "kernel");
+			if(request == NULL)
 				continue;
-			}
 			else    {
-				sem_post(&kernelConectado);
-				if(fdLissandra > 0)
-				    enviarPaquete(fdLissandra, REQUEST, request);
-                char* respuestaLissandra = recibirMensaje(&fdLissandra);
-                if(respuestaLissandra == NULL)	{
-                    sem_post(&lissandraConectada);
-                	continue;
+                char** comandoParseado = parser(request);
+                if (comandoParseado == NULL)
+                    continue;
+                comando = instanciarComando(comandoParseado);
+                free(comandoParseado);
+                char* respuesta = gestionarRequest(comando, memoriaPrincipal, &conexionLissandra, logger);
+                if(respuesta == NULL)   {
+                    log_error(logger, "Se desconectó Lissandra. Finalizando el proceso.");
+                    exit(-1);
                 }
-                else	{
-                	if(fdKernel > 0)
-                		enviarPaquete(fdKernel, REQUEST, respuestaLissandra);
-                        sem_post(&lissandraConectada);
-                }
+                if(conexionKernel.fd > 0)
+                    enviarPaquete(conexionKernel.fd, REQUEST, respuesta);
+                sem_post(conexionKernel.semaforo);
 			}
 		}
     }

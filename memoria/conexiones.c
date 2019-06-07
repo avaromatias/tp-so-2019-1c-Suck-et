@@ -3,8 +3,9 @@
 //
 
 #include "conexiones.h"
+#include "memoria.h"
 
-pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, int* fdKernel, sem_t* kernelConectado, t_log* logger)    {
+pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_control_conexion* conexionKernel, t_log* logger)    {
 
     /*int value;
     sem_getvalue(kernelConectado, &value);
@@ -16,8 +17,7 @@ pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, int* fdKernel, sem
 
     parametros->conexion = unaConexion;
     parametros->logger = logger;
-    parametros->fdKernel = fdKernel;
-    parametros->kernelConectado = kernelConectado;
+    parametros->conexionKernel = conexionKernel;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -28,9 +28,6 @@ void* atenderConexiones(void* parametrosThread)    {
     parametros_thread_memoria* parametros = (parametros_thread_memoria*) parametrosThread;
     GestorConexiones* unaConexion = parametros->conexion;
     t_log* logger = parametros->logger;
-    int* fdKernel = parametros->fdKernel;
-    sem_t* kernelConectado = parametros->kernelConectado;
-
 
     fd_set emisores;
 
@@ -107,10 +104,10 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
     if(componente == KERNEL) {
         eliminarFdDeListaDeConexiones(header.fdRemitente, parametros->conexion);
         TipoMensaje confirmacion;
-        if (*(parametros->fdKernel) == 0) {
-            *(parametros->fdKernel) = header.fdRemitente;
+        if (parametros->conexionKernel->fd == 0) {
+            parametros->conexionKernel->fd = header.fdRemitente;
             confirmacion = CONEXION_ACEPTADA;
-            sem_post(parametros->kernelConectado);
+            sem_post(parametros->conexionKernel->semaforo);
         } else {
             confirmacion = CONEXION_RECHAZADA;
             cerrarSocket(header.fdRemitente, parametros->logger);
@@ -124,7 +121,7 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
 }
 
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros)    {
-    
+
 //    char** arrayMensaje = parser(mensaje);
 //
 //    //char** arrayMensaje = parser("SELECT amigues");
@@ -161,38 +158,38 @@ void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* pa
 //    fflush(stdout);
 }
 
-char* recibirMensaje(int* fdEmisor)    {
+char* recibirMensaje(t_control_conexion* conexion)    {
     Header header;
-    int bytesRecibidos = recv(*fdEmisor, &header, sizeof(Header), MSG_WAITALL);
+    sem_wait(conexion->semaforo);
+    int bytesRecibidos = recv(conexion->fd, &header, sizeof(Header), MSG_WAITALL);
     if(bytesRecibidos == 0) {
-        *fdEmisor = 0;
+        conexion->fd = 0;
         return NULL;
     }
     else    {
         header = deserializarHeader(&header);
         char* respuesta = (char*) malloc(header.tamanioMensaje);
-        bytesRecibidos = recv(*fdEmisor, &respuesta, header.tamanioMensaje, MSG_WAITALL);
+        bytesRecibidos = recv(conexion->fd, respuesta, header.tamanioMensaje, MSG_WAITALL);
         if(bytesRecibidos == 0) {
-            *fdEmisor = 0;
+            conexion->fd = 0;
             return NULL;
         }
         else    {
+            sem_post(conexion->semaforo);
             return respuesta;
         }
     }
 }
 
-int conectarseALissandra(char* ipLissandra, int puertoLissandra, sem_t* lissandraConectada, t_log* logger){
+void conectarseALissandra(t_control_conexion* conexionLissandra, char* ipLissandra, int puertoLissandra, t_log* logger){
     log_info(logger, "Intentando conectarse a Lissandra...");
-    int fdLissandra = crearSocketCliente(ipLissandra, puertoLissandra, logger);
-    if(fdLissandra < 0) {
+    conexionLissandra->fd = crearSocketCliente(ipLissandra, puertoLissandra, logger);
+    if(conexionLissandra->fd < 0) {
         log_error(logger, "Hubo un error al intentar conectarse a Lissandra. Cerrando el proceso...");
-//        exit(-1);
+        exit(-1);
     }
     else{
-        printf("Me conecté a lissandra entonces habilito el semaforo lissandraConectada\n");
-        sem_post(lissandraConectada);
+        log_info(logger, "Conexión con Lissandra establecida.");
+        sem_post(conexionLissandra->semaforo);
     }
-
-    return fdLissandra;
 }

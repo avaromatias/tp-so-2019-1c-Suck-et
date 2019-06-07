@@ -69,29 +69,28 @@ typedef struct {
 
 typedef struct {
     t_memoria* memoria;
-    int fdLissandra;
+    t_control_conexion* conexionLissandra;
     t_log* logger;
-    sem_t* lissandraConectada;
 } parametros_consola_memoria;
-pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, int fdLissandra, sem_t* lissandraConectada );
+pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra);
 
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
-char* gestionarRequest(t_comando comando, t_memoria* memoria, int fdLissandra);
+char* gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger);
 
 t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamanioPagina, t_log* logger);
 
 int calcularTamanioDePagina(int tamanioValue);
 //Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS
-int getTamanioValue(int fdLissandra, t_log* logger);
+int getTamanioValue(t_control_conexion* conexionLissandra, t_log* logger);
 int cantidadTotalMarcosMemoria(t_memoria memoria);
 void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal);
 void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* value, t_dictionary* tablaDePaginas);
 t_pagina* crearPagina(char* key, t_memoria* memoria);
-char* formatearPagina(char* key, char* value);
+char* formatearPagina(char* key, char* value, char* timestamp);
 bool hayMarcosLibres(t_memoria memoria);
 t_marco* getMarcoLibre(t_memoria* memoria);
-t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria);
+t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger);
 t_pagina* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria);
 t_segmento* crearSegmento(char* nombreTabla, t_memoria* memoria);
 t_pagina* reemplazarPagina(char* key, char* nuevoValor, t_dictionary* tablaDePaginas);

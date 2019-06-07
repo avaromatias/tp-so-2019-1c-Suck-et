@@ -136,7 +136,6 @@ void* ejecutarConsola(void* parametrosConsola){
 
 
         char* leido = readline("Memoria@suck-ets:~$ ");
-        logearValorDeSemaforo(lissandraConectada, logger, "consola");
         sem_wait(lissandraConectada);
         char** comandoParseado = parser(leido);
 
@@ -317,7 +316,7 @@ bool hayMarcosLibres(t_memoria memoria)  {
 }
 
 
-void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString){
+/*void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString){
     int value;
    if (sem_getvalue(unSemaforo, &value) == 0){
        if (strcmp("kernel", unString) == 0){
@@ -337,7 +336,7 @@ void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString){
 
 
 
-}
+}*/
 
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
@@ -384,7 +383,7 @@ int main(void) {
 
 		if(fdKernel > 0)	{
 			char* request = recibirMensaje(&fdKernel);
-			logearValorDeSemaforo(&lissandraConectada, logger, "kernel");
+
             sem_wait(&lissandraConectada);
 			if(request == NULL) {
 			    // tengo que habilitar el semáforo de Lissandra por si ésta sigue conectada, si no lo sigue se lo deshabilitará en otra vuelta del ciclo

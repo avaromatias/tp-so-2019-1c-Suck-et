@@ -97,7 +97,7 @@ t_segmento* crearSegmento(char* nombreTabla, t_memoria* memoria);
 t_pagina* reemplazarPagina(char* key, char* nuevoValor, t_dictionary* tablaDePaginas);
 t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria);
 
-void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString);
+//void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString);
 
 // drop
 void drop(char* nombreTabla, t_memoria* memoria);

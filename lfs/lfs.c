@@ -36,6 +36,10 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     } else {
         configuracion.puertoEscucha = config_get_int_value(archivoConfig, "PUERTO_ESCUCHA");
         char *puntoMontaje = config_get_string_value(archivoConfig, "PUNTO_MONTAJE");
+        valorSinComillas(puntoMontaje);
+        if(!string_ends_with(puntoMontaje,"/")){
+            string_append(&puntoMontaje,"/");
+        }
         configuracion.puntoMontaje = concat(1, puntoMontaje);
         configuracion.retardo = config_get_int_value(archivoConfig, "RETARDO");
         configuracion.tamanioValue = config_get_int_value(archivoConfig, "TAMAÑO_VALUE");

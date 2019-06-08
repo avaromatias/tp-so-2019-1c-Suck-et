@@ -1,0 +1,16 @@
+BJS = memoria.o ../libs/conexiones.o ../libs/generales.o ../libs/consola.o ../libs/sockets.o 
+#Le indico a MakeFile que ficheros tiene que compilar
+SOURCE = memoria.c ../libs/conexiones.c ../libs/generales.c ../libs/consola.c ../libs/config.c ../libs/sockets.c
+HEADER = memoria.h ../libs/conexiones.h ../libs/generales.h ../libs/consola.h ../libs/config.h ../libs/sockets.h
+OUT 	=
+CC = gcc
+FLAGS = -g -c -Wall
+LFLAGS =
+
+all: $(OBJS)
+	 $(CC) -g $(OBJS) -o $(OUT) $(LFLAGS)
+
+ memoria.o: memoria.c
+ $(CC) $(FLAGS) memoria.c conexiones.o: conexiones.c $(CC) $(FLAGS) conexiones.c generales.o: generales.c $(CC) $(FLAGS) generales.c consola.o: consola.c $(CC) $(FLAGS) consola.c clean: rm -f $(OBJS) $(OUT)
+
+

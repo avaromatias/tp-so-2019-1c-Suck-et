@@ -24,7 +24,7 @@
 #include "conexiones.h"
 
 typedef struct {
-    char* ipMemoria;
+    char *ipMemoria;
     int puertoMemoria;
     int quantum;
     int multiprocesamiento;
@@ -32,24 +32,21 @@ typedef struct {
     int retardoEjecucion;
 } t_configuracion;
 
-//******Vars locales******
-t_configuracion configuracion;
-t_log* logger;
-
 //Para Planificador
-t_queue* colaDeNew;
-t_queue* colaDeReady;
-t_queue* colaDeExecute;
-t_list* finalizados;
+t_queue *colaDeNew;
+t_queue *colaDeReady;
+t_queue *colaDeExecute;
+t_list *finalizados;
 
 //Funciones propias de Kernel
-t_configuracion cargarConfiguracion(char*, t_log*);
-int gestionarComando(t_comando);
-//int validarComandosKernel(char* tipoDeRequest, char* nombreTabla, char* param1, char* param2, char* param3);
-void ejecutarConsola(int (*gestionarComando)(t_comando), Componente nombreDelProceso, t_log *logger);
+t_configuracion cargarConfiguracion(char *, t_log *);
 
-bool validarComandosComunes(t_comando comando);
+int gestionarRequest(t_comando requestParseada);
 
+bool validarComandosKernel(t_comando requestParseada, t_log *logger);
 
+bool esComandoValidoDeKernel(t_comando comando);
+
+void ejecutarConsola(int (*gestionarRequest)(t_comando), t_log *logger);
 
 #endif /* KERNEL_H_ */

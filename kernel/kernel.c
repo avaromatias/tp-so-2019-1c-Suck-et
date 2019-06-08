@@ -10,12 +10,10 @@
 #include "kernel.h"
 
 int main(void) {
-    puts("¡Hola! Soy Kernel!");
-
-    logger = log_create("../kernel.log", "kernel", false, LOG_LEVEL_INFO);
+    t_log *logger = log_create("../kernel.log", "kernel", false, LOG_LEVEL_INFO);
     log_info(logger, "Iniciando el proceso Kernel");
 
-    configuracion = cargarConfiguracion("kernel.cfg", logger);
+    t_configuracion configuracion = cargarConfiguracion("kernel.cfg", logger);
 
     log_info(logger, "IP Memoria: %s", configuracion.ipMemoria);
     log_info(logger, "Puerto Memoria: %i", configuracion.puertoMemoria);
@@ -23,21 +21,12 @@ int main(void) {
     log_info(logger, "Multiprocesamiento: %i", configuracion.multiprocesamiento);
     log_info(logger, "Refresh Metadata: %i", configuracion.refreshMetadata);
     log_info(logger, "Retardo de Ejecución : %i", configuracion.refreshMetadata);
-    Componente nombreDelProceso = KERNEL;
 
     GestorConexiones *conexion = inicializarConexion();
-    //conectar con memoria y luego el paso de abajo
     int fdMemoria = conectarseAServidor(configuracion.ipMemoria, configuracion.puertoMemoria, conexion, logger);
-
     pthread_t *hiloRespuestas = crearHiloConexiones(conexion, logger);
 
-    //parametros_consola* parametros = (parametros_consola*) malloc(sizeof(parametros_consola));
-
-    ejecutarConsola(gestionarComando, nombreDelProceso, logger);
-
-    /*while(1)	{
-    enviarPaquete(fdMemoria, REQUEST, "DESCRIBE TABLE 2\n");
-    sleep(3);}*/
+    ejecutarConsola(gestionarRequest, logger);
 
     return EXIT_SUCCESS;
 }
@@ -85,67 +74,50 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 }
 
-void ejecutarConsola(int (*gestionarComando)(t_comando), Componente nombreDelProceso, t_log *logger) {
-    char *comando;
-    char *nombreDelGrupo = "@suck-ets:~$ ";
-    char *prompt = string_new();
-    switch (nombreDelProceso) {
-        case KERNEL:
-            string_append(&prompt, "Kernel");
-            break;
-        case MEMORIA:
-            string_append(&prompt, "Memoria");
-            break;
-        case LISSANDRA:
-            string_append(&prompt, "Lissandra");
-            break;
-    }
-    string_append(&prompt, nombreDelGrupo);
+void ejecutarConsola(int (*gestionarRequest)(t_comando), t_log *logger) {
+    t_comando requestParseada;
+
     do {
-        char *leido = readline(prompt);
-        if (strcmp(leido, "") != 0) {
-            comando = malloc(sizeof(char) * strlen(leido) + 1);
-            memcpy(comando, leido, strlen(leido));
-            comando[strlen(leido)] = '\0';
-            char **comandoParseado = parser(comando);
-            t_comando requestParseada = instanciarComando(comandoParseado);
-            if (validarComandosComunes(requestParseada, logger)) { //habría que cambiarle el nombre, porque va a tener todos ahora
-                if (gestionarComando(requestParseada) == 1) {
+        char *leido = readline("Kernel@suck-ets:~$ ");
+        char **comandoParseado = parser(leido);
+        if (comandoParseado == NULL) {
+            free(comandoParseado);
+            continue;
+        }
+        requestParseada = instanciarComando(comandoParseado);
+        free(leido);
+        free(comandoParseado);
+        if (requestParseada.tipoRequest == INVALIDO) {
+            printf("Comando inválido.\n");
+        } else {
+            if (validarComandosComunes(requestParseada, logger) || validarComandosKernel(requestParseada, logger)) {
+                if (gestionarRequest(requestParseada) == 0) {
                     log_info(logger, "Request procesada correctamente.");
                 } else {
                     log_error(logger, "No se pudo procesar la request solicitada.");
-                };
-            } else {
-                cantidadIncorrectaParametros();
+                }
             }
-            string_to_lower(comando);
+
         }
-    } while (strcmp(comando, "exit") != 0);
-    free(comando);
+    } while (requestParseada.tipoRequest != EXIT);
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
-
-int gestionarComando(t_comando requestParseada) {
-    switch(requestParseada.tipoRequest){
+int gestionarRequest(t_comando requestParseada) {
+    switch (requestParseada.tipoRequest) {
         case SELECT:
-            //kernelSelect();
-            break;
+            printf("llegue!");
+            return gestionarSelectKernel();
         case INSERT:
-            //kernelInsert();
-            break;
+            return gestionarInsertKernel();
         case CREATE:
-            //kernelCreate();
-            break;
+            return gestionarCreateKernel();
         case DROP:
-            //kernelDrop();
-            break;
+            return gestionarDropKernel();
         case DESCRIBE:
-            //kernelDescribe();
-            break;
+            return gestionarDescribeKernel();
         case JOURNAL:
-            //kernelJournal();
-            break;
+            return gestionarJournalKernel();
         case ADD:
             //gestionarAdd();
             break;
@@ -155,9 +127,26 @@ int gestionarComando(t_comando requestParseada) {
         case METRICS:
             //gestionarMetricas();
             break;
+        case HELP:
+            printf("************ Comandos disponibles ************\n");
+            printf("- SELECT [NOMBRE_TABLA] [KEY]\n");
+            printf("- INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp](Opcional)\n");
+            printf("- CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n");
+            printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
+            printf("- DROP [NOMBRE_TABLA]\n");
+            printf("- ADD MEMORY [NUMERO_MEMORIA] TO [TIPO_CONSISTENCIA]\n");
+            printf("- RUN [PATH]\n");
+            printf("- JOURNAL\n");
+            printf("- METRICS\n");
+            printf("- EXIT\n");
+            return 0;
+
+        case EXIT:
+            return 0;
+
         default:
             return printf("Comando inválido.\n");
-        }
+    }
 }
 
 /*int gestionarComando(char **requestParseada) {
@@ -245,3 +234,25 @@ int gestionarComando(t_comando requestParseada) {
 }*/
 
 //para hacer los comandosKernel
+
+bool validarComandosKernel(t_comando comando, t_log *logger) {
+    bool esValido = esComandoValidoDeKernel(comando);
+
+    if (!esValido)
+        log_warning(logger, "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.");
+
+    return esValido;
+}
+
+bool esComandoValidoDeKernel(t_comando comando) {
+    switch (comando.tipoRequest) {
+        case ADD:
+            return (esString(comando.parametros[0]) && esString(comando.parametros[2]) &&
+                    esString(comando.parametros[3]) && esEntero(comando.parametros[1])) &&
+                   (comando.cantidadParametros == 4);
+        case RUN:
+            return (esString(comando.parametros[0]) && comando.cantidadParametros == 1);
+        case METRICS:
+            return (comando.cantidadParametros == 0);
+    }
+}

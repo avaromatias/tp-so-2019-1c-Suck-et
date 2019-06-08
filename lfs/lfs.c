@@ -677,7 +677,7 @@ int archivoVacio(char *path) {
 int obtenerCantidadBloques(char *puntoMontaje) {
     char *nombreArchivo = string_new();
     string_append(&nombreArchivo, puntoMontaje);
-    string_append(&nombreArchivo, "/Metadata/Metadata.bin");
+    string_append(&nombreArchivo, "Metadata/Metadata.bin");
     if (existeElArchivo(nombreArchivo) && !archivoVacio(nombreArchivo)) {
         t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
         int cantidadDeBloques = config_get_int_value(archivoConfig, "BLOCKS");
@@ -692,7 +692,7 @@ int obtenerCantidadBloques(char *puntoMontaje) {
 int obtenerTamanioBloques(char *puntoMontaje) {
     char *nombreArchivo = string_new();
     string_append(&nombreArchivo, puntoMontaje);
-    string_append(&nombreArchivo, "/Metadata/Metadata.bin");
+    string_append(&nombreArchivo, "Metadata/Metadata.bin");
     if (existeElArchivo(nombreArchivo) && !archivoVacio(nombreArchivo)) {
         t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
         int cantidadDeBloques = config_get_int_value(archivoConfig, "BLOCK_SIZE");

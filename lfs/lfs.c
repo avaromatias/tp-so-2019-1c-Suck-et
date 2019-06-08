@@ -187,7 +187,7 @@ int obtenerTamanioBloque(int bloque) {
     }
 }
 
-int estaLibreElBloque(int bloque) { //TODO: Implementar el test bit
+int estaLibreElBloque(int bloque) {
     if (bitarray_test_bit(bitmap, bloque) == 0) {
         return 1;
     }
@@ -198,18 +198,18 @@ int estaDisponibleElBloqueParaTabla(int i, char *nombreTabla, int particion) {
     int bloqueDisponible = 0;
     int bloqueLibre = estaLibreElBloque(i) == 1;
     if (bloquesAsignados->elements_amount > 0) {
-        t_bloqueAsignado * bloque=dictionary_get(bloquesAsignados, (char*)string_from_format("%i", i));
-        if(strcmp(bloque->tabla,"") == 0 || (strcmp(bloque->tabla,nombreTabla) == 0 && bloque->particion==particion)){
-            bloqueDisponible=1;
+        t_bloqueAsignado *bloque = dictionary_get(bloquesAsignados, (char*) string_from_format("%i", i));
+        if(strcmp(bloque->tabla, "") == 0 || (strcmp(bloque->tabla, nombreTabla) == 0 && bloque->particion == particion)){
+            bloqueDisponible = 1;
         }
     }
 
     return bloqueDisponible && bloqueLibre;
 }
 
-int obtenerBloqueDisponible(char *nombreTabla,int particion) {
+int obtenerBloqueDisponible(char *nombreTabla, int particion) {
     for (int i = 0; i < obtenerCantidadBloques(configuracion.puntoMontaje); i++) {
-        if (estaDisponibleElBloqueParaTabla(i, nombreTabla,particion)) {
+        if (estaDisponibleElBloqueParaTabla(i, nombreTabla, particion)) {
             return i;
         }
     }
@@ -263,12 +263,13 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
                 char *p = string_itoa(particion);
                 string_append(&nombreArchivo, p);
                 string_append(&nombreArchivo, ".bin");
-                int bloque=obtenerBloqueDisponible(nombreTabla,particion);
+                int bloque = obtenerBloqueDisponible(nombreTabla, particion);
                 FILE *f = fopen(obtenerPathBloque(bloque), "a");
                 printf("Linea %s\n", linea);
                 // TODO: Insertar en la memoria temporal del punto anterior una nueva entrada que contenga los datos enviados en la request.
                 fwrite(linea, sizeof(char) * strlen(linea), 1, f);
                 fclose(f);
+                if(obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) bitarray_set_bit(bitmap, bloque);
                 free(path);
             } else {
                 printf("No existe metadata en %s\n", path);
@@ -380,6 +381,9 @@ void ejecutarConsola(void *parametrosConsola) {
     t_comando comando;
 
     do {
+        for(int i = 0; i < 16; i++) {
+            printf("%d", bitarray_test_bit(bitmap, i));
+        }
         char *leido = readline("Lissandra@suck-ets:~$ ");
         char **comandoParseado = parser(leido);
         if(comandoParseado == NULL) {
@@ -596,6 +600,22 @@ int obtenerCantidadBloques(char *puntoMontaje) {
         t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
         int cantidadDeBloques = config_get_int_value(archivoConfig, "BLOCKS");
         free(nombreArchivo);
+        config_destroy(archivoConfig);
+        return cantidadDeBloques;
+    }
+    free(nombreArchivo);
+    return -1;
+}
+
+int obtenerTamanioBloques(char *puntoMontaje) {
+    char *nombreArchivo = string_new();
+    string_append(&nombreArchivo, puntoMontaje);
+    string_append(&nombreArchivo, "/Metadata/Metadata.bin");
+    if (existeElArchivo(nombreArchivo) && !archivoVacio(nombreArchivo)) {
+        t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
+        int cantidadDeBloques = config_get_int_value(archivoConfig, "BLOCK_SIZE");
+        free(nombreArchivo);
+        config_destroy(archivoConfig);
         return cantidadDeBloques;
     }
     free(nombreArchivo);
@@ -635,32 +655,38 @@ void crearDirBloques(char *puntoMontaje) {
     if (bloques != -1) {
 
         int tamanioBitarray = bloques / 8;
-        char data[tamanioBitarray];
+        char *data = malloc(sizeof(char) * tamanioBitarray);
 
         for (int i = 0; i < tamanioBitarray; i++) {
             data[i] = 0;
         }
 
-        bitmap = bitarray_create_with_mode(data, sizeof(data), LSB_FIRST);
         char *archivoBitmap = string_new();
         string_append(&archivoBitmap, puntoMontaje);
         string_append(&archivoBitmap, "Metadata/Bitmap.bin");
-        int file = open(archivoBitmap, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-        mmap(NULL, sizeof(bitmap), PROT_WRITE, MAP_SHARED, file, 0);
-        munmap(bitmap, sizeof(bitmap));
+        //int file = open(archivoBitmap, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 
-        close(file);
+        /*char *data = (char *) mmap(NULL, sizeof(data), PROT_WRITE | PROT_READ, MAP_SHARED, file, 0);
+        if (data == MAP_FAILED) {                                           //
+            printf("Error al mapear a memoria: %s\n", strerror(errno));     // Hay que borrar esto una vez
+            close(file);                                                    // que quede andando el bitmap
+        }                                                                   //*/
+        bitmap = bitarray_create_with_mode(data, sizeof(data), MSB_FIRST);
+
         free(archivoBitmap);
 
         for (int i = 0; i < bloques; i++) {
             char *unArchivoDeBloque = concat(4, nombreArchivo, "/", string_from_format("%i", i), ".bin");
-            t_bloqueAsignado *bloque= (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-            bloque->tabla = concat(1,"");
+            t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+            bloque->tabla = concat(1, "");
             bloque->particion = NULL;
-            dictionary_put(bloquesAsignados, (char *)string_from_format("%i", i), bloque);
+            dictionary_put(bloquesAsignados, (char *) string_from_format("%i", i), bloque);
             if (!existeElArchivo(unArchivoDeBloque)) {
                 FILE *file = fopen(unArchivoDeBloque, "w");
                 fclose(file);
+            } else if (!archivoVacio(unArchivoDeBloque) &&
+            obtenerTamanioBloque(i) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
+                bitarray_set_bit(bitmap, i);
             }
             free(unArchivoDeBloque);
             //printf("%i", bitarray_test_bit(bitmap, i));

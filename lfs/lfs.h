@@ -103,6 +103,8 @@ void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, cha
 
 int obtenerTamanioBloque(int bloque);
 
+int obtenerTamanioBloques(char *puntoMontaje);
+
 int archivoVacio(char *path);
 
 void lfsSelect(char *nombreTabla, char *key);

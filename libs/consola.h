@@ -40,7 +40,7 @@ typedef struct {
     t_log *logger;
     Componente unComponente;
 
-    int (*gestionarComando)(t_comando);
+    char* (*gestionarComando)(t_comando);
 
 } parametros_consola;
 

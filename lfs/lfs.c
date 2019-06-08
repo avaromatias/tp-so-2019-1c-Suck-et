@@ -46,9 +46,14 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
 }
 
 void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros) {
-    char** comandoParseado = parser(mensaje);
+    char **comandoParseado = parser(mensaje);
+    char *retorno = string_new();
     t_comando comando = instanciarComando(comandoParseado);
-    gestionarRequest(comando);
+    retorno = gestionarRequest(comando);
+    enviarPaquete(header.fdRemitente, RESPUESTA, retorno);
+    free(retorno);
+    free(comandoParseado);
+
 }
 
 /*pthread_t *crearHiloRequest(char *mensaje) {
@@ -139,12 +144,12 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 
 void crearBinarios(char *nombreTabla, int particiones) {
     for (int i = 0; i < particiones; i++) {
-        int bloque = obtenerBloqueDisponible(nombreTabla,i);
+        int bloque = obtenerBloqueDisponible(nombreTabla, i);
         if (bloque != -1) {
             t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-            bloqueA->tabla = concat(1,nombreTabla);
+            bloqueA->tabla = concat(1, nombreTabla);
             bloqueA->particion = i;
-            dictionary_put(bloquesAsignados, (char*) string_from_format("%i", bloque), bloqueA);
+            dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
             char *nombreArchivo = string_new();
             string_append(&nombreArchivo, string_from_format("%i", i));
             string_append(&nombreArchivo, ".bin");
@@ -191,39 +196,44 @@ int estaLibreElBloque(int bloque) { //TODO: Implementar el test bit
 
 int estaDisponibleElBloqueParaTabla(int i, char *nombreTabla, int particion) {
     int bloqueDisponible = 0;
-    int bloqueLibre = estaLibreElBloque(i) == 1;
+   // int bloqueLibre = estaLibreElBloque(i) == 1;
+   int bloqueLibre=1;
     if (bloquesAsignados->elements_amount > 0) {
-        t_bloqueAsignado * bloque=dictionary_get(bloquesAsignados, (char*)string_from_format("%i", i));
-        if(strcmp(bloque->tabla,"") == 0 || (strcmp(bloque->tabla,nombreTabla) == 0 && bloque->particion==particion)){
-            bloqueDisponible=1;
+        t_bloqueAsignado *bloque = dictionary_get(bloquesAsignados, (char *) string_from_format("%i", i));
+        if (strcmp(bloque->tabla, "") == 0 ||
+            (strcmp(bloque->tabla, nombreTabla) == 0 && bloque->particion == particion)) {
+            bloqueDisponible = 1;
         }
     }
 
     return bloqueDisponible && bloqueLibre;
 }
 
-int obtenerBloqueDisponible(char *nombreTabla,int particion) {
+int obtenerBloqueDisponible(char *nombreTabla, int particion) {
     for (int i = 0; i < obtenerCantidadBloques(configuracion.puntoMontaje); i++) {
-        if (estaDisponibleElBloqueParaTabla(i, nombreTabla,particion)) {
+        if (estaDisponibleElBloqueParaTabla(i, nombreTabla, particion)) {
             return i;
         }
     }
     return -1;
 }
 
-void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
+char *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
+    char *retorno = string_new();
     if (validarConsistencia(tipoConsistencia) != 0) {
         log_warning(logger, "El Tipo de Consistencia no es valido. Este puede ser SC, SHC o EC.");
+        retorno = concat(1, "El Tipo de Consistencia no es valido. Este puede ser SC, SHC o EC.");
     } else {
         char *tablePath = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
         // Verificar que la tabla no exista en el file system.
         if (existeElArchivo(tablePath)) {
             char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
             // En caso que exista, se guardará el resultado en un archivo .log y se retorna un error indicando dicho resultado.
-            log_info(logger, "La tabla %s ya existe.\n", nombreTabla);
             if (!existeElArchivo(path)) {
                 crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
-                printf("Se creo la Metadata de la tabla %s.\n", nombreTabla);
+                retorno = concat(3, "La tabla ", nombreTabla, " ya existe. Se creo su Metadata.\n");
+            } else {
+                retorno = concat(3, "La tabla ", nombreTabla, " ya existe.\n");
             }
         } else {
             // Crear el directorio para dicha tabla.
@@ -235,20 +245,24 @@ void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, cha
             // Crear los archivos binarios asociados a cada partición de la tabla y
             // asignar a cada uno un bloque
             crearBinarios(nombreTabla, atoi(particiones));
+            retorno = concat(3, "La tabla ", nombreTabla, " fue creada con exito.\n");
         }
+        return retorno;
     }
 }
 
-void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
+char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
+    char *retorno = string_new();
     if (validarValor(valor) != 0) {
         log_warning(logger, "El valor debe estar enmascarado con \"\"");
+        retorno = concat(1, "Se inserto el valor con exito");
     } else {
         // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
         if (existeTabla(nombreTabla) == 0) {
             // Obtener la metadata asociada a dicha tabla.
             char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
             if (existeElArchivo(path)) {
-                printf("Existe metadata en %s\n", path);
+                // printf("Existe metadata en %s\n", path);
                 // TODO: Verificar si existe en memoria una lista de datos a dumpear. De no existir, alocar dicha memoria.
                 char *linea = armarLinea(key, valor, timestamp);
                 obtenerMetadata(nombreTabla);
@@ -258,22 +272,27 @@ void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
                 char *p = string_itoa(particion);
                 string_append(&nombreArchivo, p);
                 string_append(&nombreArchivo, ".bin");
-                int bloque=obtenerBloqueDisponible(nombreTabla,particion);
+                int bloque = obtenerBloqueDisponible(nombreTabla, particion);
                 FILE *f = fopen(obtenerPathBloque(bloque), "a");
                 printf("Linea %s\n", linea);
                 // TODO: Insertar en la memoria temporal del punto anterior una nueva entrada que contenga los datos enviados en la request.
                 fwrite(linea, sizeof(char) * strlen(linea), 1, f);
                 fclose(f);
                 free(path);
+                retorno = concat(1, "Se inserto el valor con exito.\n");
+
             } else {
-                printf("No existe metadata en %s\n", path);
+                retorno = concat(5, "No se pudo insertar en ", nombreTabla, ". No existe metadata en ", path, ".\n");
             }
+        } else {
+            retorno = concat(3, "No existe la tabla ", nombreTabla, ".\n");
         }
+        return retorno;
 
     }
 }
 
-void lfsSelect(char *nombreTabla, char *key) {
+char *lfsSelect(char *nombreTabla, char *key) {
     //1. Verificar que la tabla exista en el File System
     if (existeTabla(nombreTabla) == 0) {
 
@@ -300,6 +319,8 @@ void lfsSelect(char *nombreTabla, char *key) {
         char *timestampEncontrado;
         int mayorTimestamp = 0;
         char *valorMayorTimestamp = string_new();
+        char *mayorLinea = string_new();
+        mayorLinea = concat(1, "");
 
         //4.0 Obtengo los bloques asignados a la particion obtenida
         int tamanioArray = tamanioDeArrayDeStrings(bloquesEnParticion(nombreTabla, nombreArchivoParticion));
@@ -318,14 +339,16 @@ void lfsSelect(char *nombreTabla, char *key) {
                     str[0] = seek;
                     string_append(&linea, str);
                 }
-                if(strcmp(linea, "") != 0) {
+                if (strcmp(linea, "") != 0) {
                     palabras = desarmarLinea(linea);
                     string_append(&timestampEncontrado, palabras[0]);
                     string_append(&keyEncontrado, palabras[1]);
                     if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
                         mayorTimestamp = atoi(timestampEncontrado);
                         valorMayorTimestamp = string_new();
-                        string_append(&valorMayorTimestamp, palabras[2]);
+                        valorMayorTimestamp= concat(1,palabras[2]);
+                        mayorLinea = string_new();
+                        mayorLinea = concat(1, linea);
                     }
                 }
             }
@@ -341,11 +364,20 @@ void lfsSelect(char *nombreTabla, char *key) {
 
 
         //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
-        if(strcmp(valorMayorTimestamp, "") != 0) {
+        if (strcmp(valorMayorTimestamp, "") != 0) {
             printf("Value: %s\n", valorMayorTimestamp);
+            return mayorLinea;
         } else {
             printf("No se encontro ningun valor con esa key.\n");
+            char *error = string_new();
+            error = concat(1, "No se encontro ningun valor con esa key.\n");
+            free(mayorLinea);
+            return error;
         }
+    } else {
+        char *error = string_new();
+        error = concat(3, "No existe la tabla ", nombreTabla, ".\n");
+        return error;
     }
 }
 
@@ -377,7 +409,7 @@ void ejecutarConsola(void *parametrosConsola) {
     do {
         char *leido = readline("Lissandra@suck-ets:~$ ");
         char **comandoParseado = parser(leido);
-        if(comandoParseado == NULL) {
+        if (comandoParseado == NULL) {
             free(comandoParseado);
             continue;
         }
@@ -385,23 +417,25 @@ void ejecutarConsola(void *parametrosConsola) {
         free(leido);
         free(comandoParseado);
         if (validarComandosComunes(comando, logger)) {
-            if(gestionarRequest(comando) == 0) {
-                log_info(logger, "Request procesada correctamente.");
-            }
+            char *retorno = gestionarRequest(comando);
+            free(retorno);
+            log_info(logger, "Request procesada correctamente.");
         }
 
     } while (comando.tipoRequest != EXIT);
     printf("Ya se analizo todo lo solicitado.\n");
 }
 
-int gestionarRequest(t_comando comando) {
+char *gestionarRequest(t_comando comando) {
 
+    char *retorno = string_new();
     switch (comando.tipoRequest) {
         case SELECT:
             printf("Tabla: %s\n", comando.parametros[0]);
             printf("Key: %s\n", comando.parametros[1]);
-            lfsSelect(comando.parametros[0], comando.parametros[1]);
-            return 0;
+            retorno = lfsSelect(comando.parametros[0], comando.parametros[1]);
+            printf("%s\n", retorno);
+            return retorno;
 
         case INSERT:
             printf("Tabla: %s\n", comando.parametros[0]);
@@ -411,22 +445,25 @@ int gestionarRequest(t_comando comando) {
             // El parámetro Timestamp es opcional.
             // En caso que un request no lo provea (por ejemplo insertando un valor desde la consola),
             // se usará el valor actual del Epoch UNIX.
-            if (comando.cantidadParametros==4 && comando.parametros[3] != NULL) {
+            if (comando.cantidadParametros == 4 && comando.parametros[3] != NULL) {
                 timestamp = (time_t) strtol(comando.parametros[3], NULL, 10);
             } else {
                 timestamp = (time_t) time(NULL);
             }
             printf("Timestamp: %i\n", (int) timestamp);
-            lfsInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], timestamp);
-            return 0;
+            retorno = lfsInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], timestamp);
+            printf("%s", retorno);
+            return retorno;
 
         case CREATE:
             printf("Tabla: %s\n", comando.parametros[0]);
             printf("TIpo de consistencia: %s\n", comando.parametros[1]);
             printf("Numero de particiones: %s\n", comando.parametros[2]);
             printf("Tiempo de compactacion: %s\n", comando.parametros[3]);
-            lfsCreate(comando.parametros[0], comando.parametros[1], comando.parametros[2], comando.parametros[3]);
-            return 0;
+            retorno = lfsCreate(comando.parametros[0], comando.parametros[1], comando.parametros[2],
+                                comando.parametros[3]);
+            printf("%s", retorno);
+            return retorno;
 
         case DESCRIBE:
             if (comando.parametros[0] == NULL) {
@@ -435,11 +472,13 @@ int gestionarRequest(t_comando comando) {
                 printf("Tabla: %s\n", comando.parametros[0]);
                 // Hacer describe de una tabla especifica
             }
-            return 0;
+            retorno = concat(1, "Describe");
+            return retorno;
 
         case DROP:
             printf("Tabla: %s\n", comando.parametros[0]);
-            return 0;
+            retorno = concat(1, "Describe");
+            return retorno;
 
         case HELP:
             printf("************ Comandos disponibles ************\n");
@@ -449,14 +488,17 @@ int gestionarRequest(t_comando comando) {
             printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
             printf("- DROP [NOMBRE_TABLA]\n");
             printf("- EXIT\n");
-            return 0;
+            retorno = concat(1, "Help");
+            return retorno;
 
         case EXIT:
-            return 0;
+            retorno = concat(1, "Exit");
+            return retorno;
 
         default:
             printf("Ingrese un comando valido.\n");
-            return -2;
+            retorno = concat(1, "Ingrese un comando valido.\n");
+            return retorno;
     }
 
 }
@@ -562,8 +604,8 @@ void cargarBloquesAsignados(char *path) {
                     string_append(&nombreArchivo, ".bin");
                     char **arrayDeBloques = bloquesEnParticion(nombreTabla, nombreArchivo);
                     for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
-                        t_bloqueAsignado * bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-                        bloque->tabla = concat(1,nombreTabla);
+                        t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+                        bloque->tabla = concat(1, nombreTabla);
                         bloque->particion = i;
                         dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
                     }
@@ -648,10 +690,10 @@ void crearDirBloques(char *puntoMontaje) {
 
         for (int i = 0; i < bloques; i++) {
             char *unArchivoDeBloque = concat(4, nombreArchivo, "/", string_from_format("%i", i), ".bin");
-            t_bloqueAsignado *bloque= (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-            bloque->tabla = concat(1,"");
+            t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+            bloque->tabla = concat(1, "");
             bloque->particion = NULL;
-            dictionary_put(bloquesAsignados, (char *)string_from_format("%i", i), bloque);
+            dictionary_put(bloquesAsignados, (char *) string_from_format("%i", i), bloque);
             if (!existeElArchivo(unArchivoDeBloque)) {
                 FILE *file = fopen(unArchivoDeBloque, "w");
                 fclose(file);
@@ -706,10 +748,10 @@ void inicializarLFS(char *puntoMontaje) {
 
 }
 
-void atenderHandshake(Header header, Componente componente, parametros_thread_lfs* parametros) {
-    if(componente == MEMORIA) {
-        char* tamanioValue = string_itoa(parametros->tamanioValue);
-        int resultado = enviarPaquete(header.fdRemitente, HANDSHAKE, tamanioValue);
+void atenderHandshake(Header header, Componente componente, parametros_thread_lfs *parametros) {
+    if (componente == MEMORIA) {
+        char *tamanioValue = string_itoa(parametros->tamanioValue);
+        enviarPaquete(header.fdRemitente, HANDSHAKE, tamanioValue);
         free(tamanioValue);
     }
 }
@@ -760,11 +802,10 @@ void *atenderConexiones(void *parametrosThread) {
                             } else {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
-                                if(header.tipoMensaje == HANDSHAKE) {
-                                    Componente componente = *((Componente*) mensaje);
+                                if (header.tipoMensaje == HANDSHAKE) {
+                                    Componente componente = *((Componente *) mensaje);
                                     atenderHandshake(header, componente, parametros);
-                                }
-                                else
+                                } else
                                     atenderMensajes(header, mensaje, parametrosThread);
                             }
                             free(mensaje);
@@ -817,26 +858,6 @@ int main(void) {
     parametros->gestionarComando = gestionarRequest;
 
     ejecutarConsola(parametros);
-    // crearHiloServidor(configuracion.puertoEscucha, &atenderMensajes, NULL, NULL);
-    //int cliente = crearSocketCliente("192.168.0.30", 8000);
-
-//    while (1) {
-//        sem_wait(&memoriaConectada);
-//        if (fdMemoria > 0) {
-//            Header header;
-//            int bytesRecibidos = recv(fdMemoria, &header, sizeof(Header), MSG_WAITALL);
-//            if (bytesRecibidos == 0)
-//                fdMemoria = 0;
-//            else {
-//                header = deserializarHeader(&header);
-//                char *request = (char *) malloc(header.tamanioMensaje);
-//                bytesRecibidos = recv(fdMemoria, &request, header.tamanioMensaje, MSG_WAITALL);
-//                printf("Request recibida: %s\n", request);
-//                fflush(stdout);
-//                free(request);
-//            }
-//        }
-//    }
 
     pthread_join(&hiloConexiones, NULL);
 

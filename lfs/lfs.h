@@ -80,7 +80,7 @@ void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parame
 
 char* concat(int count, ...);
 
-void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
+char* lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
 pthread_t *crearHiloRequest(char *mensaje);
 
@@ -98,13 +98,13 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 
 int obtenerBloqueLibreAsignado();
 
-void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
+char* lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
 int obtenerTamanioBloque(int bloque);
 
 int archivoVacio(char *path);
 
-void lfsSelect(char *nombreTabla, char *key);
+char* lfsSelect(char *nombreTabla, char *key);
 
 char *obtenerNombreArchivoParticion(int particion);
 
@@ -123,7 +123,7 @@ int obtenerCantidadBloques(char *puntoMontaje);
 * -1: Numero de parametros invalido
 * 0: Ejecucion exitosa
 */
-int gestionarRequest(t_comando comando);
+char* gestionarRequest(t_comando comando);
 
 /**
 * @NAME: existeTabla

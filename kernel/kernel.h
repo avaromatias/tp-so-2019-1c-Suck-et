@@ -48,16 +48,26 @@ t_list *finalizados;
 //Funciones propias de Kernel
 t_configuracion cargarConfiguracion(char *, t_log *);
 
-int gestionarRequest(t_comando requestParseada);
+int gestionarRequest(t_comando requestParseada, int fdMemoria);
 
 bool validarComandosKernel(t_comando requestParseada, t_log *logger);
 
 bool esComandoValidoDeKernel(t_comando comando);
 
-void ejecutarConsola(int (*gestionarRequest)(t_comando), t_log *logger);
+void ejecutarConsola(int (*gestionarRequest)(t_comando, int), t_log *logger, int fdMemoria);
 
-void *analizarRequest(t_comando requestParseada, t_log *logger);
+void *analizarRequest(t_comando requestParseada, t_log *logger, int fdMemoria);
 
-void *administrarRequestsLQL(t_archivoLQL archivoLQL, t_log *logger);
+void *administrarRequestsLQL(t_archivoLQL archivoLQL, t_log *logger, int fdMemoria);
+
+int gestionarRun(char *pathArchivo, int fdMemoria);
+
+int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria);
+
+int gestionarCreateKernel(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones, char *tiempoCompactacion, int fdMemoria);
+
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria);
+
+int gestionarDropKernel(char *nombreTabla, int fdMemoria);
 
 #endif /* KERNEL_H_ */

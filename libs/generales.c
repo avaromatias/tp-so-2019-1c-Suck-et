@@ -44,7 +44,7 @@ char** parser(char* input){
     char** parseadoSinVal=string_split(parseado[0]," ");
     int cantidadElementosSinComillas = tamanioDeArrayDeStrings(parseado);
     int cantidadElementosSinEspacios = tamanioDeArrayDeStrings(parseadoSinVal);
-    int cantidadElementosComandoParseado = cantidadElementosSinComillas + cantidadElementosSinEspacios - 1;
+    int cantidadElementosComandoParseado = cantidadElementosSinComillas + cantidadElementosSinEspacios;
     char** comandoParseado = (char**) malloc(sizeof(char*) * cantidadElementosComandoParseado);
 
     int i = 0;
@@ -53,8 +53,8 @@ char** parser(char* input){
         i++;
     }
 
-    char* valor=parseado[1];
-    comandoParseado[i] = parseado[1];
+    char* valor = parseado[1];
+    comandoParseado[i] = valor;
 
     if(valor != NULL) {
         comandoParseado[i] = string_from_format("\"%s\"", comandoParseado[i]);
@@ -63,15 +63,16 @@ char** parser(char* input){
             comandoParseado[i]=parseado[2];
             i++;
         }
+        comandoParseado[i] = NULL;
     }
-    comandoParseado[i] = NULL;
+    string_to_upper(comandoParseado[0]);
     return comandoParseado;
 }
 
 t_comando instanciarComando(char** request) {//request ya parseada
     int cantidadParametros = obtenerCantidadParametros(request);
     t_comando comando;
-    comando.cantidadParametros=cantidadParametros;
+    comando.cantidadParametros = cantidadParametros;
     comando.parametros=malloc(cantidadParametros*sizeof(char*));
     for (int i = 0; i < cantidadParametros; i++) {
         comando.parametros[i] = string_duplicate(request[i + 1]);//primero lo evitamos porque es de "TipoRequest"

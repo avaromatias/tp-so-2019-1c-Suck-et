@@ -278,8 +278,9 @@ char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
                 t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
                 char **blocks = string_get_string_as_array(config_get_string_value(archivoConfig, "BLOCKS"));
                 if(!arrayIncluye(blocks,string_from_format("%i",bloque))){
-                    blocks[tamanioDeArrayDeStrings(blocks)]=string_from_format("%i",bloque);
-                    blocks[tamanioDeArrayDeStrings(blocks)+1]=NULL;
+                    int tam = tamanioDeArrayDeStrings(blocks);
+                    blocks[tam]=string_from_format("%i",bloque);
+                    blocks[tam+1]=NULL;
                 }
                 char* bloques=convertirArrayAString(blocks);
                 int size = config_get_int_value(archivoConfig, "SIZE") + strlen(linea);
@@ -317,7 +318,7 @@ char* convertirArrayAString(char** array){
 
 int arrayIncluye(char** array, char* elemento){
     for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
-        if(strcmp(array[0],elemento)==0){
+        if(strcmp(array[i],elemento)==0){
             return 1;
         }
     }

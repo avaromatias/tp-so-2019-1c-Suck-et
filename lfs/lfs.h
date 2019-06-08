@@ -54,8 +54,7 @@ typedef struct {
 typedef struct {
     GestorConexiones *conexion;
     t_log *logger;
-    sem_t *memoriaConectada;
-    int *fdMemoria;
+    int tamanioValue;
 } parametros_thread_lfs;
 
 typedef struct {
@@ -79,13 +78,17 @@ t_configuracion cargarConfiguracion(char *path, t_log *logger);
 
 void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros);
 
-char* concat(int count, ...);
+char *concat(int count, ...);
 
-void lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
+void valorSinComillas(char *valor);
+
+int arrayIncluye(char **array, char *elemento);
+
+char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
 pthread_t *crearHiloRequest(char *mensaje);
 
-int obtenerBloqueDisponible(char* nombreTabla, int particion);
+int obtenerBloqueDisponible(char *nombreTabla, int particion);
 
 void cargarBloquesAsignados(char *path);
 
@@ -99,7 +102,9 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 
 int obtenerBloqueLibreAsignado();
 
-void lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
+char *generarContenidoParaParticion(char *tamanio, char *bloques);
+
+char *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
 int obtenerTamanioBloque(int bloque);
 
@@ -107,7 +112,9 @@ int obtenerTamanioBloques(char *puntoMontaje);
 
 int archivoVacio(char *path);
 
-void lfsSelect(char *nombreTabla, char *key);
+char *convertirArrayAString(char **array);
+
+char *lfsSelect(char *nombreTabla, char *key);
 
 char *obtenerNombreArchivoParticion(int particion);
 
@@ -126,7 +133,7 @@ int obtenerCantidadBloques(char *puntoMontaje);
 * -1: Numero de parametros invalido
 * 0: Ejecucion exitosa
 */
-int gestionarRequest(t_comando comando);
+char *gestionarRequest(t_comando comando);
 
 /**
 * @NAME: existeTabla

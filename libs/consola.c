@@ -12,7 +12,7 @@ bool cantidadParametrosEsValida(t_comando comando)  {
         case SELECT:
             return comando.cantidadParametros == 2;
         case INSERT:
-            return comando.cantidadParametros == 3;
+            return comando.cantidadParametros == 3 || comando.cantidadParametros == 4;
         case CREATE:
             return comando.cantidadParametros == 4;
     }

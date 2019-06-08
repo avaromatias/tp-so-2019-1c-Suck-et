@@ -40,9 +40,32 @@ int pesoString(char* string)    {
 char** parser(char* input){
     if(string_is_empty(input))
         return NULL;
-    char** parseado = string_split(input, " ");
-    string_to_upper(parseado[0]);
-    return parseado;
+    char** parseado = string_split(input, "\"");
+    char** parseadoSinVal=string_split(parseado[0]," ");
+    int cantidadElementosSinComillas = tamanioDeArrayDeStrings(parseado);
+    int cantidadElementosSinEspacios = tamanioDeArrayDeStrings(parseadoSinVal);
+    int cantidadElementosComandoParseado = cantidadElementosSinComillas + cantidadElementosSinEspacios - 1;
+    char** comandoParseado = (char**) malloc(sizeof(char*) * cantidadElementosComandoParseado);
+
+    int i = 0;
+    while(i < cantidadElementosSinEspacios) {
+        comandoParseado[i] = parseadoSinVal[i];
+        i++;
+    }
+
+    char* valor=parseado[1];
+    comandoParseado[i] = parseado[1];
+
+    if(valor != NULL) {
+        comandoParseado[i] = string_from_format("\"%s\"", comandoParseado[i]);
+        i++;
+        if(parseado[2]){
+            comandoParseado[i]=parseado[2];
+            i++;
+        }
+    }
+    comandoParseado[i] = NULL;
+    return comandoParseado;
 }
 
 t_comando instanciarComando(char** request) {//request ya parseada

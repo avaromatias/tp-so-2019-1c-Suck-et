@@ -172,9 +172,7 @@ int obtenerTamanioBloque(int bloque) {
         char ch;
         int count = 0;
         while ((ch = fgetc(bloque)) != EOF) {
-            if (ch != '\n') {
                 count++;
-            }
         }
         fclose(bloque);
         return count;
@@ -188,11 +186,11 @@ int estaLibreElBloque(int bloque) { //TODO: Implementar el test bit
     return 0;
 }
 
-int estaDisponibleElBloqueParaTabla(int i, char *nombreTabla, int particion) {
+int estaDisponibleElBloqueParaTabla(int i, char *nombreTabla, int particion,int maxTamanioBloque) {
     int bloqueDisponible = 0;
     // int bloqueLibre = estaLibreElBloque(i) == 1;
     int bloqueLibre = 1;
-    if (bloquesAsignados->elements_amount > 0) {
+    if (bloquesAsignados->elements_amount > 0 && obtenerTamanioBloque(i) < maxTamanioBloque) {
         t_bloqueAsignado *bloque = dictionary_get(bloquesAsignados, (char *) string_from_format("%i", i));
         if (strcmp(bloque->tabla, "") == 0 ||
             (strcmp(bloque->tabla, nombreTabla) == 0 && bloque->particion == particion)) {
@@ -204,8 +202,9 @@ int estaDisponibleElBloqueParaTabla(int i, char *nombreTabla, int particion) {
 }
 
 int obtenerBloqueDisponible(char *nombreTabla, int particion) {
+    int maxBlock=obtenerElMaxBlockSize(configuracion.puntoMontaje);
     for (int i = 0; i < obtenerCantidadBloques(configuracion.puntoMontaje); i++) {
-        if (estaDisponibleElBloqueParaTabla(i, nombreTabla, particion)) {
+        if (estaDisponibleElBloqueParaTabla(i, nombreTabla, particion,maxBlock)) {
             return i;
         }
     }
@@ -266,6 +265,10 @@ char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
                 char *p = string_itoa(particion);
                 nombreArchivo = concat(4, obtenerPathTabla(nombreTabla, configuracion.puntoMontaje), "/", p, ".bin");
                 int bloque = obtenerBloqueDisponible(nombreTabla, particion);
+                t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+                bloqueA->tabla = concat(1, nombreTabla);
+                bloqueA->particion = particion;
+                dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
                 FILE *f = fopen(obtenerPathBloque(bloque), "a");
                 printf("Linea %s\n", linea);
                 // TODO: Insertar en la memoria temporal del punto anterior una nueva entrada que contenga los datos enviados en la request.
@@ -273,11 +276,15 @@ char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
                 fclose(f);
                 free(path);
                 t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
-                char *blocks = config_get_string_value(archivoConfig, "BLOCKS");
+                char **blocks = string_get_string_as_array(config_get_string_value(archivoConfig, "BLOCKS"));
+                if(!arrayIncluye(blocks,string_from_format("%i",bloque))){
+                    blocks[tamanioDeArrayDeStrings(blocks)]=string_from_format("%i",bloque);
+                    blocks[tamanioDeArrayDeStrings(blocks)+1]=NULL;
+                }
+                char* bloques=convertirArrayAString(blocks);
                 int size = config_get_int_value(archivoConfig, "SIZE") + strlen(linea);
                 FILE *fParticion = fopen(nombreArchivo, "r+");
-                int tamanio = obtenerTamanioBloque(bloque);
-                char *contenido=generarContenidoParaParticion(string_from_format("%i", tamanio),blocks);
+                char *contenido=generarContenidoParaParticion(string_from_format("%i", size),bloques);
                 fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
                 fclose(fParticion);
                 free(contenido);
@@ -294,6 +301,28 @@ char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
     }
 }
 
+char* convertirArrayAString(char** array){
+    char* resultado=string_new();
+    string_append(&resultado,"[");
+    for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
+        string_append(&resultado,(char*)array[i]);
+        if(i <(tamanioDeArrayDeStrings(array)-1)){
+            string_append(&resultado,",");
+
+        }
+    }
+    string_append(&resultado,"]");
+    return resultado;
+}
+
+int arrayIncluye(char** array, char* elemento){
+    for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
+        if(strcmp(array[0],elemento)==0){
+            return 1;
+        }
+    }
+    return 0;
+}
 char* generarContenidoParaParticion(char*tamanio,char* bloques){
     char *contenido = string_new();
     string_append(&contenido, "SIZE=");
@@ -646,6 +675,20 @@ int obtenerCantidadBloques(char *puntoMontaje) {
         int cantidadDeBloques = config_get_int_value(archivoConfig, "BLOCKS");
         free(nombreArchivo);
         return cantidadDeBloques;
+    }
+    free(nombreArchivo);
+    return -1;
+}
+
+int obtenerElMaxBlockSize(char *puntoMontaje) {
+    char *nombreArchivo = string_new();
+    string_append(&nombreArchivo, puntoMontaje);
+    string_append(&nombreArchivo, "/Metadata/Metadata.bin");
+    if (existeElArchivo(nombreArchivo) && !archivoVacio(nombreArchivo)) {
+        t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
+        int tamanioBloque = config_get_int_value(archivoConfig, "BLOCK_SIZE");
+        free(nombreArchivo);
+        return tamanioBloque;
     }
     free(nombreArchivo);
     return -1;

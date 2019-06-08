@@ -105,6 +105,7 @@ char* lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, ch
 int obtenerTamanioBloque(int bloque);
 
 int archivoVacio(char *path);
+char* convertirArrayAString(char** array);
 
 char* lfsSelect(char *nombreTabla, char *key);
 

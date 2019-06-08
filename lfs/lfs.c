@@ -154,16 +154,10 @@ void crearBinarios(char *nombreTabla, int particiones) {
             string_append(&nombreArchivo, string_from_format("%i", i));
             string_append(&nombreArchivo, ".bin");
             FILE *file = fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "w");
-            char *contenido = string_new();
-            string_append(&contenido, "SIZE=");
             int tamanio = obtenerTamanioBloque(bloque);
-            string_append(&contenido, string_from_format("%i", tamanio));
-            string_append(&contenido, "\n");
-            string_append(&contenido, "BLOCKS=[");
-            string_append(&contenido, string_from_format("%i", bloque));
-            string_append(&contenido, "]");
-            string_append(&contenido, "\n");
+            char *contenido=generarContenidoParaParticion(string_from_format("%i", tamanio),concat(3,"[",string_from_format("%i", bloque),"]"));
             fwrite(contenido, sizeof(char) * strlen(contenido), 1, file);
+            free(contenido);
             fclose(file);
         }
     }
@@ -196,8 +190,8 @@ int estaLibreElBloque(int bloque) { //TODO: Implementar el test bit
 
 int estaDisponibleElBloqueParaTabla(int i, char *nombreTabla, int particion) {
     int bloqueDisponible = 0;
-   // int bloqueLibre = estaLibreElBloque(i) == 1;
-   int bloqueLibre=1;
+    // int bloqueLibre = estaLibreElBloque(i) == 1;
+    int bloqueLibre = 1;
     if (bloquesAsignados->elements_amount > 0) {
         t_bloqueAsignado *bloque = dictionary_get(bloquesAsignados, (char *) string_from_format("%i", i));
         if (strcmp(bloque->tabla, "") == 0 ||
@@ -270,8 +264,7 @@ char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
                 int particion = calcularParticion(key, meta);
                 char *nombreArchivo = string_new();
                 char *p = string_itoa(particion);
-                string_append(&nombreArchivo, p);
-                string_append(&nombreArchivo, ".bin");
+                nombreArchivo = concat(4, obtenerPathTabla(nombreTabla, configuracion.puntoMontaje), "/", p, ".bin");
                 int bloque = obtenerBloqueDisponible(nombreTabla, particion);
                 FILE *f = fopen(obtenerPathBloque(bloque), "a");
                 printf("Linea %s\n", linea);
@@ -279,6 +272,15 @@ char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
                 fwrite(linea, sizeof(char) * strlen(linea), 1, f);
                 fclose(f);
                 free(path);
+                t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
+                char *blocks = config_get_string_value(archivoConfig, "BLOCKS");
+                int size = config_get_int_value(archivoConfig, "SIZE") + strlen(linea);
+                FILE *fParticion = fopen(nombreArchivo, "r+");
+                int tamanio = obtenerTamanioBloque(bloque);
+                char *contenido=generarContenidoParaParticion(string_from_format("%i", tamanio),blocks);
+                fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
+                fclose(fParticion);
+                free(contenido);
                 retorno = concat(1, "Se inserto el valor con exito.\n");
 
             } else {
@@ -290,6 +292,17 @@ char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
         return retorno;
 
     }
+}
+
+char* generarContenidoParaParticion(char*tamanio,char* bloques){
+    char *contenido = string_new();
+    string_append(&contenido, "SIZE=");
+    string_append(&contenido, tamanio);
+    string_append(&contenido, "\n");
+    string_append(&contenido, "BLOCKS=");
+    string_append(&contenido, bloques);
+    string_append(&contenido, "\n");
+    return contenido;
 }
 
 char *lfsSelect(char *nombreTabla, char *key) {
@@ -346,7 +359,7 @@ char *lfsSelect(char *nombreTabla, char *key) {
                     if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
                         mayorTimestamp = atoi(timestampEncontrado);
                         valorMayorTimestamp = string_new();
-                        valorMayorTimestamp= concat(1,palabras[2]);
+                        valorMayorTimestamp = concat(1, palabras[2]);
                         mayorLinea = string_new();
                         mayorLinea = concat(1, linea);
                     }

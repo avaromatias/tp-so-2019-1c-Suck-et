@@ -98,6 +98,8 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 
 int obtenerBloqueLibreAsignado();
 
+char* generarContenidoParaParticion(char*tamanio,char* bloques);
+
 char* lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
 int obtenerTamanioBloque(int bloque);

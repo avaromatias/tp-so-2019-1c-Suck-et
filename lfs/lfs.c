@@ -471,6 +471,7 @@ void ejecutarConsola(void *parametrosConsola) {
         free(comandoParseado);
         if (validarComandosComunes(comando, logger)) {
             char *retorno = gestionarRequest(comando);
+            printf("%s",retorno);
             free(retorno);
             log_info(logger, "Request procesada correctamente.");
         }
@@ -484,16 +485,15 @@ char *gestionarRequest(t_comando comando) {
     char *retorno = string_new();
     switch (comando.tipoRequest) {
         case SELECT:
-            printf("Tabla: %s\n", comando.parametros[0]);
-            printf("Key: %s\n", comando.parametros[1]);
+//            printf("Tabla: %s\n", comando.parametros[0]);
+//            printf("Key: %s\n", comando.parametros[1]);
             retorno = lfsSelect(comando.parametros[0], comando.parametros[1]);
-            printf("%s\n", retorno);
             return retorno;
 
-        case INSERT:
-            printf("Tabla: %s\n", comando.parametros[0]);
-            printf("Key: %s\n", comando.parametros[1]);
-            printf("Valor: %s\n", comando.parametros[2]);
+        case INSERT:;
+//            printf("Tabla: %s\n", comando.parametros[0]);
+//            printf("Key: %s\n", comando.parametros[1]);
+//            printf("Valor: %s\n", comando.parametros[2]);
             time_t timestamp;
             // El parámetro Timestamp es opcional.
             // En caso que un request no lo provea (por ejemplo insertando un valor desde la consola),
@@ -505,31 +505,29 @@ char *gestionarRequest(t_comando comando) {
             }
             printf("Timestamp: %i\n", (int) timestamp);
             retorno = lfsInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], timestamp);
-            printf("%s", retorno);
             return retorno;
 
-        case CREATE:
-            printf("Tabla: %s\n", comando.parametros[0]);
-            printf("TIpo de consistencia: %s\n", comando.parametros[1]);
-            printf("Numero de particiones: %s\n", comando.parametros[2]);
-            printf("Tiempo de compactacion: %s\n", comando.parametros[3]);
+        case CREATE:;
+//            printf("Tabla: %s\n", comando.parametros[0]);
+//            printf("TIpo de consistencia: %s\n", comando.parametros[1]);
+//            printf("Numero de particiones: %s\n", comando.parametros[2]);
+//            printf("Tiempo de compactacion: %s\n", comando.parametros[3]);
             retorno = lfsCreate(comando.parametros[0], comando.parametros[1], comando.parametros[2],
                                 comando.parametros[3]);
-            printf("%s", retorno);
             return retorno;
 
         case DESCRIBE:
             if (comando.parametros[0] == NULL) {
                 // Hacer describe global
             } else {
-                printf("Tabla: %s\n", comando.parametros[0]);
+//                printf("Tabla: %s\n", comando.parametros[0]);
                 // Hacer describe de una tabla especifica
             }
             retorno = concat(1, "Describe");
             return retorno;
 
         case DROP:
-            printf("Tabla: %s\n", comando.parametros[0]);
+//            printf("Tabla: %s\n", comando.parametros[0]);
             retorno = concat(1, "Describe");
             return retorno;
 
@@ -549,7 +547,6 @@ char *gestionarRequest(t_comando comando) {
             return retorno;
 
         default:
-            printf("Ingrese un comando valido.\n");
             retorno = concat(1, "Ingrese un comando valido.\n");
             return retorno;
     }

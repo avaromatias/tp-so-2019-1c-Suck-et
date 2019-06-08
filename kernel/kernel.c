@@ -79,45 +79,50 @@ void ejecutarConsola(int (*gestionarRequest)(t_comando), t_log *logger) {
 
     do {
         char *leido = readline("Kernel@suck-ets:~$ ");
-        char **comandoParseado = parser(leido);
-        if (comandoParseado == NULL) {
-            free(comandoParseado);
-            continue;
-        }
-        requestParseada = instanciarComando(comandoParseado);
-        free(leido);
-        free(comandoParseado);
-        if (requestParseada.tipoRequest == INVALIDO) {
-            printf("Comando inválido.\n");
-        } else {
-            if (validarComandosComunes(requestParseada, logger) || validarComandosKernel(requestParseada, logger)) {
-                if (gestionarRequest(requestParseada) == 0) {
-                    log_info(logger, "Request procesada correctamente.");
-                } else {
-                    log_error(logger, "No se pudo procesar la request solicitada.");
-                }
+        if (strcmp(leido, " ") != 0) {
+            char **comandoParseado = parser(leido);
+            if (comandoParseado == NULL) { //acordarse de tener en cuenta el " "
+                free(comandoParseado);
+                continue;
             }
-
+            requestParseada = instanciarComando(comandoParseado);
+            free(leido);
+            free(comandoParseado);
+            analizarRequest(requestParseada, logger);
         }
     } while (requestParseada.tipoRequest != EXIT);
     printf("Ya analizamos todo lo solicitado.\n");
+}
+
+void *analizarRequest(t_comando requestParseada, t_log *logger) {
+    if (requestParseada.tipoRequest == INVALIDO) {
+        printf("Comando inválido.\n");
+    } else {
+        if (validarComandosComunes(requestParseada, logger) || validarComandosKernel(requestParseada, logger)) {
+            if (gestionarRequest(requestParseada) == 0) {
+                log_info(logger, "Request procesada correctamente.");
+            } else {
+                log_error(logger, "No se pudo procesar la request solicitada.");
+            }
+        }
+    }
 }
 
 int gestionarRequest(t_comando requestParseada) {
     switch (requestParseada.tipoRequest) {
         case SELECT:
             printf("llegue!");
-            return gestionarSelectKernel();
+            return 0;//gestionarSelectKernel();
         case INSERT:
-            return gestionarInsertKernel();
+            return 0;//gestionarInsertKernel();
         case CREATE:
-            return gestionarCreateKernel();
+            return 0;//gestionarCreateKernel();
         case DROP:
-            return gestionarDropKernel();
+            return 0;//gestionarDropKernel();
         case DESCRIBE:
-            return gestionarDescribeKernel();
+            return 0;//gestionarDescribeKernel();
         case JOURNAL:
-            return gestionarJournalKernel();
+            return 0;//gestionarJournalKernel();
         case ADD:
             //gestionarAdd();
             break;
@@ -140,10 +145,8 @@ int gestionarRequest(t_comando requestParseada) {
             printf("- METRICS\n");
             printf("- EXIT\n");
             return 0;
-
         case EXIT:
             return 0;
-
         default:
             return printf("Comando inválido.\n");
     }
@@ -255,4 +258,64 @@ bool esComandoValidoDeKernel(t_comando comando) {
         case METRICS:
             return (comando.cantidadParametros == 0);
     }
+}
+
+char *gestionarRun(char *pathArchivo) {
+    t_archivoLQL archivoLQL;
+    t_log *logger;
+    char *linea = NULL;
+    int lineaLeida = 0;
+    int caracter, contador;
+
+    FILE *archivo = fopen(pathArchivo, "r");
+    caracter = fgetc(archivo);
+
+    if (!sePuedeLeerElArchivo(pathArchivo)) {
+        printf("El PATH recibido es inválido.\n");
+    }
+    while (!feof(archivo)) {
+        linea = (char *) realloc(NULL, sizeof(char));
+        contador = 0;
+        while (caracter != '\n') {
+            linea[contador] = caracter;
+            contador++;
+            linea = (char *) realloc(linea, (contador + 1) * sizeof(char));
+            caracter = fgetc(archivo);
+        }
+        linea = (char *) realloc(linea, (contador + 2) * sizeof(char)); //agrego el \n por las dudas
+        linea[contador] = caracter;
+        //Asignamos la linea al primer elemento de la lista de request
+        archivoLQL.listaDeRequests[lineaLeida] = linea;
+        lineaLeida++;
+        archivoLQL.cantidadDeLineas++;
+    }
+    administrarRequestsLQL(archivoLQL, logger);
+    fclose(archivo);
+}
+
+void *administrarRequestsLQL(t_archivoLQL archivoLQL, t_log *logger) {
+    t_comando requestParseada;
+    int contadorDeRequest = 0;
+    do {
+        char *unaRequest = archivoLQL.listaDeRequests[contadorDeRequest]; //primer elemento de la lista de request, es una request
+        if (strcmp(unaRequest, " ") != 0) {
+            char **comandoParseado = parser(unaRequest); //cada request, es un conjunto de palabras
+            requestParseada = instanciarComando(comandoParseado);
+            free(comandoParseado);
+            free(unaRequest);
+            free(comandoParseado);
+
+            analizarRequest(requestParseada, logger);
+        }
+    } while (contadorDeRequest > archivoLQL.cantidadDeLineas);
+    printf("Ya analizamos todo lo solicitado para el archivo LQL ingresado.\n");
+}
+
+int gestionarCreateKernel(char* nombreTabla, char* tipoConsistencia, char* cantidadParticiones, char* tiempoCompactacion, GestorConexiones *conexion) {
+    int fdMemoria = 0; //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
+    char* request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones, tiempoCompactacion);
+    enviarPaquete(fdMemoria, REQUEST, request);
+    free(request);
+    //recibo mensaje de Memoria o directamente fallo yo?
+    return 0;
 }

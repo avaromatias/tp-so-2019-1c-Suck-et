@@ -32,6 +32,13 @@ typedef struct {
     int retardoEjecucion;
 } t_configuracion;
 
+typedef struct {
+    char **listaDeRequests;
+    int cantidadDeLineas;
+} t_archivoLQL;
+
+t_dictionary listaDeMemorias;
+
 //Para Planificador
 t_queue *colaDeNew;
 t_queue *colaDeReady;
@@ -48,5 +55,9 @@ bool validarComandosKernel(t_comando requestParseada, t_log *logger);
 bool esComandoValidoDeKernel(t_comando comando);
 
 void ejecutarConsola(int (*gestionarRequest)(t_comando), t_log *logger);
+
+void *analizarRequest(t_comando requestParseada, t_log *logger);
+
+void *administrarRequestsLQL(t_archivoLQL archivoLQL, t_log *logger);
 
 #endif /* KERNEL_H_ */

@@ -248,7 +248,8 @@ char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
     char *retorno = string_new();
     if (validarValor(valor) != 0) {
         log_warning(logger, "El valor debe estar enmascarado con \"\"");
-        retorno = concat(1, "Se inserto el valor con exito");
+        retorno = concat(1, "El valor debe estar enmascarado con \"\"\n");
+        return retorno;
     } else {
         // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
         if (existeTabla(nombreTabla) == 0) {

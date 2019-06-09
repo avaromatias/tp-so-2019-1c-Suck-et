@@ -200,7 +200,6 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
             // Crear el directorio para dicha tabla.
             // Grabar en dicho archivo los parámetros pasados por el request.
             crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
-            printf("Se creo la Metadata de la tabla %s.\n", nombreTabla);
             // Crear los archivos binarios asociados a cada partición de la tabla y
             // asignar a cada uno un bloque
             crearBinarios(nombreTabla, atoi(particiones));

@@ -3,6 +3,7 @@
 bool cantidadParametrosEsValida(t_comando comando)  {
     switch(comando.tipoRequest) {
         case JOURNAL:
+            return comando.cantidadParametros == 0;
         case METRICS:
             return comando.cantidadParametros == 0;
         case DROP:

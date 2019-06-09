@@ -78,22 +78,6 @@ t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamani
     return memoriaPrincipal;
 }
 
-/*void valorSinComillas(char *valor) {
-    if (string_starts_with(valor, "\"") && string_ends_with(valor, "\"")) {
-        int j = 0;
-        for (int i = 0; i < strlen(valor); i++) {
-            if (valor[i] == '\\') {
-                valor[j++] = valor[i++];
-                valor[j++] = valor[i];
-                if (valor[i] == '\0')
-                    break;
-            } else if (valor[i] != '"')
-                valor[j++] = valor[i];
-        }
-        valor[j] = '\0';
-    }
-}*/
-
 void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
     memoriaPrincipal->tablaDeMarcos = (t_marco*) malloc(sizeof(t_marco) * memoriaPrincipal->cantidadTotalMarcos);
 
@@ -144,41 +128,52 @@ char* gestionarDrop(char* nombreTabla, int fdLissandra, t_memoria* memoria, t_lo
     enviarPaquete(fdLissandra, REQUEST, request);
     return resultado;
 }
+void enviarInsertLissandra(char* key, char* value, char* timestamp){
+
+    char* request =string_from_format("INSERT %s %s \"%s\" %s", nombreSegmento, key, value, timestamp);
+    printf("Request a enviar a lissandra: %s \n", request);
+    /*enviarPaquete(conexionConLissandra->fd, REQUEST, request);
+    t_paquete respuesta = recibirMensaje(conexionConLissandra);
+    printf("Respuesta: %s\n", respuesta.mensaje);*/
+
+    free(request);
+
+}
 
 //la key es la key correspondiente a la pagina
 //el value es un t_pagina
 void iterarSobrePaginas(char* key, char* value){
-    char* request = "INSERT ";
-    t_pagina* unaPagina = (t_pagina*) value;
 
+    //TODO buscar una forma mas linda de obtener el timestamp y luego el value
+    t_pagina* unaPagina = (t_pagina*) value;
+    char* timestamp = string_substring(unaPagina->marco->base, 0, 11);
+    char* unValue = string_substring(unaPagina->marco->base, 11, strlen(unaPagina->marco->base));
     if ((int) unaPagina->modificada){
 
+        //(&enviarInsertLissandra)(conexionConLissandra,key, unValue, timestamp);
+        (&enviarInsertLissandra)(key, unValue, timestamp);
 //        enviarPaquete(conexionLissandra->fd, REQUEST, request);
     }
-
-    printf("%i la pagina fue modificada: ", unaPagina->modificada);
-    fflush(stdout);
+    free(timestamp);
+    free(value);
 
 }
 //key es nombre del segmento
 //el value es t_segmento
 void iterarSegmentos(char* key, char* value){
-//    dictionary_iterator(t_dictionary *, void(*closure)(char*,void*))
-//casteo el value como un segmento
+    nombreSegmento = key;
     t_segmento* segmento = (t_segmento*) value;
-    printf("%s ", segmento->pathTabla);
-    fflush(stdout);
     //accedo a la tabla de paginas correspondiente al segmento (es un t_dictionary*)
     t_dictionary* tablaDePaginas = (t_dictionary*) segmento->tablaDePaginas;
     dictionary_iterator(tablaDePaginas,&iterarSobrePaginas);
+    free(segmento);
 }
 
 
 void* gestionarJournal(t_control_conexion* conexionConLissandra, t_memoria* memoria, t_log* logger){
-    int cantidadDeSegmentos = dictionary_size(memoria->tablaDeSegmentos);
-
     //iteracion sobre t_dictionary* tablaDeSegmentos
     dictionary_iterator(memoria->tablaDeSegmentos, &iterarSegmentos);
+    //TODO drop de todas las tablas luego del journal
     //Por cada segmento recorro las paginas de la tabla de pagina y me quedo con los que tienen flag de modificado en 1
 }
 

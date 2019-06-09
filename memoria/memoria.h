@@ -104,4 +104,9 @@ char* drop(char* nombreTabla, t_memoria* memoria);
 void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria);
 void eliminarPagina(void* pagina);
 void eliminarSegmento(void* segmento);
+
+//JOURNAL
+//void enviarInsertLissandra(t_control_conexion* conexionConLissandra, char* key, char* value, char* timestamp);
+void enviarInsertLissandra(char* key, char* value, char* timestamp);
+char* nombreSegmento;
 #endif /* MEMORIA_H_ */

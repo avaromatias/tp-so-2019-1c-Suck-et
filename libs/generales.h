@@ -50,5 +50,6 @@ bool cantidadDeParametrosEsValida(char* request, int cantidadDeParametros);
 bool stringEsVacio(const char* string);
 char *armarLinea(char *key, char *valor, time_t timestamp);
 char **desarmarLinea(char *linea);
+int archivoVacio(char *path);
 
 #endif //TP_2019_1C_SUCK_ET_ARRAYDESTRING_H

@@ -51,10 +51,10 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
 
 void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros) {
     char **comandoParseado = parser(mensaje);
-    char *retorno = string_new();
+    t_response *retorno;
     t_comando comando = instanciarComando(comandoParseado);
     retorno = gestionarRequest(comando);
-    enviarPaquete(header.fdRemitente, RESPUESTA, retorno);
+    enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, retorno->valor);
     free(retorno);
     free(comandoParseado);
 
@@ -175,11 +175,11 @@ int obtenerBloqueDisponible(char *nombreTabla, int particion) {
     return -1;
 }
 
-char *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
-    char *retorno = string_new();
+t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
+    t_response *retorno = (t_response *) malloc(sizeof(t_response));
     if (validarConsistencia(tipoConsistencia) != 0) {
-        log_warning(logger, "El Tipo de Consistencia no es valido. Este puede ser SC, SHC o EC.");
-        retorno = concat(1, "El Tipo de Consistencia no es valido. Este puede ser SC, SHC o EC.");
+        retorno->tipoRespuesta = ERR;
+        retorno->valor = concat(1, "El Tipo de Consistencia no es valido. Este puede ser SC, SHC o EC.");
     } else {
         char *tablePath = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
         // Verificar que la tabla no exista en el file system.
@@ -188,9 +188,11 @@ char *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, ch
             // En caso que exista, se guardará el resultado en un archivo .log y se retorna un error indicando dicho resultado.
             if (!existeElArchivo(path)) {
                 crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
-                retorno = concat(3, "La tabla ", nombreTabla, " ya existe. Se creo su Metadata.\n");
+                retorno->tipoRespuesta = ERR;
+                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe. Se creo su Metadata.\n");
             } else {
-                retorno = concat(3, "La tabla ", nombreTabla, " ya existe.\n");
+                retorno->tipoRespuesta = ERR;
+                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe.\n");
             }
         } else {
             // Crear el directorio para dicha tabla.
@@ -202,17 +204,18 @@ char *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, ch
             // Crear los archivos binarios asociados a cada partición de la tabla y
             // asignar a cada uno un bloque
             crearBinarios(nombreTabla, atoi(particiones));
-            retorno = concat(3, "La tabla ", nombreTabla, " fue creada con exito.\n");
+            retorno->tipoRespuesta = RESPUESTA;
+            retorno->valor = concat(3, "La tabla ", nombreTabla, " fue creada con exito.\n");
         }
         return retorno;
     }
 }
 
-char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
-    char *retorno = string_new();
+t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
+    t_response *retorno = (t_response *) malloc(sizeof(t_response));
     if (validarValor(valor) != 0) {
-        log_warning(logger, "El valor debe estar enmascarado con \"\" (comillas dobles)");
-        retorno = concat(1, "El valor debe estar enmascarado con \"\" (comillas dobles)\n");
+        retorno->tipoRespuesta = ERR;
+        retorno->valor = concat(1, "El valor debe estar enmascarado con \"\"\n");
         return retorno;
     } else {
         // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
@@ -256,13 +259,17 @@ char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
                 fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
                 fclose(fParticion);
                 free(contenido);
-                retorno = concat(1, "Se insertó el valor con éxito.\n");
+                retorno->tipoRespuesta = RESPUESTA;
+                retorno->valor = concat(1, "Se inserto el valor con exito.\n");
 
             } else {
-                retorno = concat(5, "No se pudo insertar en ", nombreTabla, ". No existe metadata en ", path, ".\n");
+                retorno->tipoRespuesta = ERR;
+                retorno->valor = concat(5, "No se pudo insertar en ", nombreTabla, ". No existe metadata en ", path,
+                                        ".\n");
             }
         } else {
-            retorno = concat(3, "No existe la tabla ", nombreTabla, ".\n");
+            retorno->tipoRespuesta = ERR;
+            retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".\n");
         }
         return retorno;
 
@@ -281,7 +288,8 @@ char *generarContenidoParaParticion(char *tamanio, char *bloques) {
     return contenido;
 }
 
-char *lfsSelect(char *nombreTabla, char *key) {
+t_response *lfsSelect(char *nombreTabla, char *key) {
+    t_response *retorno = (t_response *) malloc(sizeof(t_response));
     //1. Verificar que la tabla exista en el File System
     if (existeTabla(nombreTabla) == 0) {
 
@@ -363,19 +371,19 @@ char *lfsSelect(char *nombreTabla, char *key) {
 
         //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
         if (strcmp(valorMayorTimestamp, "") != 0) {
-            //printf("Value: %s\n", valorMayorTimestamp);
-            return concat(2, mayorLinea, "\n");
+            retorno->tipoRespuesta = RESPUESTA;
+            retorno->valor = concat(1, mayorLinea);
+            return retorno;
         } else {
-            printf("No se encontro ningun valor con esa key.\n");
-            char *error = string_new();
-            error = concat(1, "No se encontro ningun valor con esa key.\n");
+            retorno->tipoRespuesta = ERR;
+            retorno->valor = concat(1, "No se encontro ningun valor con esa key.\n");
             free(mayorLinea);
-            return error;
+            return retorno;
         }
     } else {
-        char *error = string_new();
-        error = concat(3, "No existe la tabla ", nombreTabla, ".\n");
-        return error;
+        retorno->tipoRespuesta = ERR;
+        retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".\n");
+        return retorno;
     }
 }
 
@@ -400,8 +408,7 @@ char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo) {
     return arrayDeBloques;
 }
 
-void ejecutarConsola(void *parametrosConsola) {
-    parametros_consola *parametros = (parametros_consola *) parametrosConsola;
+void ejecutarConsola() {
     t_comando comando;
 
     do {
@@ -421,8 +428,11 @@ void ejecutarConsola(void *parametrosConsola) {
         free(leido);
         free(comandoParseado);
         if (validarComandosComunes(comando, logger)) {
-            char *retorno = gestionarRequest(comando);
-            printf("%s", retorno);
+            t_response *retorno = gestionarRequest(comando);
+            if(!string_ends_with(retorno->valor,"\n")){
+                string_append(&retorno->valor,"\n");
+            }
+            printf("%s", retorno->valor);
             free(retorno);
             log_info(logger, "Request procesada correctamente.");
         }
@@ -431,13 +441,15 @@ void ejecutarConsola(void *parametrosConsola) {
     printf("Ya se analizo todo lo solicitado.\n");
 }
 
-char *gestionarRequest(t_comando comando) {
+t_response *gestionarRequest(t_comando comando) {
 
+    t_response *retorno;
     switch (comando.tipoRequest) {
         case SELECT:
 //            printf("Tabla: %s\n", comando.parametros[0]);
 //            printf("Key: %s\n", comando.parametros[1]);
-            return lfsSelect(comando.parametros[0], comando.parametros[1]);
+            retorno = lfsSelect(comando.parametros[0], comando.parametros[1]);
+            return retorno;
 
         case INSERT:;
 //            printf("Tabla: %s\n", comando.parametros[0]);
@@ -452,16 +464,18 @@ char *gestionarRequest(t_comando comando) {
             } else {
                 timestamp = (time_t) time(NULL);
             }
-            //printf("Timestamp: %i\n", (int) timestamp);
-            return lfsInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], timestamp);
+            printf("Timestamp: %i\n", (int) timestamp);
+            retorno = lfsInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], timestamp);
+            return retorno;
 
         case CREATE:;
 //            printf("Tabla: %s\n", comando.parametros[0]);
 //            printf("TIpo de consistencia: %s\n", comando.parametros[1]);
 //            printf("Numero de particiones: %s\n", comando.parametros[2]);
 //            printf("Tiempo de compactacion: %s\n", comando.parametros[3]);
-            return lfsCreate(comando.parametros[0], comando.parametros[1], comando.parametros[2],
-                             comando.parametros[3]);
+            retorno = lfsCreate(comando.parametros[0], comando.parametros[1], comando.parametros[2],
+                                comando.parametros[3]);
+            return retorno;
 
         case DESCRIBE:
             if (comando.parametros[0] == NULL) {
@@ -470,11 +484,17 @@ char *gestionarRequest(t_comando comando) {
 //                printf("Tabla: %s\n", comando.parametros[0]);
                 // Hacer describe de una tabla especifica
             }
-            return concat(1, "Describe");
+
+            retorno = (t_response *) malloc(sizeof(t_response));
+            retorno->valor = concat(1, "Describe");
+            retorno->tipoRespuesta = RESPUESTA;
+            return retorno;
 
         case DROP:
-//            printf("Tabla: %s\n", comando.parametros[0]);
-            return concat(1, "Describe");
+            retorno = (t_response *) malloc(sizeof(t_response));
+            retorno->valor = concat(1, "Drop");
+            retorno->tipoRespuesta = RESPUESTA;
+            return retorno;
 
         case HELP:
             printf("************ Comandos disponibles ************\n");
@@ -484,13 +504,22 @@ char *gestionarRequest(t_comando comando) {
             printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
             printf("- DROP [NOMBRE_TABLA]\n");
             printf("- EXIT\n");
-            return concat(1, "Help");
+            retorno = (t_response *) malloc(sizeof(t_response));
+            retorno->valor = concat(1, "Help");
+            retorno->tipoRespuesta = RESPUESTA;
+            return retorno;
 
         case EXIT:
-            return concat(1, "Exit");
+            retorno = (t_response *) malloc(sizeof(t_response));
+            retorno->valor = concat(1, "Exit");
+            retorno->tipoRespuesta = RESPUESTA;
+            return retorno;
 
         default:
-            return concat(1, "Ingrese un comando valido.\n");
+            retorno = (t_response *) malloc(sizeof(t_response));
+            retorno->valor = concat(1, "Ingrese un comando valido.\n");
+            retorno->tipoRespuesta = RESPUESTA;
+            return retorno;
     }
 
 }
@@ -607,13 +636,6 @@ void cargarBloquesAsignados(char *path) {
         }
         closedir(d);
     }
-}
-
-int archivoVacio(char *path) {
-    FILE *f = fopen(path, "r");
-    int c = fgetc(f);
-    fclose(f);
-    return c == EOF;
 }
 
 int obtenerCantidadBloques(char *puntoMontaje) {
@@ -826,13 +848,7 @@ int main(void) {
 
     pthread_t *hiloConexiones = crearHiloConexiones(misConexiones, configuracion.tamanioValue, logger);
 
-    parametros_consola *parametros = (parametros_consola *) malloc(sizeof(parametros_consola));
-
-    parametros->logger = logger;
-    parametros->unComponente = LISSANDRA;
-    parametros->gestionarComando = gestionarRequest;
-
-    ejecutarConsola(parametros);
+    ejecutarConsola();
 
     pthread_join(&hiloConexiones, NULL);
 

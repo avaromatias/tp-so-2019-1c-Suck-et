@@ -60,14 +60,6 @@ void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parame
 
 }
 
-/*pthread_t *crearHiloRequest(char *mensaje) {
-    pthread_t *hiloRequest = malloc(sizeof(pthread_t));
-    parametros_thread_request *parametros = (parametros_thread_request *) malloc(sizeof(parametros_thread_request));
-    parametros->comando = mensaje;
-    pthread_create(hiloRequest, NULL, &procesarComandoPorRequest, parametros);
-    return hiloRequest;
-}*/
-
 char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
     char *path = string_new();
     char *tablePath = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
@@ -89,37 +81,6 @@ char *obtenerPathBloque(int numberoBloque) {
     return unArchivoDeBloque;
 }
 
-void valorSinComillas(char *valor) {
-    if (string_starts_with(valor, "\"") && string_ends_with(valor, "\"")) {
-        int j = 0;
-        for (int i = 0; i < strlen(valor); i++) {
-            if (valor[i] == '\\') {
-                valor[j++] = valor[i++];
-                valor[j++] = valor[i];
-                if (valor[i] == '\0')
-                    break;
-            } else if (valor[i] != '"')
-                valor[j++] = valor[i];
-        }
-        valor[j] = '\0';
-    }
-}
-
-char *armarLinea(char *key, char *valor, time_t timestamp) {
-    char *linea = string_new();
-    string_append(&linea, string_from_format("%ld", timestamp));
-    string_append(&linea, ";");
-    string_append(&linea, key);
-    string_append(&linea, ";");
-    valorSinComillas(valor);
-    string_append(&linea, valor);
-    string_append(&linea, "\n");
-    return linea;
-}
-
-char **desarmarLinea(char *linea) {
-    return string_split(linea, ";");
-}
 
 int validarConsistencia(char *tipoConsistencia) {
     if (strcmp(tipoConsistencia, "SC") == 0 || strcmp(tipoConsistencia, "SHC") == 0 ||
@@ -308,28 +269,6 @@ char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
     }
 }
 
-char *convertirArrayAString(char **array) {
-    char *resultado = string_new();
-    string_append(&resultado, "[");
-    for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
-        string_append(&resultado, (char *) array[i]);
-        if (i < (tamanioDeArrayDeStrings(array) - 1)) {
-            string_append(&resultado, ",");
-
-        }
-    }
-    string_append(&resultado, "]");
-    return resultado;
-}
-
-int arrayIncluye(char **array, char *elemento) {
-    for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
-        if (strcmp(array[i], elemento) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
 
 char *generarContenidoParaParticion(char *tamanio, char *bloques) {
     char *contenido = string_new();
@@ -383,7 +322,7 @@ char *lfsSelect(char *nombreTabla, char *key) {
             binarioBloque = fopen(blockPath, "r");
 
             while (!feof(binarioBloque)) {
-                if(!lineaContinuaEnOtroBloque) {
+                if (!lineaContinuaEnOtroBloque) {
                     linea = string_new();
                 }
                 keyEncontrado = string_new();
@@ -394,7 +333,8 @@ char *lfsSelect(char *nombreTabla, char *key) {
                 }
                 if (strcmp(linea, "") != 0) {
                     palabras = desarmarLinea(linea);
-                    if (tamanioDeArrayDeStrings(palabras) == 3 && seek == '\n') { // Si la línea no continua en otro bloque
+                    if (tamanioDeArrayDeStrings(palabras) == 3 &&
+                        seek == '\n') { // Si la línea no continua en otro bloque
                         lineaContinuaEnOtroBloque = false;
                         string_append(&timestampEncontrado, palabras[0]);
                         string_append(&keyEncontrado, palabras[1]);
@@ -706,32 +646,6 @@ int obtenerTamanioBloques(char *puntoMontaje) {
     return -1;
 }
 
-char *concat(int count, ...) {
-    va_list ap;
-    int i;
-
-    // Find required length to store merged string
-    int len = 1; // room for NULL
-    va_start(ap, count);
-    for (i = 0; i < count; i++)
-        len += strlen(va_arg(ap, char*));
-    va_end(ap);
-
-    // Allocate memory to concat strings
-    char *merged = calloc(sizeof(char), len);
-    int null_pos = 0;
-
-    // Actually concatenate strings
-    va_start(ap, count);
-    for (i = 0; i < count; i++) {
-        char *s = va_arg(ap, char*);
-        strcpy(merged + null_pos, s);
-        null_pos += strlen(s);
-    }
-    va_end(ap);
-
-    return merged;
-}
 
 void crearDirBloques(char *puntoMontaje) {
     char *nombreArchivo = crearDirEnPuntoDeMontaje(puntoMontaje, "Bloques");
@@ -804,21 +718,9 @@ int crearDirectoriosBase(char *puntoMontaje) {
     crearDirTables(puntoMontaje);
 }
 
-void mkdir_recursive(char *path) {
-    char *subpath, *fullpath;
-
-    fullpath = strdup(path);
-    subpath = dirname(fullpath);
-    if (strlen(subpath) > 1)
-        mkdir_recursive(subpath);
-    mkdir(path, 0777);
-    free(fullpath);
-}
 
 void inicializarLFS(char *puntoMontaje) {
     crearDirectoriosBase(puntoMontaje);
-    // TODO: Si no existen los directorios tables y bloques (suponiendo que la metadata ya existe), los crea.
-    // TODO: Si no existen los bloques, los crea.
 }
 
 void atenderHandshake(Header header, Componente componente, parametros_thread_lfs *parametros) {

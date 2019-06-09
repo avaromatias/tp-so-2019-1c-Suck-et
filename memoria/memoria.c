@@ -78,22 +78,6 @@ t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamani
     return memoriaPrincipal;
 }
 
-void valorSinComillas(char *valor) {
-    if (string_starts_with(valor, "\"") && string_ends_with(valor, "\"")) {
-        int j = 0;
-        for (int i = 0; i < strlen(valor); i++) {
-            if (valor[i] == '\\') {
-                valor[j++] = valor[i++];
-                valor[j++] = valor[i];
-                if (valor[i] == '\0')
-                    break;
-            } else if (valor[i] != '"')
-                valor[j++] = valor[i];
-        }
-        valor[j] = '\0';
-    }
-}
-
 void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
     memoriaPrincipal->tablaDeMarcos = (t_marco*) malloc(sizeof(t_marco) * memoriaPrincipal->cantidadTotalMarcos);
 

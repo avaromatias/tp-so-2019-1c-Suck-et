@@ -37,8 +37,8 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
         configuracion.puertoEscucha = config_get_int_value(archivoConfig, "PUERTO_ESCUCHA");
         char *puntoMontaje = config_get_string_value(archivoConfig, "PUNTO_MONTAJE");
         valorSinComillas(puntoMontaje);
-        if(!string_ends_with(puntoMontaje,"/")){
-            string_append(&puntoMontaje,"/");
+        if (!string_ends_with(puntoMontaje, "/")) {
+            string_append(&puntoMontaje, "/");
         }
         configuracion.puntoMontaje = concat(1, puntoMontaje);
         configuracion.retardo = config_get_int_value(archivoConfig, "RETARDO");
@@ -51,22 +51,14 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
 
 void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros) {
     char **comandoParseado = parser(mensaje);
-    char *retorno = string_new();
+    t_response *retorno;
     t_comando comando = instanciarComando(comandoParseado);
     retorno = gestionarRequest(comando);
-    enviarPaquete(header.fdRemitente, RESPUESTA, retorno);
+    enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, retorno->valor);
     free(retorno);
     free(comandoParseado);
 
 }
-
-/*pthread_t *crearHiloRequest(char *mensaje) {
-    pthread_t *hiloRequest = malloc(sizeof(pthread_t));
-    parametros_thread_request *parametros = (parametros_thread_request *) malloc(sizeof(parametros_thread_request));
-    parametros->comando = mensaje;
-    pthread_create(hiloRequest, NULL, &procesarComandoPorRequest, parametros);
-    return hiloRequest;
-}*/
 
 char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
     char *path = string_new();
@@ -89,37 +81,6 @@ char *obtenerPathBloque(int numberoBloque) {
     return unArchivoDeBloque;
 }
 
-void valorSinComillas(char *valor) {
-    if (string_starts_with(valor, "\"") && string_ends_with(valor, "\"")) {
-        int j = 0;
-        for (int i = 0; i < strlen(valor); i++) {
-            if (valor[i] == '\\') {
-                valor[j++] = valor[i++];
-                valor[j++] = valor[i];
-                if (valor[i] == '\0')
-                    break;
-            } else if (valor[i] != '"')
-                valor[j++] = valor[i];
-        }
-        valor[j] = '\0';
-    }
-}
-
-char *armarLinea(char *key, char *valor, time_t timestamp) {
-    char *linea = string_new();
-    string_append(&linea, string_from_format("%ld", timestamp));
-    string_append(&linea, ";");
-    string_append(&linea, key);
-    string_append(&linea, ";");
-    valorSinComillas(valor);
-    string_append(&linea, valor);
-    string_append(&linea, "\n");
-    return linea;
-}
-
-char **desarmarLinea(char *linea) {
-    return string_split(linea, ";");
-}
 
 int validarConsistencia(char *tipoConsistencia) {
     if (strcmp(tipoConsistencia, "SC") == 0 || strcmp(tipoConsistencia, "SHC") == 0 ||
@@ -159,7 +120,8 @@ void crearBinarios(char *nombreTabla, int particiones) {
             string_append(&nombreArchivo, ".bin");
             FILE *file = fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "w");
             int tamanio = obtenerTamanioBloque(bloque);
-            char *contenido=generarContenidoParaParticion(string_from_format("%i", tamanio),concat(3,"[",string_from_format("%i", bloque),"]"));
+            char *contenido = generarContenidoParaParticion(string_from_format("%i", tamanio),
+                                                            concat(3, "[", string_from_format("%i", bloque), "]"));
             fwrite(contenido, sizeof(char) * strlen(contenido), 1, file);
             free(contenido);
             fclose(file);
@@ -176,7 +138,7 @@ int obtenerTamanioBloque(int bloque) {
         char ch;
         int count = 0;
         while ((ch = fgetc(bloque)) != EOF) {
-                count++;
+            count++;
         }
         fclose(bloque);
         return count;
@@ -192,7 +154,7 @@ int estaLibreElBloque(int bloque) {
 
 int estaDisponibleElBloqueParaTabla(int i, char *nombreTabla, int particion) {
     int bloqueDisponible = 0;
-     int bloqueLibre = estaLibreElBloque(i) == 1;
+    int bloqueLibre = estaLibreElBloque(i) == 1;
     if (bloquesAsignados->elements_amount > 0) {
         t_bloqueAsignado *bloque = dictionary_get(bloquesAsignados, (char *) string_from_format("%i", i));
         if (strcmp(bloque->tabla, "") == 0 ||
@@ -213,11 +175,11 @@ int obtenerBloqueDisponible(char *nombreTabla, int particion) {
     return -1;
 }
 
-char *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
-    char *retorno = string_new();
+t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
+    t_response *retorno = (t_response *) malloc(sizeof(t_response));
     if (validarConsistencia(tipoConsistencia) != 0) {
-        log_warning(logger, "El Tipo de Consistencia no es valido. Este puede ser SC, SHC o EC.");
-        retorno = concat(1, "El Tipo de Consistencia no es valido. Este puede ser SC, SHC o EC.");
+        retorno->tipoRespuesta = ERR;
+        retorno->valor = concat(1, "El Tipo de Consistencia no es valido. Este puede ser SC, SHC o EC.");
     } else {
         char *tablePath = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
         // Verificar que la tabla no exista en el file system.
@@ -226,9 +188,11 @@ char *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, ch
             // En caso que exista, se guardará el resultado en un archivo .log y se retorna un error indicando dicho resultado.
             if (!existeElArchivo(path)) {
                 crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
-                retorno = concat(3, "La tabla ", nombreTabla, " ya existe. Se creo su Metadata.\n");
+                retorno->tipoRespuesta = ERR;
+                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe. Se creo su Metadata.\n");
             } else {
-                retorno = concat(3, "La tabla ", nombreTabla, " ya existe.\n");
+                retorno->tipoRespuesta = ERR;
+                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe.\n");
             }
         } else {
             // Crear el directorio para dicha tabla.
@@ -236,21 +200,21 @@ char *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, ch
             // Crear el directorio para dicha tabla.
             // Grabar en dicho archivo los parámetros pasados por el request.
             crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
-            printf("Se creo la Metadata de la tabla %s.\n", nombreTabla);
             // Crear los archivos binarios asociados a cada partición de la tabla y
             // asignar a cada uno un bloque
             crearBinarios(nombreTabla, atoi(particiones));
-            retorno = concat(3, "La tabla ", nombreTabla, " fue creada con exito.\n");
+            retorno->tipoRespuesta = RESPUESTA;
+            retorno->valor = concat(3, "La tabla ", nombreTabla, " fue creada con exito.\n");
         }
         return retorno;
     }
 }
 
-char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
-    char *retorno = string_new();
+t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
+    t_response *retorno = (t_response *) malloc(sizeof(t_response));
     if (validarValor(valor) != 0) {
-        log_warning(logger, "El valor debe estar enmascarado con \"\"");
-        retorno = concat(1, "El valor debe estar enmascarado con \"\"\n");
+        retorno->tipoRespuesta = ERR;
+        retorno->valor = concat(1, "El valor debe estar enmascarado con \"\"\n");
         return retorno;
     } else {
         // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
@@ -273,62 +237,46 @@ char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
                 bloqueA->particion = particion;
                 dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
                 FILE *f = fopen(obtenerPathBloque(bloque), "a");
-                printf("Linea %s\n", linea);
+                printf("Linea %s", linea);
                 // TODO: Insertar en la memoria temporal del punto anterior una nueva entrada que contenga los datos enviados en la request.
                 fwrite(linea, sizeof(char) * strlen(linea), 1, f);
                 fclose(f);
-                if(obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) bitarray_set_bit(bitmap, bloque);
+                if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje))
+                    bitarray_set_bit(bitmap, bloque);
                 free(path);
                 t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
                 char **blocks = string_get_string_as_array(config_get_string_value(archivoConfig, "BLOCKS"));
-                if(!arrayIncluye(blocks,string_from_format("%i",bloque))){
+                if (!arrayIncluye(blocks, string_from_format("%i", bloque))) {
                     int tam = tamanioDeArrayDeStrings(blocks);
-                    blocks[tam]=string_from_format("%i",bloque);
-                    blocks[tam+1]=NULL;
+                    blocks[tam] = string_from_format("%i", bloque);
+                    blocks[tam + 1] = NULL;
                 }
-                char* bloques=convertirArrayAString(blocks);
+                char *bloques = convertirArrayAString(blocks);
                 int size = config_get_int_value(archivoConfig, "SIZE") + strlen(linea);
                 FILE *fParticion = fopen(nombreArchivo, "r+");
-                char *contenido=generarContenidoParaParticion(string_from_format("%i", size),bloques);
+                char *contenido = generarContenidoParaParticion(string_from_format("%i", size), bloques);
                 fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
                 fclose(fParticion);
                 free(contenido);
-                retorno = concat(1, "Se inserto el valor con exito.\n");
+                retorno->tipoRespuesta = RESPUESTA;
+                retorno->valor = concat(1, "Se inserto el valor con exito.\n");
 
             } else {
-                retorno = concat(5, "No se pudo insertar en ", nombreTabla, ". No existe metadata en ", path, ".\n");
+                retorno->tipoRespuesta = ERR;
+                retorno->valor = concat(5, "No se pudo insertar en ", nombreTabla, ". No existe metadata en ", path,
+                                        ".\n");
             }
         } else {
-            retorno = concat(3, "No existe la tabla ", nombreTabla, ".\n");
+            retorno->tipoRespuesta = ERR;
+            retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".\n");
         }
         return retorno;
 
     }
 }
 
-char* convertirArrayAString(char** array){
-    char* resultado=string_new();
-    string_append(&resultado,"[");
-    for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
-        string_append(&resultado,(char*)array[i]);
-        if(i <(tamanioDeArrayDeStrings(array)-1)){
-            string_append(&resultado,",");
 
-        }
-    }
-    string_append(&resultado,"]");
-    return resultado;
-}
-
-int arrayIncluye(char** array, char* elemento){
-    for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
-        if(strcmp(array[i],elemento)==0){
-            return 1;
-        }
-    }
-    return 0;
-}
-char* generarContenidoParaParticion(char*tamanio,char* bloques){
+char *generarContenidoParaParticion(char *tamanio, char *bloques) {
     char *contenido = string_new();
     string_append(&contenido, "SIZE=");
     string_append(&contenido, tamanio);
@@ -339,7 +287,8 @@ char* generarContenidoParaParticion(char*tamanio,char* bloques){
     return contenido;
 }
 
-char *lfsSelect(char *nombreTabla, char *key) {
+t_response *lfsSelect(char *nombreTabla, char *key) {
+    t_response *retorno = (t_response *) malloc(sizeof(t_response));
     //1. Verificar que la tabla exista en el File System
     if (existeTabla(nombreTabla) == 0) {
 
@@ -368,6 +317,7 @@ char *lfsSelect(char *nombreTabla, char *key) {
         char *valorMayorTimestamp = string_new();
         char *mayorLinea = string_new();
         mayorLinea = concat(1, "");
+        bool lineaContinuaEnOtroBloque = false;
 
         //4.0 Obtengo los bloques asignados a la particion obtenida
         int tamanioArray = tamanioDeArrayDeStrings(bloquesEnParticion(nombreTabla, nombreArchivoParticion));
@@ -379,7 +329,9 @@ char *lfsSelect(char *nombreTabla, char *key) {
             binarioBloque = fopen(blockPath, "r");
 
             while (!feof(binarioBloque)) {
-                linea = string_new();
+                if (!lineaContinuaEnOtroBloque) {
+                    linea = string_new();
+                }
                 keyEncontrado = string_new();
                 timestampEncontrado = string_new();
                 while ((seek = getc(binarioBloque)) != EOF && seek != '\n') {
@@ -388,14 +340,20 @@ char *lfsSelect(char *nombreTabla, char *key) {
                 }
                 if (strcmp(linea, "") != 0) {
                     palabras = desarmarLinea(linea);
-                    string_append(&timestampEncontrado, palabras[0]);
-                    string_append(&keyEncontrado, palabras[1]);
-                    if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
-                        mayorTimestamp = atoi(timestampEncontrado);
-                        valorMayorTimestamp = string_new();
-                        valorMayorTimestamp = concat(1, palabras[2]);
-                        mayorLinea = string_new();
-                        mayorLinea = concat(1, linea);
+                    if (tamanioDeArrayDeStrings(palabras) == 3 &&
+                        seek == '\n') { // Si la línea no continua en otro bloque
+                        lineaContinuaEnOtroBloque = false;
+                        string_append(&timestampEncontrado, palabras[0]);
+                        string_append(&keyEncontrado, palabras[1]);
+                        if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
+                            mayorTimestamp = atoi(timestampEncontrado);
+                            valorMayorTimestamp = string_new();
+                            valorMayorTimestamp = concat(1, palabras[2]);
+                            mayorLinea = string_new();
+                            mayorLinea = concat(1, linea);
+                        }
+                    } else {
+                        lineaContinuaEnOtroBloque = true;
                     }
                 }
             }
@@ -412,19 +370,19 @@ char *lfsSelect(char *nombreTabla, char *key) {
 
         //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
         if (strcmp(valorMayorTimestamp, "") != 0) {
-            printf("Value: %s\n", valorMayorTimestamp);
-            return mayorLinea;
+            retorno->tipoRespuesta = RESPUESTA;
+            retorno->valor = concat(1, mayorLinea);
+            return retorno;
         } else {
-            printf("No se encontro ningun valor con esa key.\n");
-            char *error = string_new();
-            error = concat(1, "No se encontro ningun valor con esa key.\n");
+            retorno->tipoRespuesta = ERR;
+            retorno->valor = concat(1, "No se encontro ningun valor con esa key.\n");
             free(mayorLinea);
-            return error;
+            return retorno;
         }
     } else {
-        char *error = string_new();
-        error = concat(3, "No existe la tabla ", nombreTabla, ".\n");
-        return error;
+        retorno->tipoRespuesta = ERR;
+        retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".\n");
+        return retorno;
     }
 }
 
@@ -449,13 +407,12 @@ char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo) {
     return arrayDeBloques;
 }
 
-void ejecutarConsola(void *parametrosConsola) {
-    parametros_consola *parametros = (parametros_consola *) parametrosConsola;
+void ejecutarConsola() {
     t_comando comando;
 
     do {
-        if(bloquesAsignados->table_current_size){
-            for(int i = 0; i < 16; i++) {
+        if (bloquesAsignados->table_current_size) {
+            for (int i = 0; i < 16; i++) {
                 printf("%d", bitarray_test_bit(bitmap, i));
             }
         }
@@ -470,8 +427,11 @@ void ejecutarConsola(void *parametrosConsola) {
         free(leido);
         free(comandoParseado);
         if (validarComandosComunes(comando, logger)) {
-            char *retorno = gestionarRequest(comando);
-            printf("%s",retorno);
+            t_response *retorno = gestionarRequest(comando);
+            if(!string_ends_with(retorno->valor,"\n")){
+                string_append(&retorno->valor,"\n");
+            }
+            printf("%s", retorno->valor);
             free(retorno);
             log_info(logger, "Request procesada correctamente.");
         }
@@ -480,9 +440,9 @@ void ejecutarConsola(void *parametrosConsola) {
     printf("Ya se analizo todo lo solicitado.\n");
 }
 
-char *gestionarRequest(t_comando comando) {
+t_response *gestionarRequest(t_comando comando) {
 
-    char *retorno = string_new();
+    t_response *retorno;
     switch (comando.tipoRequest) {
         case SELECT:
 //            printf("Tabla: %s\n", comando.parametros[0]);
@@ -523,12 +483,16 @@ char *gestionarRequest(t_comando comando) {
 //                printf("Tabla: %s\n", comando.parametros[0]);
                 // Hacer describe de una tabla especifica
             }
-            retorno = concat(1, "Describe");
+
+            retorno = (t_response *) malloc(sizeof(t_response));
+            retorno->valor = concat(1, "Describe");
+            retorno->tipoRespuesta = RESPUESTA;
             return retorno;
 
         case DROP:
-//            printf("Tabla: %s\n", comando.parametros[0]);
-            retorno = concat(1, "Describe");
+            retorno = (t_response *) malloc(sizeof(t_response));
+            retorno->valor = concat(1, "Drop");
+            retorno->tipoRespuesta = RESPUESTA;
             return retorno;
 
         case HELP:
@@ -539,15 +503,21 @@ char *gestionarRequest(t_comando comando) {
             printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
             printf("- DROP [NOMBRE_TABLA]\n");
             printf("- EXIT\n");
-            retorno = concat(1, "Help");
+            retorno = (t_response *) malloc(sizeof(t_response));
+            retorno->valor = concat(1, "Help");
+            retorno->tipoRespuesta = RESPUESTA;
             return retorno;
 
         case EXIT:
-            retorno = concat(1, "Exit");
+            retorno = (t_response *) malloc(sizeof(t_response));
+            retorno->valor = concat(1, "Exit");
+            retorno->tipoRespuesta = RESPUESTA;
             return retorno;
 
         default:
-            retorno = concat(1, "Ingrese un comando valido.\n");
+            retorno = (t_response *) malloc(sizeof(t_response));
+            retorno->valor = concat(1, "Ingrese un comando valido.\n");
+            retorno->tipoRespuesta = RESPUESTA;
             return retorno;
     }
 
@@ -667,13 +637,6 @@ void cargarBloquesAsignados(char *path) {
     }
 }
 
-int archivoVacio(char *path) {
-    FILE *f = fopen(path, "r");
-    int c = fgetc(f);
-    fclose(f);
-    return c == EOF;
-}
-
 int obtenerCantidadBloques(char *puntoMontaje) {
     char *nombreArchivo = string_new();
     string_append(&nombreArchivo, puntoMontaje);
@@ -704,32 +667,6 @@ int obtenerTamanioBloques(char *puntoMontaje) {
     return -1;
 }
 
-char *concat(int count, ...) {
-    va_list ap;
-    int i;
-
-    // Find required length to store merged string
-    int len = 1; // room for NULL
-    va_start(ap, count);
-    for (i = 0; i < count; i++)
-        len += strlen(va_arg(ap, char*));
-    va_end(ap);
-
-    // Allocate memory to concat strings
-    char *merged = calloc(sizeof(char), len);
-    int null_pos = 0;
-
-    // Actually concatenate strings
-    va_start(ap, count);
-    for (i = 0; i < count; i++) {
-        char *s = va_arg(ap, char*);
-        strcpy(merged + null_pos, s);
-        null_pos += strlen(s);
-    }
-    va_end(ap);
-
-    return merged;
-}
 
 void crearDirBloques(char *puntoMontaje) {
     char *nombreArchivo = crearDirEnPuntoDeMontaje(puntoMontaje, "Bloques");
@@ -767,7 +704,7 @@ void crearDirBloques(char *puntoMontaje) {
                 FILE *file = fopen(unArchivoDeBloque, "w");
                 fclose(file);
             } else if (!archivoVacio(unArchivoDeBloque) &&
-            obtenerTamanioBloque(i) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
+                       obtenerTamanioBloque(i) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
                 bitarray_set_bit(bitmap, i);
             }
             free(unArchivoDeBloque);
@@ -802,22 +739,9 @@ int crearDirectoriosBase(char *puntoMontaje) {
     crearDirTables(puntoMontaje);
 }
 
-void mkdir_recursive(char *path) {
-    char *subpath, *fullpath;
-
-    fullpath = strdup(path);
-    subpath = dirname(fullpath);
-    if (strlen(subpath) > 1)
-        mkdir_recursive(subpath);
-    mkdir(path, 0777);
-    free(fullpath);
-}
 
 void inicializarLFS(char *puntoMontaje) {
     crearDirectoriosBase(puntoMontaje);
-    // TODO: Si no existen los directorios tables y bloques (suponiendo que la metadata ya existe), los crea.
-    // TODO: Si no existen los bloques, los crea.
-
 }
 
 void atenderHandshake(Header header, Componente componente, parametros_thread_lfs *parametros) {
@@ -923,13 +847,7 @@ int main(void) {
 
     pthread_t *hiloConexiones = crearHiloConexiones(misConexiones, configuracion.tamanioValue, logger);
 
-    parametros_consola *parametros = (parametros_consola *) malloc(sizeof(parametros_consola));
-
-    parametros->logger = logger;
-    parametros->unComponente = LISSANDRA;
-    parametros->gestionarComando = gestionarRequest;
-
-    ejecutarConsola(parametros);
+    ejecutarConsola();
 
     pthread_join(&hiloConexiones, NULL);
 

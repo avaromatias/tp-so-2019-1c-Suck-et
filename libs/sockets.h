@@ -24,6 +24,7 @@ typedef enum  {
     REQUEST,
     RESPUESTA,
     HANDSHAKE,
+    ERR,
     CONEXION_ACEPTADA,
     CONEXION_RECHAZADA
 } TipoMensaje;

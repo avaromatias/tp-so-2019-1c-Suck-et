@@ -32,10 +32,110 @@ int tamanioDeArrayDeStrings(char** arrayDeString){
     }
     return count;
 }
+char* convertirArrayAString(char** array){
+    char* resultado=string_new();
+    string_append(&resultado,"[");
+    for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
+        string_append(&resultado,(char*)array[i]);
+        if(i <(tamanioDeArrayDeStrings(array)-1)){
+            string_append(&resultado,",");
+
+        }
+    }
+    string_append(&resultado,"]");
+    return resultado;
+}
+
+int arrayIncluye(char** array, char* elemento){
+    for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
+        if(strcmp(array[i],elemento)==0){
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void mkdir_recursive(char *path) {
+    char *subpath, *fullpath;
+
+    fullpath = strdup(path);
+    subpath = dirname(fullpath);
+    if (strlen(subpath) > 1)
+        mkdir_recursive(subpath);
+    mkdir(path, 0777);
+    free(fullpath);
+}
+
+void valorSinComillas(char *valor) {
+    if (string_starts_with(valor, "\"") && string_ends_with(valor, "\"")) {
+        int j = 0;
+        for (int i = 0; i < strlen(valor); i++) {
+            if (valor[i] == '\\') {
+                valor[j++] = valor[i++];
+                valor[j++] = valor[i];
+                if (valor[i] == '\0')
+                    break;
+            } else if (valor[i] != '"')
+                valor[j++] = valor[i];
+        }
+        valor[j] = '\0';
+    }
+}
+
+char *armarLinea(char *key, char *valor, time_t timestamp) {
+    char *linea = string_new();
+    string_append(&linea, string_from_format("%ld", timestamp));
+    string_append(&linea, ";");
+    string_append(&linea, key);
+    string_append(&linea, ";");
+    valorSinComillas(valor);
+    string_append(&linea, valor);
+    string_append(&linea, "\n");
+    return linea;
+}
+
+char **desarmarLinea(char *linea) {
+    return string_split(linea, ";");
+}
+
+int archivoVacio(char *path) {
+    FILE *f = fopen(path, "r");
+    int c = fgetc(f);
+    fclose(f);
+    return c == EOF;
+}
 
 int pesoString(char* string)    {
     return string == NULL? 0 : sizeof(char) * (strlen(string) + 1);
 }
+
+char *concat(int count, ...) {
+    va_list ap;
+    int i;
+
+    // Find required length to store merged string
+    int len = 1; // room for NULL
+    va_start(ap, count);
+    for (i = 0; i < count; i++)
+        len += strlen(va_arg(ap, char*));
+    va_end(ap);
+
+    // Allocate memory to concat strings
+    char *merged = calloc(sizeof(char), len);
+    int null_pos = 0;
+
+    // Actually concatenate strings
+    va_start(ap, count);
+    for (i = 0; i < count; i++) {
+        char *s = va_arg(ap, char*);
+        strcpy(merged + null_pos, s);
+        null_pos += strlen(s);
+    }
+    va_end(ap);
+
+    return merged;
+}
+
 
 char** parser(char* input){
     if(string_is_empty(input))

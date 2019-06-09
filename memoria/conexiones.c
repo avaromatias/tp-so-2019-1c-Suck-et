@@ -158,27 +158,28 @@ void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* pa
 //    fflush(stdout);
 }
 
-char* recibirMensaje(t_control_conexion* conexion)    {
+t_paquete recibirMensaje(t_control_conexion* conexion)    {
     Header header;
     sem_wait(conexion->semaforo);
+    t_paquete paquete;
     int bytesRecibidos = recv(conexion->fd, &header, sizeof(Header), MSG_WAITALL);
-    if(bytesRecibidos == 0) {
+    if(bytesRecibidos == 0)
         conexion->fd = 0;
-        return NULL;
-    }
     else    {
         header = deserializarHeader(&header);
+        paquete.tipoMensaje = header.tipoMensaje;
         char* respuesta = (char*) malloc(header.tamanioMensaje);
         bytesRecibidos = recv(conexion->fd, respuesta, header.tamanioMensaje, MSG_WAITALL);
         if(bytesRecibidos == 0) {
             conexion->fd = 0;
-            return NULL;
+            paquete.mensaje = NULL;
         }
         else    {
             sem_post(conexion->semaforo);
-            return respuesta;
+            paquete.mensaje = respuesta;
         }
     }
+    return paquete;
 }
 
 void conectarseALissandra(t_control_conexion* conexionLissandra, char* ipLissandra, int puertoLissandra, t_log* logger){

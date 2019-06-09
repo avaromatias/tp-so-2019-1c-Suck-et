@@ -19,6 +19,11 @@ typedef struct {
     t_control_conexion* conexionKernel;
 } parametros_thread_memoria;
 
+typedef struct  {
+    TipoMensaje tipoMensaje;
+    char* mensaje;
+} t_paquete;
+
 void* atenderConexiones(void* parametrosThread);
 
 pthread_t* crearHiloConexiones(GestorConexiones* conexion, t_control_conexion* conexionKernel, t_log* logger);
@@ -26,7 +31,7 @@ pthread_t* crearHiloConexiones(GestorConexiones* conexion, t_control_conexion* c
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros);
 void atenderHandshake(Header header, Componente componente, parametros_thread_memoria* parametros);
 
-char* recibirMensaje(t_control_conexion* conexion);
+t_paquete recibirMensaje(t_control_conexion* conexion);
 
 void conectarseALissandra(t_control_conexion* conexionLissandra, char* ipLissandra, int puertoLissandra, t_log* logger);
 

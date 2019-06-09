@@ -99,7 +99,9 @@ t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria);
 //void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString);
 
 // drop
-void drop(char* nombreTabla, t_memoria* memoria);
+char* gestionarDrop(char* nombreTabla, int fdLissandra, t_memoria* memoria, t_log* logger);
+char* drop(char* nombreTabla, t_memoria* memoria);
 void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria);
 void eliminarPagina(void* pagina);
+void eliminarSegmento(void* segmento);
 #endif /* MEMORIA_H_ */

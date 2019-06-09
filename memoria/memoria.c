@@ -9,8 +9,6 @@
 
 #include "memoria.h"
 
-
-
 t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logger)	{
 	t_configuracion configuracion;
 
@@ -46,9 +44,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	}
 	else	{
 		configuracion.puerto = config_get_int_value(archivoConfig, "PUERTO");
-		char* ipFileSystem = config_get_string_value(archivoConfig, "IP_FS");
-		configuracion.ipFileSystem = (char*) malloc(pesoString("255.255.255.255"));
-        strcpy(configuracion.ipFileSystem, ipFileSystem);
+        configuracion.ipFileSystem = string_duplicate(config_get_string_value(archivoConfig, "IP_FS"));
 		configuracion.puertoFileSystem = config_get_int_value(archivoConfig, "PUERTO_FS");
 		configuracion.ipSeeds = config_get_array_value(archivoConfig, "IP_SEEDS");
 		configuracion.puertoSeeds = (int*) config_get_array_value(archivoConfig, "PUERTO_SEEDS");
@@ -82,6 +78,22 @@ t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamani
     return memoriaPrincipal;
 }
 
+void valorSinComillas(char *valor) {
+    if (string_starts_with(valor, "\"") && string_ends_with(valor, "\"")) {
+        int j = 0;
+        for (int i = 0; i < strlen(valor); i++) {
+            if (valor[i] == '\\') {
+                valor[j++] = valor[i++];
+                valor[j++] = valor[i];
+                if (valor[i] == '\0')
+                    break;
+            } else if (valor[i] != '"')
+                valor[j++] = valor[i];
+        }
+        valor[j] = '\0';
+    }
+}
+
 void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
     memoriaPrincipal->tablaDeMarcos = (t_marco*) malloc(sizeof(t_marco) * memoriaPrincipal->cantidadTotalMarcos);
 
@@ -107,18 +119,30 @@ char* gestionarSelect(char* nombreTabla, char* key, t_control_conexion* conexion
     log_info(logger, "Valor no encontrado en memoria. Se enviará la siguiente request a Lissandra: %s", request);
     enviarPaquete(conexionLissandra->fd, REQUEST, request);
     free(request);
-    char* respuesta = recibirMensaje(conexionLissandra);
-    char** componentesSelect = string_split(respuesta, ";");
-    insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger);
-    return respuesta;
+    t_paquete respuesta = recibirMensaje(conexionLissandra);
+    if(respuesta.tipoMensaje == RESPUESTA)   {
+        char** componentesSelect = string_split(respuesta.mensaje, ";");
+        insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger);
+        free(respuesta.mensaje);
+        return string_from_format("%s%s%s", componentesSelect[0], key, componentesSelect[2]);
+    } else
+        return respuesta.mensaje;
 }
 
 char* gestionarCreate(char* nombreTabla, char* tipoConsistencia, char* cantidadParticiones, char* tiempoCompactacion, t_control_conexion* conexionLissandra, t_log* logger)   {
     char* request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones, tiempoCompactacion);
     enviarPaquete(conexionLissandra->fd, REQUEST, request);
     free(request);
-//    char* respuesta = recibirMensaje(conexionLissandra);
-    return "Tabla creada correctamente.";
+    t_paquete respuesta = recibirMensaje(conexionLissandra);
+    return respuesta.mensaje;
+}
+
+char* gestionarDrop(char* nombreTabla, int fdLissandra, t_memoria* memoria, t_log* logger)   {
+    char* resultado = drop(nombreTabla, memoria);
+    log_info(logger, resultado);
+    char* request = string_from_format("DROP %s", nombreTabla);
+    enviarPaquete(fdLissandra, REQUEST, request);
+    return resultado;
 }
 
 char* gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger) {
@@ -127,8 +151,8 @@ char* gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion
             return gestionarSelect(comando.parametros[0], comando.parametros[1], conexionLissandra, memoria, logger);
         case INSERT:
             return gestionarInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], memoria, logger);
-//        case DROP:
-//            return gestionarDrop(comando.parametros[0], memoria);
+        case DROP:
+            return gestionarDrop(comando.parametros[0], conexionLissandra->fd, memoria, logger);
         case CREATE:
             return gestionarCreate(comando.parametros[0], comando.parametros[1], comando.parametros[2], comando.parametros[3], conexionLissandra, logger);
         default:
@@ -146,7 +170,7 @@ void* ejecutarConsola(void* parametrosConsola){
 
 
     do {
-        char* leido = readline("Memoria@suck-ets:~$ ");
+        char* leido = readline("\nMemoria@suck-ets:~$ ");
         if(string_is_empty(leido))
             continue;
 //        logearValorDeSemaforo(lissandraConectada, logger, "consola");
@@ -232,7 +256,7 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
         }
 //        else {
 //            hacerJournaling();
-//            insert(nombreTabla, key, value, memoria);
+//            insert(nombreTabla, key, value, memoria, timestamp);
 //        }
     } else if(hayMarcosLibres(*memoria)) {
         log_info(logger, "La tabla %s no se encuentra en memoria. Se procede a crearla.", nombreTabla);
@@ -248,8 +272,6 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
     free(contenidoPagina);
     return pagina;
 }
-
-// creo un segmento con una página
 
 t_segmento* crearSegmento(char* nombreTabla, t_memoria* memoria)    {
     t_segmento* segmento = (t_segmento*) malloc(sizeof(t_segmento));
@@ -272,17 +294,21 @@ t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria)  {
     return resultado;
 }
 
-void drop(char* nombreTabla, t_memoria* memoria)    {
+char* drop(char* nombreTabla, t_memoria* memoria)    {
+    char* respuesta = "No se encontró la tabla %s en memoria.";
     if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))  {
         t_segmento* segmento = dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
         liberarPaginasSegmento(segmento->tablaDePaginas, memoria);
+        dictionary_remove_and_destroy(memoria->tablaDeSegmentos, nombreTabla, &eliminarSegmento);
+        respuesta = "Se eliminó la tabla %s de la memoria.";
     }
+    return string_from_format(respuesta, nombreTabla);
 }
 
 void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria)   {
-    memoria->marcosOcupados -= dictionary_size(tablaDePaginas);
+    int cantidadPaginas = dictionary_size(tablaDePaginas);
     dictionary_destroy_and_destroy_elements(tablaDePaginas, &eliminarPagina);
-    free(tablaDePaginas);
+    memoria->marcosOcupados -= cantidadPaginas;
 }
 
 void eliminarPagina(void* data)    {
@@ -290,6 +316,12 @@ void eliminarPagina(void* data)    {
     free(pagina->key);
     pagina->marco->ocupado = false;
     free(pagina);
+}
+
+void eliminarSegmento(void* data)   {
+    t_segmento* segmento = (t_segmento*) data;
+    free(segmento->pathTabla);
+    free(data);
 }
 
 int cantidadTotalMarcosMemoria(t_memoria memoria)   {
@@ -305,9 +337,9 @@ int calcularTamanioDePagina(int tamanioValue){
 int getTamanioValue(t_control_conexion* conexionLissandra, t_log* logger){
     if(conexionLissandra->fd > 0) {
         hacerHandshake(conexionLissandra->fd, MEMORIA);
-        char* respuesta = recibirMensaje(conexionLissandra);
-        if (respuesta != NULL)  {
-            int tamanioValue = atoi(respuesta);
+        t_paquete respuesta = recibirMensaje(conexionLissandra);
+        if (respuesta.mensaje != NULL)  {
+            int tamanioValue = atoi(respuesta.mensaje);
             log_info(logger, "Tamaño del value obtenido de Lissandra: %i", tamanioValue);
             return tamanioValue;
         }
@@ -385,12 +417,13 @@ int main(void) {
     while(1)    {
 		sem_wait(conexionKernel.semaforo);
 		if(conexionKernel.fd > 0)	{
-			char* request = recibirMensaje(&conexionKernel);
+			t_paquete request = recibirMensaje(&conexionKernel);
 //			logearValorDeSemaforo(&lissandraConectada, logger, "kernel");
-			if(request == NULL)
+			if(request.mensaje == NULL)
 				continue;
 			else    {
-                char** comandoParseado = parser(request);
+                char** comandoParseado = parser(request.mensaje);
+                free(request.mensaje);
                 if (comandoParseado == NULL)
                     continue;
                 comando = instanciarComando(comandoParseado);

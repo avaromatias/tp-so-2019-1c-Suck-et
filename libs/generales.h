@@ -8,6 +8,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <dirent.h>
+#include <libgen.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <commons/string.h>
 
 typedef enum {
@@ -35,9 +39,16 @@ void printArrayDeStrings(char** arrayDeStrings);
 int tamanioDeArrayDeStrings(char** arrayDeString);
 char** parser(char* input);
 int pesoString(char*);
+char *concat(int count, ...);
+int arrayIncluye(char **array, char *elemento);
+char *convertirArrayAString(char **array);
+void mkdir_recursive(char *path);
+void valorSinComillas(char *valor);
 t_comando instanciarComando(char **request);
 int obtenerCantidadParametros(char **request);
 bool cantidadDeParametrosEsValida(char* request, int cantidadDeParametros);
 bool stringEsVacio(const char* string);
+char *armarLinea(char *key, char *valor, time_t timestamp);
+char **desarmarLinea(char *linea);
 
 #endif //TP_2019_1C_SUCK_ET_ARRAYDESTRING_H

@@ -29,7 +29,6 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <stdarg.h>
-#include <dirent.h>
 
 #include "../libs/config.h"
 #include "../libs/sockets.h"
@@ -78,29 +77,20 @@ t_configuracion cargarConfiguracion(char *path, t_log *logger);
 
 void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros);
 
-char *concat(int count, ...);
-
-void valorSinComillas(char *valor);
-
-int arrayIncluye(char **array, char *elemento);
 
 char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
-pthread_t *crearHiloRequest(char *mensaje);
 
 int obtenerBloqueDisponible(char *nombreTabla, int particion);
 
 void cargarBloquesAsignados(char *path);
 
-void mkdir_recursive(char *path);
 
 int validarConsistencia(char *tipoConsistencia);
 
 void crearBinarios(char *nombreTabla, int particiones);
 
 void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
-
-int obtenerBloqueLibreAsignado();
 
 char *generarContenidoParaParticion(char *tamanio, char *bloques);
 
@@ -112,15 +102,12 @@ int obtenerTamanioBloques(char *puntoMontaje);
 
 int archivoVacio(char *path);
 
-char *convertirArrayAString(char **array);
-
 char *lfsSelect(char *nombreTabla, char *key);
 
 char *obtenerNombreArchivoParticion(int particion);
 
 char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo);
 
-void mkdir_recursive(char *path);
 
 int obtenerCantidadBloques(char *puntoMontaje);
 

@@ -86,45 +86,10 @@ void* atenderConexiones(void* parametrosThread)    {
     }
 }
 
-void atenderMensajes(Header header, char* mensaje)    {
-    if(header.tipoMensaje == HANDSHAKE){
+void atenderMensajes(Header header, char* mensaje) {
+    if (header.tipoMensaje == HANDSHAKE) {
         hacerHandshake(header.fdRemitente, KERNEL);
     };
     printf("Estoy recibiendo un mensaje del file descriptor %i: %s", header.fdRemitente, mensaje);
     fflush(stdout);
-
-//    char** arrayMensaje = parser(mensaje);
-//
-//    //char** arrayMensaje = parser("SELECT");
-//
-//
-//    if (strcmp(arrayMensaje[0], "SELECT") == 0){
-//        printf("Recibi un select");
-//
-//        //Todo chequear que las queries traigan la cantidad correcta de parámetros
-//        //TODO crear un segmento y una página
-//        //TODO buscar dentro del segmento lo que se pidió ELSE
-//
-//        enviarPaquete(FD_FS, mensaje);
-//        Header *header = (Header*)malloc(sizeof(Header));
-//        recv(FD_CLIENTE, header, sizeof(Header), NULL);
-//        char* respuesta = malloc(header->tamanioMensaje);
-//        recv(FD_CLIENTE, respuesta, header->tamanioMensaje, NULL);
-//        printf("%s", mensaje);
-//
-//    }else if (strcmp(arrayMensaje[0], "INSERT") == 0){
-//        printf("Recibi un insert");
-//    }else if (strcmp(arrayMensaje[0], "CREATE") == 0){
-//        printf("Recibi un create");
-//    }else if (strcmp(arrayMensaje[0], "DESCRIBE") == 0){
-//        printf("Recibi un describe");
-//    }else if (strcmp(arrayMensaje[0], "DROP") == 0){
-//        printf("Recibi un drop");
-//    }else if (strcmp(arrayMensaje[0], "JOURNAL") == 0){
-//        printf("Recibi un journal");
-//    }else{
-//        printf("No entendi tu mensaje bro");
-//    }
-//    printf("\n");
-//    fflush(stdout);
 }

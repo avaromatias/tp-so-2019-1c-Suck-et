@@ -29,7 +29,6 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <stdarg.h>
-#include <dirent.h>
 
 #include "../libs/config.h"
 #include "../libs/sockets.h"
@@ -50,6 +49,11 @@ typedef struct {
     int partitions;
     char *compaction_time;
 } t_metadata;
+
+typedef struct {
+    TipoMensaje tipoRespuesta;
+    char *valor
+} t_response;
 
 typedef struct {
     GestorConexiones *conexion;
@@ -78,21 +82,16 @@ t_configuracion cargarConfiguracion(char *path, t_log *logger);
 
 void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros);
 
-char *concat(int count, ...);
 
-void valorSinComillas(char *valor);
+t_response* lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
-int arrayIncluye(char **array, char *elemento);
+t_response* lfsSelect(char *nombreTabla, char *key);
 
-char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
-
-pthread_t *crearHiloRequest(char *mensaje);
+t_response* lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
 int obtenerBloqueDisponible(char *nombreTabla, int particion);
 
 void cargarBloquesAsignados(char *path);
-
-void mkdir_recursive(char *path);
 
 int validarConsistencia(char *tipoConsistencia);
 
@@ -100,27 +99,17 @@ void crearBinarios(char *nombreTabla, int particiones);
 
 void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
-int obtenerBloqueLibreAsignado();
-
 char *generarContenidoParaParticion(char *tamanio, char *bloques);
 
-char *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
-
-int obtenerTamanioBloque(int bloque);
-
-int obtenerTamanioBloques(char *puntoMontaje);
-
-int archivoVacio(char *path);
-
-char *convertirArrayAString(char **array);
-
-char *lfsSelect(char *nombreTabla, char *key);
 
 char *obtenerNombreArchivoParticion(int particion);
 
 char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo);
 
-void mkdir_recursive(char *path);
+int obtenerTamanioBloque(int bloque);
+
+int obtenerTamanioBloques(char *puntoMontaje);
+
 
 int obtenerCantidadBloques(char *puntoMontaje);
 
@@ -128,12 +117,8 @@ int obtenerCantidadBloques(char *puntoMontaje);
 * @NAME: gestionarRequest
 * @DESC: Gestiona los comandos recibidos por consola y decide como proceder
 *
-* @RETURN:
-* -2: Comando invalido
-* -1: Numero de parametros invalido
-* 0: Ejecucion exitosa
 */
-char *gestionarRequest(t_comando comando);
+t_response* gestionarRequest(t_comando comando);
 
 /**
 * @NAME: existeTabla

@@ -15,6 +15,7 @@ int main(void) {
 
     t_configuracion configuracion = cargarConfiguracion("kernel.cfg", logger);
     //t_dictionary *tablaDeMemoriasConocidas = dictionary_create();
+    t_memoria_conocida memoriaConocida = {.fdMemoria =0};
 
     log_info(logger, "IP Memoria: %s", configuracion.ipMemoria);
     log_info(logger, "Puerto Memoria: %i", configuracion.puertoMemoria);
@@ -23,12 +24,15 @@ int main(void) {
     log_info(logger, "Refresh Metadata: %i", configuracion.refreshMetadata);
     log_info(logger, "Retardo de Ejecución : %i", configuracion.refreshMetadata);
 
-    GestorConexiones *conexion = inicializarConexion();
-    int fdMemoria = conectarseAServidor(configuracion.ipMemoria, configuracion.puertoMemoria, conexion, logger);
-    //memoriasConectadas(fdMemoria);
-    pthread_t *hiloRespuestas = crearHiloConexiones(conexion, logger);
+    GestorConexiones *misConexiones= inicializarConexion();
 
-    ejecutarConsola(gestionarRequest, logger, fdMemoria);
+    //int fdMemoria = conectarseAServidor(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
+    //todo probamos con una sola memoria por ahora
+    conectarseAMemoriaPrincipal(&memoriaConocida, configuracion.ipMemoria, configuracion.puertoMemoria, logger);
+    //memoriasConectadas(fdMemoria);
+    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
+
+    ejecutarConsola(gestionarRequest, logger, memoriaConocida.fdMemoria);
     //ejecutarConsola(gestionarRequest, logger, tablaDeMemoriasConocidas);
 
     return EXIT_SUCCESS;
@@ -370,3 +374,16 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
 int gestionarAdd(int fdMemoria)
 
 */
+
+void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char* ipMemoria, int puertoMemoria, t_log* logger) {
+    log_info(logger, "Intentando conectarse a Memoria Principal.");
+    memoriaConocida->fdMemoria = crearSocketCliente(ipMemoria, puertoMemoria, logger);
+    if(memoriaConocida->fdMemoria < 0) {
+        log_error(logger, "Hubo un error al intentar conectarse con la Memoria Principal. Se va a cerrar el proceso.");
+        exit(-1);
+    }
+    else{
+        log_info(logger, "Conexión con Memoria Principal establecida.");
+        memoriaConocida->utilizacion = 1;
+    }
+}

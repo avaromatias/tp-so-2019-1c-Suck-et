@@ -15,6 +15,19 @@ typedef struct {
     int* fdKernel;
 } parametros_thread_memoria;
 
+typedef enum {
+    SC,
+    SHC,
+    EC,
+    NC
+} Criterio; //NC = NO CRITERY
+
+typedef struct {
+    int fdMemoria;
+    Criterio consistencia;
+    int utilizacion;
+} t_memoria_conocida;
+
 //Conexión con Memoria
 pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_log* logger);
 void* atenderConexiones(void* parametrosThread);

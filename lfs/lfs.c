@@ -229,18 +229,31 @@ char *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
                 char *nombreArchivo = string_new();
                 char *p = string_itoa(particion);
                 nombreArchivo = concat(4, obtenerPathTabla(nombreTabla, configuracion.puntoMontaje), "/", p, ".bin");
-                int bloque = obtenerBloqueDisponible(nombreTabla, particion);
                 t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
                 bloqueA->tabla = concat(1, nombreTabla);
                 bloqueA->particion = particion;
-                dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
-                FILE *f = fopen(obtenerPathBloque(bloque), "a");
                 printf("Linea %s", linea);
                 // TODO: Insertar en la memoria temporal del punto anterior una nueva entrada que contenga los datos enviados en la request.
-                fwrite(linea, sizeof(char) * strlen(linea), 1, f);
-                fclose(f);
-                if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje))
-                    bitarray_set_bit(bitmap, bloque);
+                int indice = 0;
+                int bloque;
+                while(linea[indice] != '\0' && indice < string_length(linea)) {
+                    bloque = obtenerBloqueDisponible(nombreTabla, particion);
+                    FILE *f = fopen(obtenerPathBloque(bloque), "a");
+                    dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
+                    int longitudArchivo = obtenerTamanioBloque(bloque);
+                    while (getc(f) != EOF) {
+                        longitudArchivo++;
+                    }
+                    while (longitudArchivo < obtenerTamanioBloques(configuracion.puntoMontaje) && indice < string_length(linea)) {
+                        fputc(linea[indice], f);
+                        longitudArchivo++;
+                        indice++;
+                    }
+                    fclose(f);
+                    if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
+                        bitarray_set_bit(bitmap, bloque);
+                    }
+                }
                 free(path);
                 t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
                 char **blocks = string_get_string_as_array(config_get_string_value(archivoConfig, "BLOCKS"));

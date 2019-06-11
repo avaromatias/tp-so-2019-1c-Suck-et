@@ -7,13 +7,14 @@ bool cantidadParametrosEsValida(t_comando comando)  {
         case METRICS:
             return comando.cantidadParametros == 0;
         case DROP:
-        case DESCRIBE:
         case RUN:
             return comando.cantidadParametros == 1;
         case SELECT:
             return comando.cantidadParametros == 2;
         case INSERT:
             return comando.cantidadParametros == 3 || comando.cantidadParametros == 4;
+        case DESCRIBE:
+            return comando.cantidadParametros == 1 || comando.cantidadParametros == 0;
         case CREATE:
             return comando.cantidadParametros == 4;
     }

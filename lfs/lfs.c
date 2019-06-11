@@ -189,10 +189,10 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
             if (!existeElArchivo(path)) {
                 crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
                 retorno->tipoRespuesta = ERR;
-                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe. Se creo su Metadata.\n");
+                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe. Se creo su Metadata.");
             } else {
                 retorno->tipoRespuesta = ERR;
-                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe.\n");
+                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe.");
             }
             free(path);
         } else {
@@ -260,16 +260,16 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
                 fclose(fParticion);
                 free(contenido);
                 retorno->tipoRespuesta = RESPUESTA;
-                retorno->valor = concat(1, "Se inserto el valor con exito.\n");
+                retorno->valor = concat(1, "Se inserto el valor con exito.");
 
             } else {
                 retorno->tipoRespuesta = ERR;
                 retorno->valor = concat(5, "No se pudo insertar en ", nombreTabla, ". No existe metadata en ", path,
-                                        ".\n");
+                                        ".");
             }
         } else {
             retorno->tipoRespuesta = ERR;
-            retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".\n");
+            retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".");
         }
         return retorno;
 
@@ -376,13 +376,13 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             return retorno;
         } else {
             retorno->tipoRespuesta = ERR;
-            retorno->valor = concat(1, "No se encontro ningun valor con esa key.\n");
+            retorno->valor = concat(1, "No se encontro ningun valor con esa key.");
             free(mayorLinea);
             return retorno;
         }
     } else {
         retorno->tipoRespuesta = ERR;
-        retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".\n");
+        retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".");
         return retorno;
     }
 }
@@ -429,12 +429,17 @@ void ejecutarConsola() {
         free(comandoParseado);
         if (validarComandosComunes(comando, logger)) {
             t_response *retorno = gestionarRequest(comando);
-            if (!string_ends_with(retorno->valor, "\n")) {
-                string_append(&retorno->valor, "\n");
+            if(retorno->tipoRespuesta==ERR){
+                log_warning(logger, retorno->valor);
             }
-            printf("%s", retorno->valor);
+            else{
+                if (!string_ends_with(retorno->valor, "\n")) {
+                    string_append(&retorno->valor, "\n");
+                }
+                printf("%s", retorno->valor);
+                log_info(logger, "Request procesada correctamente.");
+            }
             free(retorno);
-            log_info(logger, "Request procesada correctamente.");
         }
 
     } while (comando.tipoRequest != EXIT);
@@ -444,6 +449,12 @@ void ejecutarConsola() {
 t_response *gestionarRequest(t_comando comando) {
 
     t_response *retorno;
+    if(!existeMetadata()){
+        retorno = (t_response *) malloc(sizeof(t_response));
+        retorno->valor = concat(1, "La Metadata del File System no existe o esta vacia.");
+        retorno->tipoRespuesta = ERR;
+        return retorno;
+    }
     switch (comando.tipoRequest) {
         case SELECT:
 //            printf("Tabla: %s\n", comando.parametros[0]);
@@ -650,7 +661,14 @@ int obtenerCantidadBloques(char *puntoMontaje) {
     free(nombreArchivo);
     return -1;
 }
-
+int existeMetadata(){
+    char *nombreArchivo = string_new();
+    string_append(&nombreArchivo, configuracion.puntoMontaje);
+    string_append(&nombreArchivo, "Metadata/Metadata.bin");
+    int existe=existeElArchivo(nombreArchivo) && !archivoVacio(nombreArchivo);
+    free(nombreArchivo);
+    return existe;
+}
 int obtenerTamanioBloques(char *puntoMontaje) {
     char *nombreArchivo = string_new();
     string_append(&nombreArchivo, puntoMontaje);

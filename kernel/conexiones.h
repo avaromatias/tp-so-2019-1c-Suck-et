@@ -11,8 +11,7 @@
 typedef struct {
     GestorConexiones* conexion;
     t_log* logger;
-    sem_t* kernelConectado;
-    int* fdKernel;
+    int* fdMemoria;
 } parametros_thread_memoria;
 
 typedef enum {
@@ -22,11 +21,16 @@ typedef enum {
     NC
 } Criterio; //NC = NO CRITERY
 
-typedef struct {
+/*typedef struct {
     int fdMemoria;
     Criterio consistencia;
     int utilizacion;
-} t_memoria_conocida;
+} t_memoria_conocida;*/
+
+typedef struct  {
+    TipoMensaje tipoMensaje;
+    char* mensaje;
+} t_paquete;
 
 //Conexión con Memoria
 pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_log* logger);

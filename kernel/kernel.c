@@ -15,7 +15,7 @@ int main(void) {
 
     t_configuracion configuracion = cargarConfiguracion("kernel.cfg", logger);
     //t_dictionary *tablaDeMemoriasConocidas = dictionary_create();
-    t_memoria_conocida memoriaConocida = {.fdMemoria =0};
+    //t_memoria_conocida memoriaConocida = {.fdMemoria =0};
 
     log_info(logger, "IP Memoria: %s", configuracion.ipMemoria);
     log_info(logger, "Puerto Memoria: %i", configuracion.puertoMemoria);
@@ -26,13 +26,13 @@ int main(void) {
 
     GestorConexiones *misConexiones= inicializarConexion();
 
-    //int fdMemoria = conectarseAServidor(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
+    int fdMemoria = conectarseAServidor(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
     //todo probamos con una sola memoria por ahora
-    conectarseAMemoriaPrincipal(&memoriaConocida, configuracion.ipMemoria, configuracion.puertoMemoria, logger);
+    //conectarseAMemoriaPrincipal(&memoriaConocida, configuracion.ipMemoria, configuracion.puertoMemoria, logger);
     //memoriasConectadas(fdMemoria);
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
 
-    ejecutarConsola(gestionarRequest, logger, memoriaConocida.fdMemoria);
+    ejecutarConsola(gestionarRequest, logger, fdMemoria);
     //ejecutarConsola(gestionarRequest, logger, tablaDeMemoriasConocidas);
 
     return EXIT_SUCCESS;
@@ -83,7 +83,6 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
 
 void ejecutarConsola(int (*gestionarRequest)(t_comando, int), t_log *logger, int fdMemoria) {
     t_comando requestParseada;
-
     do {
         char *leido = readline("Kernel@suck-ets:~$ ");
         if (strcmp(leido, " ") != 0) {
@@ -326,7 +325,7 @@ void *administrarRequestsLQL(t_archivoLQL archivoLQL, t_log *logger, int fdMemor
 }
 
 int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria) {
-    fdMemoria = 0; //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
+    //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
     char *request = string_from_format("SELECT %s %s", nombreTabla, key);
     enviarPaquete(fdMemoria, REQUEST, request);
     free(request);
@@ -335,9 +334,8 @@ int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria) {
 }
 
 int gestionarCreateKernel(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones, char *tiempoCompactacion, int fdMemoria) {
-    fdMemoria = 0; //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
-    char *request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones,
-                                       tiempoCompactacion);
+    //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
+    char *request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones, tiempoCompactacion);
     enviarPaquete(fdMemoria, REQUEST, request);
     free(request);
     //recibo mensaje de Memoria o directamente fallo yo?
@@ -374,16 +372,3 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
 int gestionarAdd(int fdMemoria)
 
 */
-
-void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char* ipMemoria, int puertoMemoria, t_log* logger) {
-    log_info(logger, "Intentando conectarse a Memoria Principal.");
-    memoriaConocida->fdMemoria = crearSocketCliente(ipMemoria, puertoMemoria, logger);
-    if(memoriaConocida->fdMemoria < 0) {
-        log_error(logger, "Hubo un error al intentar conectarse con la Memoria Principal. Se va a cerrar el proceso.");
-        exit(-1);
-    }
-    else{
-        log_info(logger, "Conexión con Memoria Principal establecida.");
-        memoriaConocida->utilizacion = 1;
-    }
-}

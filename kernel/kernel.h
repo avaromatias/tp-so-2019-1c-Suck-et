@@ -37,7 +37,7 @@ typedef struct {
     int cantidadDeLineas;
 } t_archivoLQL;
 
-t_dictionary listaDeMemorias;
+t_dictionary tablaDeMemorias;
 
 //Para Planificador
 t_queue *colaDeNew;
@@ -70,6 +70,6 @@ int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemor
 
 int gestionarDropKernel(char *nombreTabla, int fdMemoria);
 
-void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char* ipMemoria, int puertoMemoria, t_log* logger);
+//void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char* ipMemoria, int puertoMemoria, t_log* logger);
 
 #endif /* KERNEL_H_ */

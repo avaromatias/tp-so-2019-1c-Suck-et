@@ -98,6 +98,13 @@ char **desarmarLinea(char *linea) {
     return string_split(linea, ";");
 }
 
+int archivoVacio(char *path) {
+    FILE *f = fopen(path, "r");
+    int c = fgetc(f);
+    fclose(f);
+    return c == EOF;
+}
+
 int pesoString(char* string)    {
     return string == NULL? 0 : sizeof(char) * (strlen(string) + 1);
 }

@@ -3,16 +3,18 @@
 bool cantidadParametrosEsValida(t_comando comando)  {
     switch(comando.tipoRequest) {
         case JOURNAL:
+            return comando.cantidadParametros == 0;
         case METRICS:
             return comando.cantidadParametros == 0;
         case DROP:
-        case DESCRIBE:
         case RUN:
             return comando.cantidadParametros == 1;
         case SELECT:
             return comando.cantidadParametros == 2;
         case INSERT:
             return comando.cantidadParametros == 3 || comando.cantidadParametros == 4;
+        case DESCRIBE:
+            return comando.cantidadParametros == 1 || comando.cantidadParametros == 0;
         case CREATE:
             return comando.cantidadParametros == 4;
     }
@@ -45,15 +47,13 @@ void imprimirErrorParametros() {
 
 char *obtenerPathTabla(char *nombreTabla, char* puntoMontaje) {
     char *basePath = string_new();
-    string_append(&basePath, string_duplicate(puntoMontaje));
+    string_append(&basePath, puntoMontaje);
     if(!string_ends_with(puntoMontaje,"/")){
         string_append(&basePath, "/");
     }
-    string_append(&basePath, string_duplicate("Tables/"));
-    char *tablePath = string_new();
-    string_append(&tablePath, basePath);
-    string_append(&tablePath, nombreTabla);
-    return tablePath;
+    string_append(&basePath, "Tables/");
+    string_append(&basePath, nombreTabla);
+    return basePath;
 }
 
 char *obtenerPathMetadata(char *nombreTabla, char* puntoMontaje) {

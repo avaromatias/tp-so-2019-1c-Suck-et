@@ -104,4 +104,16 @@ char* drop(char* nombreTabla, t_memoria* memoria);
 void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria);
 void eliminarPagina(void* pagina);
 void eliminarSegmento(void* segmento);
+
+//JOURNAL
+//void enviarInsertLissandra(t_control_conexion* conexionConLissandra, char* key, char* value, char* timestamp);
+typedef  struct {
+    char* nombreTabla;
+    t_control_conexion* conexionLissandra;
+    t_log* logger;
+
+}parametros_journal;
+void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
+void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
+
 #endif /* MEMORIA_H_ */

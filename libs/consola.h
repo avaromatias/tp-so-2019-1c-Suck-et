@@ -36,12 +36,4 @@ bool esString(char *palabra);
 
 bool validarComandosComunes(t_comando comando, t_log* logger);
 
-typedef struct {
-    t_log *logger;
-    Componente unComponente;
-
-    char* (*gestionarComando)(t_comando);
-
-} parametros_consola;
-
 #endif //LIBS_CONSOLA_H

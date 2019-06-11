@@ -283,7 +283,7 @@ t_pagina* crearPagina(char* key, t_memoria* memoria)  {
     t_pagina* nuevaPagina = (t_pagina*) malloc(sizeof(t_pagina));
     nuevaPagina->marco = getMarcoLibre(memoria);
     nuevaPagina->key = string_duplicate(key);
-    nuevaPagina->modificada = true;
+    nuevaPagina->modificada = false;
     return nuevaPagina;
 }
 

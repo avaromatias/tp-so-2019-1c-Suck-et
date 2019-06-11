@@ -273,8 +273,12 @@ t_pagina* reemplazarPagina(char* key, char* nuevoValor, t_dictionary* tablaDePag
     return nuevaPagina;
 }
 
-t_pagina* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria) {
+t_pagina* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria, bool recibiTimestamp) {
     t_pagina* nuevaPagina = crearPagina(key, memoria);
+    if (recibiTimestamp){
+        printf("Es un select a lissandra, entonces no es una pagina modificada");
+        nuevaPagina->modificada = false;
+    }
     insertarEnMemoriaAndActualizarTablaDePaginas(nuevaPagina, value, tablaDePaginas);
     return nuevaPagina;
 }
@@ -283,7 +287,7 @@ t_pagina* crearPagina(char* key, t_memoria* memoria)  {
     t_pagina* nuevaPagina = (t_pagina*) malloc(sizeof(t_pagina));
     nuevaPagina->marco = getMarcoLibre(memoria);
     nuevaPagina->key = string_duplicate(key);
-    nuevaPagina->modificada = false;
+    nuevaPagina->modificada = true;
     return nuevaPagina;
 }
 
@@ -294,6 +298,7 @@ void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* v
 
 t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger)   {
     char* contenidoPagina = formatearPagina(key, value, timestamp);
+    bool recibiTimestamp = timestamp != NULL;
     log_info(logger, "Se insertará el siguiente valor en memoria: %s", contenidoPagina);
     t_pagina* pagina = NULL;
     // tengo la tabla en la memoria?
@@ -307,7 +312,7 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
             pagina = reemplazarPagina(key, contenidoPagina, segmento->tablaDePaginas);
         }   else if(hayMarcosLibres(*memoria))   {
             log_info(logger, "La key %s no existe en la tabla %s. Se procede a insertarla.", key, nombreTabla);
-            pagina = insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria);
+            pagina = insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria, recibiTimestamp);
         }
 //        else {
 //            hacerJournaling();
@@ -317,7 +322,7 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
         log_info(logger, "La tabla %s no se encuentra en memoria. Se procede a crearla.", nombreTabla);
         t_segmento* nuevoSegmento = crearSegmento(nombreTabla, memoria);
         log_info(logger, "Se procede a insertar el nuevo valor.");
-        pagina = insertarNuevaPagina(key, contenidoPagina, nuevoSegmento->tablaDePaginas, memoria);
+        pagina = insertarNuevaPagina(key, contenidoPagina, nuevoSegmento->tablaDePaginas, memoria, recibiTimestamp);
     }
 //    else {
 //        hacerJournaling();

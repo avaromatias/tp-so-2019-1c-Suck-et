@@ -75,6 +75,7 @@ t_log *logger;
 t_dictionary *bloquesAsignados;
 t_dictionary *metadatas;
 t_bitarray *bitmap;
+pthread_mutex_t mutexAsignacionBloques;
 
 
 //Header de funciones
@@ -82,6 +83,9 @@ t_configuracion cargarConfiguracion(char *path, t_log *logger);
 
 void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros);
 
+
+char** obtenerTablas();
+t_response *lfsDescribe(char *nombreTabla);
 
 t_response* lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 

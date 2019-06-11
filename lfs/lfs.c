@@ -99,9 +99,9 @@ int validarValor(char *valor) {
 
 void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
     FILE *f = fopen(obtenerPathArchivo(nombreTabla, "Metadata"), "w");
-    char *linea = string_new();
-    linea = concat(9, "CONSISTENCY=", tipoConsistencia, "\n", "PARTITIONS=", particiones, "\n", "COMPACTION_TIME=",
-                   tiempoCompactacion, "\n");
+    char *linea = concat(9, "CONSISTENCY=", tipoConsistencia, "\n", "PARTITIONS=", particiones, "\n",
+                         "COMPACTION_TIME=",
+                         tiempoCompactacion, "\n");
     fwrite(linea, sizeof(char) * (strlen(linea) + 1), 1, f);
     free(linea);
     fclose(f);
@@ -292,7 +292,8 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
                 int bloque;
                 while (linea[indice] != '\0' && indice < string_length(linea)) {
                     bloque = obtenerBloqueDisponible(nombreTabla, particion);
-                    FILE *f = fopen(obtenerPathBloque(bloque), "a");
+                    char *pathBloque = obtenerPathBloque(bloque);
+                    FILE *f = fopen(pathBloque, "a");
                     dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
                     int longitudArchivo = obtenerTamanioBloque(bloque);
                     while (getc(f) != EOF) {
@@ -305,6 +306,7 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
                         indice++;
                     }
                     fclose(f);
+                    free(pathBloque);
                     if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
                         bitarray_set_bit(bitmap, bloque);
                     }
@@ -424,8 +426,13 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                     }
                 }
             }
+            free(blockPath);
         }
 
+        for(int i = 0; i < tamanioDeArrayDeStrings(bloques); i++) {
+            free(bloques[i]);
+        }
+        free(bloques);
         fclose(binarioBloque);
         fclose(binarioParticion);
 
@@ -462,16 +469,16 @@ char *obtenerNombreArchivoParticion(int particion) {
 
 char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo) {
     char *path = obtenerPathArchivo(nombreTabla, nombreArchivo);
-    char **arrayDeBloques;
     if (existeElArchivo(path)) {
         t_config *archivoConfig = abrirArchivoConfiguracion(path, logger);
-        arrayDeBloques = config_get_array_value(archivoConfig, "BLOCKS");
+        char **arrayDeBloques = config_get_array_value(archivoConfig, "BLOCKS");
         config_destroy(archivoConfig);
+        free(path);
+        return arrayDeBloques;
     } else {
+        free(path);
         return NULL;
     }
-    free(path);
-    return arrayDeBloques;
 }
 
 void ejecutarConsola() {
@@ -632,7 +639,7 @@ int calcularParticion(char *key, t_metadata *metadata) {
 }
 
 pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, int tamanioValue, t_log *logger) {
-    pthread_t *hiloConexiones = malloc(sizeof(pthread_t));
+    pthread_t *hiloConexiones = (pthread_t *) malloc(sizeof(pthread_t));
 
     parametros_thread_lfs *parametros = (parametros_thread_lfs *) malloc(sizeof(parametros_thread_lfs));
 
@@ -713,6 +720,9 @@ void cargarBloquesAsignados(char *path) {
                         bloque->tabla = concat(1, nombreTabla);
                         bloque->particion = i;
                         dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
+                    }
+                    for(int k = 0; k < tamanioDeArrayDeStrings(arrayDeBloques); k++) {
+                        free(arrayDeBloques[k]);
                     }
                     free(arrayDeBloques);
                     free(nombreArchivo);
@@ -806,6 +816,7 @@ void crearDirBloques(char *puntoMontaje) {
             }
             free(unArchivoDeBloque);
             //printf("%i", bitarray_test_bit(bitmap, i));
+            //No hago un free del bloque porque lo necesito para el diccionario de bloques, en que momento deberia liberarlo?
         }
         free(nombreArchivo);
     }
@@ -947,7 +958,6 @@ int main(void) {
     pthread_join(&hiloConexiones, NULL);
 
     free(misConexiones);
-    free(hiloConexiones);
     free(bloquesAsignados);
     free(metadatas);
     return 0;

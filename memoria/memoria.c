@@ -146,11 +146,23 @@ void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, cha
 
     char* request =string_from_format("INSERT %s %s \"%s\" %s", parametrosJournal->nombreTabla, key, value, timestamp);
     printf("Request a enviar a lissandra: %s \n", request);
-    /*enviarPaquete(conexionConLissandra->fd, REQUEST, request);
-    t_paquete respuesta = recibirMensaje(conexionConLissandra);
-    printf("Respuesta: %s\n", respuesta.mensaje);*/
+    t_log* logger = parametrosJournal->logger;
 
+
+    log_info(logger, "Se procede a enviar a lissandra la request: ", request);
+    enviarPaquete(parametrosJournal->conexionLissandra->fd, REQUEST, request);
     free(request);
+
+    t_paquete respuesta = recibirMensaje(parametrosJournal->conexionLissandra);
+    if(respuesta.tipoMensaje == RESPUESTA)   {
+        log_info(logger, respuesta.mensaje);
+    } else{
+        log_error(logger, respuesta.mensaje);
+    }
+
+    free(logger);
+    free(respuesta.mensaje);
+
 
 }
 
@@ -298,7 +310,13 @@ void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* v
 
 t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger)   {
     char* contenidoPagina = formatearPagina(key, value, timestamp);
-    bool recibiTimestamp = timestamp != NULL;
+    bool recibiTimestamp;
+    if (timestamp != NULL){
+        recibiTimestamp = true;
+    } else{
+        recibiTimestamp=false;
+    }
+
     log_info(logger, "Se insertará el siguiente valor en memoria: %s", contenidoPagina);
     t_pagina* pagina = NULL;
     // tengo la tabla en la memoria?

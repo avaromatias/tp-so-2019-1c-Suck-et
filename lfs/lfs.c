@@ -38,12 +38,15 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
         char *puntoMontaje = config_get_string_value(archivoConfig, "PUNTO_MONTAJE");
         valorSinComillas(puntoMontaje);
         if (!string_ends_with(puntoMontaje, "/")) {
-            string_append(&puntoMontaje, "/");
+            configuracion.puntoMontaje = concat(2, puntoMontaje,"/");
         }
-        configuracion.puntoMontaje = concat(1, puntoMontaje);
+        else{
+            configuracion.puntoMontaje = concat(1, puntoMontaje);
+        }
         configuracion.retardo = config_get_int_value(archivoConfig, "RETARDO");
         configuracion.tamanioValue = config_get_int_value(archivoConfig, "TAMAÑO_VALUE");
         configuracion.tiempoDump = config_get_int_value(archivoConfig, "TIEMPO_DUMP");
+        config_destroy(archivoConfig);
         return configuracion;
     }
 }
@@ -232,18 +235,31 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
                 char *nombreArchivo = string_new();
                 char *p = string_itoa(particion);
                 nombreArchivo = concat(4, obtenerPathTabla(nombreTabla, configuracion.puntoMontaje), "/", p, ".bin");
-                int bloque = obtenerBloqueDisponible(nombreTabla, particion);
                 t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
                 bloqueA->tabla = concat(1, nombreTabla);
                 bloqueA->particion = particion;
-                dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
-                FILE *f = fopen(obtenerPathBloque(bloque), "a");
                 printf("Linea %s", linea);
                 // TODO: Insertar en la memoria temporal del punto anterior una nueva entrada que contenga los datos enviados en la request.
-                fwrite(linea, sizeof(char) * strlen(linea), 1, f);
-                fclose(f);
-                if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje))
-                    bitarray_set_bit(bitmap, bloque);
+                int indice = 0;
+                int bloque;
+                while(linea[indice] != '\0' && indice < string_length(linea)) {
+                    bloque = obtenerBloqueDisponible(nombreTabla, particion);
+                    FILE *f = fopen(obtenerPathBloque(bloque), "a");
+                    dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
+                    int longitudArchivo = obtenerTamanioBloque(bloque);
+                    while (getc(f) != EOF) {
+                        longitudArchivo++;
+                    }
+                    while (longitudArchivo < obtenerTamanioBloques(configuracion.puntoMontaje) && indice < string_length(linea)) {
+                        fputc(linea[indice], f);
+                        longitudArchivo++;
+                        indice++;
+                    }
+                    fclose(f);
+                    if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
+                        bitarray_set_bit(bitmap, bloque);
+                    }
+                }
                 free(path);
                 t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
                 char **blocks = string_get_string_as_array(config_get_string_value(archivoConfig, "BLOCKS"));
@@ -259,6 +275,7 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
                 fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
                 fclose(fParticion);
                 free(contenido);
+                config_destroy(archivoConfig);
                 retorno->tipoRespuesta = RESPUESTA;
                 retorno->valor = concat(1, "Se inserto el valor con exito.");
 
@@ -321,8 +338,8 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
         bool lineaContinuaEnOtroBloque = false;
 
         //4.0 Obtengo los bloques asignados a la particion obtenida
-        int tamanioArray = tamanioDeArrayDeStrings(bloquesEnParticion(nombreTabla, nombreArchivoParticion));
         char **bloques = bloquesEnParticion(nombreTabla, nombreArchivoParticion);
+        int tamanioArray = tamanioDeArrayDeStrings(bloques);
         for (int i = 0; i < tamanioArray; i++) {
 
             //4.1. Escaneo particion objetivo
@@ -400,11 +417,11 @@ char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo) {
     if (existeElArchivo(path)) {
         t_config *archivoConfig = abrirArchivoConfiguracion(path, logger);
         arrayDeBloques = config_get_array_value(archivoConfig, "BLOCKS");
+        config_destroy(archivoConfig);
     } else {
         return NULL;
     }
     free(path);
-
     return arrayDeBloques;
 }
 
@@ -538,7 +555,6 @@ t_response *gestionarRequest(t_comando comando) {
 int existeTabla(char *tabla) {
     char *tablePath = obtenerPathTabla(tabla, configuracion.puntoMontaje);
     if (!existeElArchivo(tablePath)) {
-        log_error(logger, "No se encontro o no tiene permisos para acceder a la tabla %s.", tabla);
         free(tablePath);
         return -1;
     }
@@ -638,8 +654,8 @@ void cargarBloquesAsignados(char *path) {
                         bloque->particion = i;
                         dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
                     }
-                    free(nombreArchivo);
                     free(arrayDeBloques);
+                    free(nombreArchivo);
                 }
             }
         }
@@ -868,5 +884,9 @@ int main(void) {
 
     pthread_join(&hiloConexiones, NULL);
 
+    free(misConexiones);
+    free(hiloConexiones);
+    free(bloquesAsignados);
+    free(metadatas);
     return 0;
 }

@@ -190,10 +190,13 @@ t_response *lfsDescribeAll() {
         char* respuestaTabla=string_new();
         respuestaTabla=concat(5,"----- ",string_duplicate(nombreTabla)," -----\n",string_duplicate(retornoTabla->valor),"\n");
         string_append(&respuesta,respuestaTabla);
+        free(retornoTabla->valor);
+        free(retornoTabla);
     }
     retorno->tipoRespuesta=RESPUESTA;
     retorno->valor=string_duplicate(respuesta);
     free(respuesta);
+    free(tablas);
     return retorno;
 }
 
@@ -500,8 +503,10 @@ void ejecutarConsola() {
                     string_append(&retorno->valor, "\n");
                 }
                 printf("%s", retorno->valor);
+                free(retorno->valor);
                 log_info(logger, "Request procesada correctamente.");
             }
+            free(retorno);
         }
 
     } while (comando.tipoRequest != EXIT);
@@ -683,7 +688,7 @@ char** obtenerTablas(){
 
         rewinddir(d);
         free(ep);
-        tablas = calloc(countOfDirectories-2, sizeof(char *));
+        tablas = calloc(countOfDirectories-1, sizeof(char *));
         while ((dir = readdir(d)) != NULL) {
             if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
                 tablas[count] = strdup(dir->d_name);

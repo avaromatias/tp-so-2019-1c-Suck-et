@@ -190,9 +190,6 @@ t_response *lfsDescribeAll() {
         char* respuestaTabla=string_new();
         respuestaTabla=concat(5,"----- ",string_duplicate(nombreTabla)," -----\n",string_duplicate(retornoTabla->valor),"\n");
         string_append(&respuesta,respuestaTabla);
-        free(retornoTabla->valor);
-        free(retornoTabla);
-        free(nombreTabla);
     }
     retorno->tipoRespuesta=RESPUESTA;
     retorno->valor=string_duplicate(respuesta);
@@ -485,12 +482,6 @@ void ejecutarConsola() {
     t_comando comando;
 
     do {
-//        if (bloquesAsignados->table_current_size) {
-//            for (int i = 0; i < 16; i++) {
-//                printf("%d", bitarray_test_bit(bitmap, i));
-//            }
-//        }
-
         char *leido = readline("Lissandra@suck-ets:~$ ");
         char **comandoParseado = parser(leido);
         if (comandoParseado == NULL) {
@@ -509,10 +500,8 @@ void ejecutarConsola() {
                     string_append(&retorno->valor, "\n");
                 }
                 printf("%s", retorno->valor);
-                free(retorno->valor);
                 log_info(logger, "Request procesada correctamente.");
             }
-            free(retorno);
         }
 
     } while (comando.tipoRequest != EXIT);
@@ -684,17 +673,25 @@ char** obtenerTablas(){
     string_append(&nombreArchivo, "Tables");
     d = opendir(nombreArchivo);
     int count=0;
+    int countOfDirectories=0;
     if (d) {
+        struct dirent *ep = readdir(d);
+        while(NULL != ep){
+            countOfDirectories++;
+            ep = readdir(d);
+        }
+
+        rewinddir(d);
+        free(ep);
+        tablas = calloc(countOfDirectories-2, sizeof(char *));
         while ((dir = readdir(d)) != NULL) {
             if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
-                tablas[count] = (char*)malloc(sizeof(char)*(strlen(dir->d_name)));
-                tablas[count]=string_duplicate(dir->d_name);
+                tablas[count] = strdup(dir->d_name);
                 count++;
             }
         }
         closedir(d);
     }
-    tablas[count]== (void*)malloc(sizeof(void*));
     tablas[count]=NULL;
 
     free(nombreArchivo);

@@ -49,6 +49,7 @@ typedef struct  {
     char* key;
     t_marco* marco;
     bool modificada;
+    long ultimaVezUsada;
 } t_pagina;
 
 typedef struct {

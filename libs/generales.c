@@ -158,7 +158,8 @@ char** parser(char* input){
     comandoParseado[i] = valor;
 
     if(valor != NULL) {
-        comandoParseado[i] = string_from_format("\"%s\"", comandoParseado[i]);
+        comandoParseado[i] = string_from_format("\"%s\"", valor);
+        free(valor);
         i++;
         if(parseado[2]){
             comandoParseado[i]=parseado[2];

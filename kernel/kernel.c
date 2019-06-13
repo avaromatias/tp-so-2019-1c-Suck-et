@@ -33,6 +33,8 @@ int main(void) {
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
 
     ejecutarConsola(gestionarRequest, logger, fdMemoria);
+
+    pthread_join(&hiloRespuestas, NULL);
     //ejecutarConsola(gestionarRequest, logger, tablaDeMemoriasConocidas);
 
     return EXIT_SUCCESS;
@@ -85,17 +87,15 @@ void ejecutarConsola(int (*gestionarRequest)(t_comando, int), t_log *logger, int
     t_comando requestParseada;
     do {
         char *leido = readline("Kernel@suck-ets:~$ ");
-        if (strcmp(leido, " ") != 0) {
-            char **comandoParseado = parser(leido);
-            if (comandoParseado == NULL) { //acordarse de tener en cuenta el " "
-                free(comandoParseado);
-                continue;
-            }
-            requestParseada = instanciarComando(comandoParseado);
-            free(leido);
+        char **comandoParseado = parser(leido);
+        if (comandoParseado == NULL) { //acordarse de tener en cuenta el " "
             free(comandoParseado);
-            analizarRequest(requestParseada, logger, fdMemoria);
+            continue;
         }
+        requestParseada = instanciarComando(comandoParseado);
+        analizarRequest(requestParseada, logger, fdMemoria);
+        //free(leido);
+        //free(comandoParseado);
     } while (requestParseada.tipoRequest != EXIT);
     printf("Ya analizamos todo lo solicitado.\n");
 }
@@ -117,7 +117,6 @@ void *analizarRequest(t_comando requestParseada, t_log *logger, int fdMemoria) {
 int gestionarRequest(t_comando requestParseada, int fdMemoria) {
     switch (requestParseada.tipoRequest) {
         case SELECT:
-            printf("llegue!");
             return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], fdMemoria);
         case INSERT:
             return gestionarInsertKernel(requestParseada.parametros[0], requestParseada.parametros[1], requestParseada.parametros[2],

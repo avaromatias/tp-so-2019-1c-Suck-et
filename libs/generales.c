@@ -138,6 +138,7 @@ char *concat(int count, ...) {
 
 
 char** parser(char* input){
+    string_trim(&input);
     if(string_is_empty(input))
         return NULL;
     char** parseado = string_split(input, "\"");

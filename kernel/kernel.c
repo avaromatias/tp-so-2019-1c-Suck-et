@@ -26,11 +26,9 @@ int main(void) {
 
     GestorConexiones *misConexiones= inicializarConexion();
 
-    int fdMemoria = conectarseAServidor(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
+    int fdMemoria = conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
     //todo probamos con una sola memoria por ahora
-    //conectarseAMemoriaPrincipal(&memoriaConocida, configuracion.ipMemoria, configuracion.puertoMemoria, logger);
-    //memoriasConectadas(fdMemoria);
-    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
+     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
 
     ejecutarConsola(gestionarRequest, logger, fdMemoria);
 
@@ -68,9 +66,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
         config_destroy(archivoConfig);
         exit(1); // settear algún código de error para cuando falte alguna key
     } else {
-        char *ipMemoria = config_get_string_value(archivoConfig, "IP_MEMORIA");
-        configuracion.ipMemoria = (char *) malloc(sizeof(char) * strlen(ipMemoria));
-        strcpy(configuracion.ipMemoria, ipMemoria);
+        configuracion.ipMemoria = string_duplicate(config_get_string_value(archivoConfig, "IP_MEMORIA"));
         configuracion.puertoMemoria = config_get_int_value(archivoConfig, "PUERTO_MEMORIA");
         configuracion.quantum = config_get_int_value(archivoConfig, "QUANTUM");
         configuracion.multiprocesamiento = config_get_int_value(archivoConfig, "MULTIPROCESAMIENTO");
@@ -328,7 +324,6 @@ int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria) {
     char *request = string_from_format("SELECT %s %s", nombreTabla, key);
     enviarPaquete(fdMemoria, REQUEST, request);
     free(request);
-    //recibo mensaje de Memoria o directamente fallo yo?
     return 0;
 }
 

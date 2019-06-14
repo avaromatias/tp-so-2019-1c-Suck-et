@@ -61,13 +61,17 @@ void *atenderConexiones(void *parametrosThread) {
                                 // nombre_maravillosa_funcion();
                                 desconectarCliente(fdConectado, unaConexion, logger);
                             } else {
-                               switch (header.tipoMensaje) {
-                                    case HANDSHAKE:
+                                switch (header.tipoMensaje) {
+                                    case RESPUESTA:
+                                        //gestionarRespuesta();//atenderMensajes(header, mensaje, parametros);
+                                        break;
+                                    case CONEXION_ACEPTADA:
+                                        break;
                                         //Componente componente = *((Componente *) mensaje);
                                         //atenderHandshake(header, componente, parametros);
+                                    case CONEXION_RECHAZADA:
                                         break;
-                                    case RESPUESTA:
-                                        //atenderMensajes(header, mensaje, parametros);
+                                    case ERR:
                                         break;
                                 }
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
@@ -93,8 +97,19 @@ void *atenderConexiones(void *parametrosThread) {
     }
 }
 
-/*void
-conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char *ipMemoria, int puertoMemoria, t_log *logger) {
+int conectarseAMemoriaPrincipal(char* ipMemoria, int puertoMemoria, GestorConexiones* misConexiones, t_log* logger) {
+    int fdMemoria = conectarseAServidor(ipMemoria, puertoMemoria, misConexiones, logger);
+    if (fdMemoria < 0) {
+        log_error(logger, "Hubo un error al intentar conectarse a la Memoria Principal. Cerrando el proceso...");
+        exit(-1);
+    } else {
+        log_info(logger, "Conexión con Memoria Principal establecida.");
+        hacerHandshake(fdMemoria, KERNEL);
+    }
+    return fdMemoria;
+}
+/*
+void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char *ipMemoria, int puertoMemoria, t_log *logger) {
     log_info(logger, "Intentando conectarse a Memoria Principal.");
     memoriaConocida->fdMemoria = crearSocketCliente(ipMemoria, puertoMemoria, logger);
     if (memoriaConocida->fdMemoria < 0) {
@@ -134,4 +149,5 @@ void atenderMensajes(Header header, char *mensaje) {
     printf("Estoy recibiendo un mensaje del file descriptor %i: %s", header.fdRemitente, mensaje);
     fflush(stdout);
 }
+
 */

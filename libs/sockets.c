@@ -246,7 +246,7 @@ GestorConexiones* inicializarConexion() {
     GestorConexiones* nuevaConexion = (GestorConexiones*) malloc(sizeof(GestorConexiones));
 
     nuevaConexion->descriptorMaximo = 0;
-    nuevaConexion->servidor = 0;
+    nuevaConexion->servidor = -1;
     nuevaConexion->conexiones = list_create();
 
     return nuevaConexion;

@@ -26,13 +26,13 @@ int main(void) {
 
     GestorConexiones *misConexiones= inicializarConexion();
 
-    int fdMemoria = conectarseAServidor(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
+    int fdMemoria = conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
     //todo probamos con una sola memoria por ahora
-    //conectarseAMemoriaPrincipal(&memoriaConocida, configuracion.ipMemoria, configuracion.puertoMemoria, logger);
-    //memoriasConectadas(fdMemoria);
-    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
+     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
 
     ejecutarConsola(gestionarRequest, logger, fdMemoria);
+
+    pthread_join(&hiloRespuestas, NULL);
     //ejecutarConsola(gestionarRequest, logger, tablaDeMemoriasConocidas);
 
     return EXIT_SUCCESS;
@@ -66,9 +66,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
         config_destroy(archivoConfig);
         exit(1); // settear algún código de error para cuando falte alguna key
     } else {
-        char *ipMemoria = config_get_string_value(archivoConfig, "IP_MEMORIA");
-        configuracion.ipMemoria = (char *) malloc(sizeof(char) * strlen(ipMemoria));
-        strcpy(configuracion.ipMemoria, ipMemoria);
+        configuracion.ipMemoria = string_duplicate(config_get_string_value(archivoConfig, "IP_MEMORIA"));
         configuracion.puertoMemoria = config_get_int_value(archivoConfig, "PUERTO_MEMORIA");
         configuracion.quantum = config_get_int_value(archivoConfig, "QUANTUM");
         configuracion.multiprocesamiento = config_get_int_value(archivoConfig, "MULTIPROCESAMIENTO");
@@ -85,17 +83,15 @@ void ejecutarConsola(int (*gestionarRequest)(t_comando, int), t_log *logger, int
     t_comando requestParseada;
     do {
         char *leido = readline("Kernel@suck-ets:~$ ");
-        if (strcmp(leido, " ") != 0) {
-            char **comandoParseado = parser(leido);
-            if (comandoParseado == NULL) { //acordarse de tener en cuenta el " "
-                free(comandoParseado);
-                continue;
-            }
-            requestParseada = instanciarComando(comandoParseado);
-            free(leido);
+        char **comandoParseado = parser(leido);
+        if (comandoParseado == NULL) { //acordarse de tener en cuenta el " "
             free(comandoParseado);
-            analizarRequest(requestParseada, logger, fdMemoria);
+            continue;
         }
+        requestParseada = instanciarComando(comandoParseado);
+        analizarRequest(requestParseada, logger, fdMemoria);
+        //free(leido);
+        //free(comandoParseado);
     } while (requestParseada.tipoRequest != EXIT);
     printf("Ya analizamos todo lo solicitado.\n");
 }
@@ -117,7 +113,6 @@ void *analizarRequest(t_comando requestParseada, t_log *logger, int fdMemoria) {
 int gestionarRequest(t_comando requestParseada, int fdMemoria) {
     switch (requestParseada.tipoRequest) {
         case SELECT:
-            printf("llegue!");
             return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], fdMemoria);
         case INSERT:
             return gestionarInsertKernel(requestParseada.parametros[0], requestParseada.parametros[1], requestParseada.parametros[2],
@@ -329,7 +324,6 @@ int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria) {
     char *request = string_from_format("SELECT %s %s", nombreTabla, key);
     enviarPaquete(fdMemoria, REQUEST, request);
     free(request);
-    //recibo mensaje de Memoria o directamente fallo yo?
     return 0;
 }
 

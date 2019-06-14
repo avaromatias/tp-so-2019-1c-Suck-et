@@ -238,14 +238,15 @@ void* ejecutarConsola(void* parametrosConsola){
 
     do {
         char* leido = readline("\nMemoria@suck-ets:~$ ");
-        if(string_is_empty(leido))
-            continue;
 //        logearValorDeSemaforo(lissandraConectada, logger, "consola");
         // TODO modularizar hasta el printf
         char** comandoParseado = parser(leido);
+        if(comandoParseado == NULL)
+            continue;
         comando = instanciarComando(comandoParseado);
         free(comandoParseado);
-        printf(validarComandosComunes(comando, logger)? "%s" : "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n", gestionarRequest(comando, memoria, conexionLissandra, logger));
+        if(validarComandosComunes(comando, logger))
+            printf("%s", gestionarRequest(comando, memoria, conexionLissandra, logger));
     } while(comando.tipoRequest != EXIT);
     printf("Ya analizamos todo lo solicitado.\n");
 }
@@ -295,7 +296,7 @@ t_pagina* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePagin
         printf("Es un select a lissandra, entonces no es una pagina modificada");
         nuevaPagina->modificada = false;
     }
-    insertarEnMemoriaAndActualizarTablaDePaginas(nuevaPagina, value, tablaDePaginas);
+    insertarEnMemoriaAndActualizarTablaDePaginas(nuevaPagina, value, memoria->tamanioPagina, tablaDePaginas);
     return nuevaPagina;
 }
 
@@ -311,8 +312,9 @@ t_pagina* crearPagina(char* key, t_memoria* memoria)  {
     return nuevaPagina;
 }
 
-void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* value, t_dictionary* tablaDePaginas)  {
-    strcpy(nuevaPagina->marco->base, value);
+void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* value, int tamanioPagina, t_dictionary* tablaDePaginas)  {
+    strncpy(nuevaPagina->marco->base, value, tamanioPagina - 1);
+    strcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0");
     dictionary_put(tablaDePaginas, nuevaPagina->key, nuevaPagina);
 }
 t_pagina* lru(t_dictionary* tablaDePaginas) {
@@ -461,8 +463,16 @@ int cantidadTotalMarcosMemoria(t_memoria memoria)   {
 }
 
 int calcularTamanioDePagina(int tamanioValue){
+    char* strMaxValueUint16 = string_itoa(UINT16_MAX);
+    int cifrasMaxValueUint16 = strlen(strMaxValueUint16);
+    free(strMaxValueUint16);
+    time_t tiempoEjemplo;
+    long tiempo = time(&tiempoEjemplo);
+    char* strTiempo = string_from_format("%lu", tiempo);
+    int cifrasTiempo = strlen(strTiempo);
+    free(strTiempo);
     //tamaño de INT (timestamp) + tamaño de u_int16_t (key) + tamaño de value (respuesta HS con LS)
-    return sizeof(time_t) + sizeof(uint16_t) + tamanioValue;
+    return cifrasMaxValueUint16 + cifrasTiempo + tamanioValue;
 }
 
 //Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS
@@ -483,14 +493,13 @@ int getTamanioValue(t_control_conexion* conexionLissandra, t_log* logger){
 }
 
 t_marco* getMarcoLibre(t_memoria* memoria)   {
-    t_marco* marcoLeido = memoria->tablaDeMarcos;
     for(int i = 0; i < memoria->cantidadTotalMarcos; i++)   {
+        t_marco* marcoLeido = &memoria->tablaDeMarcos[i];
         if(!marcoLeido->ocupado)    {
             marcoLeido->ocupado = true;
             memoria->marcosOcupados++;
             return marcoLeido;
-        } else
-            marcoLeido += memoria->tamanioPagina;
+        }
     }
 
     return NULL;

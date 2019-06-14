@@ -61,7 +61,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	}
 }
 
-t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamanioPagina, t_log* logger)    {
+t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamanioValue, t_log* logger)    {
     log_info(logger, "Inicializamos la memoria princial");
     t_memoria* memoriaPrincipal = (t_memoria*) malloc(sizeof(t_memoria));
     memoriaPrincipal->tamanioMemoria = configuracion.tamanioMemoria;
@@ -69,7 +69,8 @@ t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamani
     memoriaPrincipal->direcciones = (char*) malloc(sizeof(char) * configuracion.tamanioMemoria);
     memoriaPrincipal->tablaDeSegmentos = dictionary_create();
     memoriaPrincipal->marcosOcupados = 0;
-    memoriaPrincipal->tamanioPagina = tamanioPagina;
+    memoriaPrincipal->cantidadMaximaCaracteresValue = getCantidadCaracteresByPeso(tamanioValue);
+    memoriaPrincipal->tamanioPagina = calcularTamanioDePagina(tamanioValue);
     log_info(logger, "Tamaño de página: %i", memoriaPrincipal->tamanioPagina);
     memoriaPrincipal->cantidadTotalMarcos = cantidadTotalMarcosMemoria(*memoriaPrincipal);
     log_info(logger, "Cantidad total de marcos: %i", memoriaPrincipal->cantidadTotalMarcos);
@@ -91,7 +92,7 @@ void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
 }
 
 char* gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, t_memoria* memoria, t_log* logger)    {
-    char* value = string_substring(valueConComillas, 1, strlen(valueConComillas) - 2);
+    char* value = string_substring(valueConComillas, 1, minimo(strlen(valueConComillas) - 2, memoria->cantidadMaximaCaracteresValue));
     free(valueConComillas);
     t_pagina* nuevaPagina = insert(nombreTabla, key, value, memoria, NULL, logger);
     free(value);
@@ -422,7 +423,7 @@ int calcularTamanioDePagina(int tamanioValue){
     int cifrasTiempo = strlen(strTiempo);
     free(strTiempo);
     //tamaño de INT (timestamp) + tamaño de u_int16_t (key) + tamaño de value (respuesta HS con LS)
-    return cifrasMaxValueUint16 + cifrasTiempo + tamanioValue;
+    return cifrasMaxValueUint16 + cifrasTiempo + getCantidadCaracteresByPeso(tamanioValue) + 1;
 }
 
 //Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS
@@ -459,6 +460,10 @@ bool hayMarcosLibres(t_memoria memoria)  {
     return memoria.marcosOcupados < memoria.cantidadTotalMarcos;
 }
 
+int getCantidadCaracteresByPeso(int pesoString) {
+    return (pesoString / sizeof(char)) - 1;
+}
+
 
 /*void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString){
     int value;
@@ -493,8 +498,8 @@ int main(void) {
     sem_init(conexionLissandra.semaforo, 0, 0);
 
 	conectarseALissandra(&conexionLissandra, configuracion.ipFileSystem, configuracion.puertoFileSystem, logger);
-	int tamanioPagina = calcularTamanioDePagina(getTamanioValue(&conexionLissandra, logger));
-    t_memoria* memoriaPrincipal = inicializarMemoriaPrincipal(configuracion, tamanioPagina, logger);
+	int tamanioValue = getTamanioValue(&conexionLissandra, logger);
+    t_memoria* memoriaPrincipal = inicializarMemoriaPrincipal(configuracion, tamanioValue, logger);
 	GestorConexiones* misConexiones = inicializarConexion();
     levantarServidor(configuracion.puerto, misConexiones, logger);
 

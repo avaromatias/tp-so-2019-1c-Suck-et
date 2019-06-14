@@ -65,6 +65,7 @@ struct t_memoria_d {
     char* direcciones;
     int tamanioMemoria;
     int tamanioPagina;
+    int cantidadMaximaCaracteresValue;
     int cantidadTotalMarcos;
     int marcosOcupados;
     t_dictionary* tablaDeSegmentos;

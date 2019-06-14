@@ -171,6 +171,10 @@ char** parser(char* input){
     return comandoParseado;
 }
 
+int minimo(int a, int b)    {
+    return a < b? a : b;
+}
+
 t_comando instanciarComando(char** request) {//request ya parseada
     int cantidadParametros = obtenerCantidadParametros(request);
     t_comando comando;

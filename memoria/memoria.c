@@ -90,8 +90,11 @@ void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
     }
 }
 
-char* gestionarInsert(char* nombreTabla, char* key, char* value, t_memoria* memoria, t_log* logger)    {
+char* gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, t_memoria* memoria, t_log* logger)    {
+    char* value = string_substring(valueConComillas, 1, strlen(valueConComillas) - 2);
+    free(valueConComillas);
     t_pagina* nuevaPagina = insert(nombreTabla, key, value, memoria, NULL, logger);
+    free(value);
     return string_from_format("Valor insertado: %s", nuevaPagina->marco->base);
 }
 
@@ -275,12 +278,13 @@ char* formatearPagina(char* key, char* value, char* timestamp)   {
     return string_from_format("%lu%s%s", tiempo, key, value);
 }
 
-t_pagina* reemplazarPagina(char* key, char* nuevoValor, t_dictionary* tablaDePaginas) {
+t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dictionary* tablaDePaginas) {
     t_pagina* pagina = dictionary_get(tablaDePaginas, key);
     t_pagina* nuevaPagina = (t_pagina*) malloc(sizeof(t_pagina));
     nuevaPagina->marco = pagina->marco;
     free(pagina);
-    strcpy(nuevaPagina->marco->base, nuevoValor);
+    strncpy(nuevaPagina->marco->base, nuevoValor, tamanioPagina - 1);
+    strcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0");
     // reemplazo la página encontrada en la tabla de páginas
     dictionary_put(tablaDePaginas, key, nuevaPagina);
     return nuevaPagina;
@@ -329,7 +333,7 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
         // tengo la key en la tabla de páginas?
         if(dictionary_has_key(segmento->tablaDePaginas, key))   {
             log_info(logger, "La key %s ya existe en la tabla %s. Se procede a modificar su valor.", key, nombreTabla);
-            pagina = reemplazarPagina(key, contenidoPagina, segmento->tablaDePaginas);
+            pagina = reemplazarPagina(key, contenidoPagina, memoria->tamanioPagina, segmento->tablaDePaginas);
         }   else if(hayMarcosLibres(*memoria))   {
             log_info(logger, "La key %s no existe en la tabla %s. Se procede a insertarla.", key, nombreTabla);
             pagina = insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria, recibiTimestamp);

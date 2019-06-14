@@ -97,7 +97,7 @@ t_marco* getMarcoLibre(t_memoria* memoria);
 t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger);
 t_pagina* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria, bool recibiTimestamp);
 t_segmento* crearSegmento(char* nombreTabla, t_memoria* memoria);
-t_pagina* reemplazarPagina(char* key, char* nuevoValor, t_dictionary* tablaDePaginas);
+t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dictionary* tablaDePaginas);
 t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria);
 
 //void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString);

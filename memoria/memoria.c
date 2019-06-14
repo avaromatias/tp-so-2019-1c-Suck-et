@@ -92,12 +92,15 @@ void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
 }
 
 char* gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, t_memoria* memoria, t_log* logger)    {
-    char* value = string_substring(valueConComillas, 1, minimo(strlen(valueConComillas) - 2, memoria->cantidadMaximaCaracteresValue));
+    char* value = string_substring(valueConComillas, 1, strlen(valueConComillas) - 2);
     free(valueConComillas);
     t_pagina* nuevaPagina = insert(nombreTabla, key, value, memoria, NULL, logger);
     free(value);
-    return string_from_format("Valor insertado: %s", nuevaPagina->marco->base);
-}
+    if (nuevaPagina == NULL){
+        return "Memoria FULL";
+    } else{
+        return string_from_format("Valor insertado: %s", nuevaPagina->marco->base);
+    }
 
 char* gestionarSelect(char* nombreTabla, char* key, t_control_conexion* conexionLissandra, t_memoria* memoria, t_log* logger) {
     t_pagina* paginaEncontrada = cmdSelect(nombreTabla, key, memoria);
@@ -279,13 +282,12 @@ char* formatearPagina(char* key, char* value, char* timestamp)   {
     return string_from_format("%lu%s%s", tiempo, key, value);
 }
 
-t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dictionary* tablaDePaginas) {
+t_pagina* reemplazarPagina(char* key, char* nuevoValor, t_dictionary* tablaDePaginas) {
     t_pagina* pagina = dictionary_get(tablaDePaginas, key);
     t_pagina* nuevaPagina = (t_pagina*) malloc(sizeof(t_pagina));
     nuevaPagina->marco = pagina->marco;
     free(pagina);
-    strncpy(nuevaPagina->marco->base, nuevoValor, tamanioPagina - 1);
-    strcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0");
+    strcpy(nuevaPagina->marco->base, nuevoValor);
     // reemplazo la página encontrada en la tabla de páginas
     dictionary_put(tablaDePaginas, key, nuevaPagina);
     return nuevaPagina;
@@ -334,25 +336,33 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
         // tengo la key en la tabla de páginas?
         if(dictionary_has_key(segmento->tablaDePaginas, key))   {
             log_info(logger, "La key %s ya existe en la tabla %s. Se procede a modificar su valor.", key, nombreTabla);
-            pagina = reemplazarPagina(key, contenidoPagina, memoria->tamanioPagina, segmento->tablaDePaginas);
+            pagina = reemplazarPagina(key, contenidoPagina, segmento->tablaDePaginas);
         }   else if(hayMarcosLibres(*memoria))   {
             log_info(logger, "La key %s no existe en la tabla %s. Se procede a insertarla.", key, nombreTabla);
             pagina = insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria, recibiTimestamp);
+        }else {
+            printf("Si la pagina no estaba en la tabla y no hay marcos libres intento reemplazarla. \n");
+            if(puedoReemplazarPagina((t_dictionary*)segmento->tablaDePaginas)){
+                t_pagina* paginaLRU = lru(segmento->tablaDePaginas);
+                pagina = reemplazarPagina(paginaLRU->key, key, contenidoPagina, memoria->tamanioPagina, segmento->tablaDePaginas);
+                printf("La pagina a reemplazar tiene la key %s ", pagina->key);
+//              reemplazarPagina(nombreTabla, key, value, memoria, timestamp);
+//            else{
+//            gestionarJournal(t_control_conexion* conexionConLissandra, t_memoria* memoria, t_log* logger)
+         }else{
+               printf("MEMORIA FULL \n");
+            }
         }
-//        else {
-//            hacerJournaling();
-//            insert(nombreTabla, key, value, memoria, timestamp);
-//        }
     } else if(hayMarcosLibres(*memoria)) {
         log_info(logger, "La tabla %s no se encuentra en memoria. Se procede a crearla.", nombreTabla);
         t_segmento* nuevoSegmento = crearSegmento(nombreTabla, memoria);
         log_info(logger, "Se procede a insertar el nuevo valor.");
         pagina = insertarNuevaPagina(key, contenidoPagina, nuevoSegmento->tablaDePaginas, memoria, recibiTimestamp);
+    } else{
+        //Si la tabla no está en memoria y no hay marcos libres la memoria está FULL
+        //hacerJournal()
+        printf("No hay espacio para una tabla nueva.\n");
     }
-//    else {
-//        hacerJournaling();
-//        insert(nombreTabla, key, value, memoria);
-//    }
 
     free(contenidoPagina);
     return pagina;

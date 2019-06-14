@@ -8,15 +8,20 @@
 #include <semaphore.h>
 #include "../libs/sockets.h"
 
-typedef struct  {
+typedef struct t_control_conexion_d t_control_conexion;
+
+#include "memoria.h"
+
+struct t_control_conexion_d {
     int fd;
     sem_t* semaforo;
-} t_control_conexion;
+};
 
 typedef struct {
     GestorConexiones* conexion;
     t_log* logger;
     t_control_conexion* conexionKernel;
+    t_memoria* memoria;
 } parametros_thread_memoria;
 
 typedef struct  {

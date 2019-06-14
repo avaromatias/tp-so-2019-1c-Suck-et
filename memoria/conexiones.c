@@ -3,7 +3,6 @@
 //
 
 #include "conexiones.h"
-#include "memoria.h"
 
 pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_control_conexion* conexionKernel, t_log* logger)    {
 
@@ -102,18 +101,14 @@ void* atenderConexiones(void* parametrosThread)    {
 
 void atenderHandshake(Header header, Componente componente, parametros_thread_memoria* parametros) {
     if(componente == KERNEL) {
-        eliminarFdDeListaDeConexiones(header.fdRemitente, parametros->conexion);
-        TipoMensaje confirmacion;
         if (parametros->conexionKernel->fd == 0) {
             parametros->conexionKernel->fd = header.fdRemitente;
-            confirmacion = CONEXION_ACEPTADA;
+            enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, NULL);
             sem_post(parametros->conexionKernel->semaforo);
         } else {
-            confirmacion = CONEXION_RECHAZADA;
+            enviarPaquete(header.fdRemitente, CONEXION_RECHAZADA, NULL);
             cerrarSocket(header.fdRemitente, parametros->logger);
         }
-
-        enviarPaquete(header.fdRemitente, confirmacion, NULL);
     }
     else if(componente == MEMORIA)  {
         //

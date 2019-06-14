@@ -24,6 +24,10 @@
 #include "../libs/config.h"
 #include "../libs/sockets.h"
 #include "../libs/consola.h"
+#include <inttypes.h>
+
+typedef struct t_memoria_d t_memoria;
+
 #include "conexiones.h"
 
 typedef struct {
@@ -57,7 +61,7 @@ typedef struct {
 } t_segmento;
 
 //Tipo de la Memoria Principal que aloja las paginas
-typedef struct {
+struct t_memoria_d {
     char* direcciones;
     int tamanioMemoria;
     int tamanioPagina;
@@ -65,11 +69,11 @@ typedef struct {
     int marcosOcupados;
     t_dictionary* tablaDeSegmentos;
     t_marco* tablaDeMarcos;
-} t_memoria;
+};
 
 typedef struct {
     t_memoria* memoria;
-    t_control_conexion* conexionLissandra;
+    struct t_control_conexion* conexionLissandra;
     t_log* logger;
 } parametros_consola_memoria;
 pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra);
@@ -85,7 +89,7 @@ int calcularTamanioDePagina(int tamanioValue);
 int getTamanioValue(t_control_conexion* conexionLissandra, t_log* logger);
 int cantidadTotalMarcosMemoria(t_memoria memoria);
 void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal);
-void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* value, t_dictionary* tablaDePaginas);
+void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* value, int tamanioPagina, t_dictionary* tablaDePaginas);
 t_pagina* crearPagina(char* key, t_memoria* memoria);
 char* formatearPagina(char* key, char* value, char* timestamp);
 bool hayMarcosLibres(t_memoria memoria);

@@ -92,11 +92,16 @@ void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
 }
 
 char* gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, t_memoria* memoria, t_log* logger)    {
-    char* value = string_substring(valueConComillas, 1, minimo(strlen(valueConComillas) - 2, memoria->cantidadMaximaCaracteresValue));
+    char* value = string_substring(valueConComillas, 1, strlen(valueConComillas) - 2);
     free(valueConComillas);
     t_pagina* nuevaPagina = insert(nombreTabla, key, value, memoria, NULL, logger);
     free(value);
-    return string_from_format("Valor insertado: %s", nuevaPagina->marco->base);
+    if (nuevaPagina == NULL){
+        return "Memoria FULL";
+    } else{
+        return string_from_format("Valor insertado: %s", nuevaPagina->marco->base);
+    }
+
 }
 
 char* gestionarSelect(char* nombreTabla, char* key, t_control_conexion* conexionLissandra, t_memoria* memoria, t_log* logger) {
@@ -279,15 +284,27 @@ char* formatearPagina(char* key, char* value, char* timestamp)   {
     return string_from_format("%lu%s%s", tiempo, key, value);
 }
 
-t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dictionary* tablaDePaginas) {
+t_pagina* reemplazarPagina(char* key,char* keyNueva, char* nuevoValor, int tamanioPagina, t_dictionary* tablaDePaginas) {
+
     t_pagina* pagina = dictionary_get(tablaDePaginas, key);
     t_pagina* nuevaPagina = (t_pagina*) malloc(sizeof(t_pagina));
     nuevaPagina->marco = pagina->marco;
+    time_t elTiempoActual;
+    long elTiempo;
+    elTiempo = (long) time(&elTiempoActual);
+    nuevaPagina->ultimaVezUsada = elTiempo;
     free(pagina);
     strncpy(nuevaPagina->marco->base, nuevoValor, tamanioPagina - 1);
     strcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0");
+    //si se reemplaza la LRU tambien cambia la key
+    if (keyNueva != NULL){
+        nuevaPagina->key = keyNueva;
+        dictionary_put(tablaDePaginas, nuevaPagina->key, nuevaPagina);
+    } else{
+        dictionary_put(tablaDePaginas, key, nuevaPagina);
+    }
     // reemplazo la página encontrada en la tabla de páginas
-    dictionary_put(tablaDePaginas, key, nuevaPagina);
+
     return nuevaPagina;
 }
 
@@ -303,9 +320,13 @@ t_pagina* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePagin
 
 t_pagina* crearPagina(char* key, t_memoria* memoria)  {
     t_pagina* nuevaPagina = (t_pagina*) malloc(sizeof(t_pagina));
+    long elTiempo;
     nuevaPagina->marco = getMarcoLibre(memoria);
     nuevaPagina->key = string_duplicate(key);
     nuevaPagina->modificada = true;
+    time_t tiempoActualHoy;
+    elTiempo = (long)time(&tiempoActualHoy);
+    nuevaPagina->ultimaVezUsada = elTiempo;
     return nuevaPagina;
 }
 
@@ -314,8 +335,58 @@ void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* v
     strcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0");
     dictionary_put(tablaDePaginas, nuevaPagina->key, nuevaPagina);
 }
+t_pagina* lru(t_dictionary* tablaDePaginas) {
+    t_pagina* paginaLRU = malloc(sizeof(t_pagina));
+    long elTiempo;
+    time_t tiempoActual;
+    elTiempo = (long) time(&tiempoActual);
+    paginaLRU->ultimaVezUsada = elTiempo;
+    int table_index;
+    t_pagina* paginaActual = malloc(sizeof(t_pagina));
+    for (table_index = 0; table_index < tablaDePaginas->table_max_size; table_index++) {
+        t_hash_element *element = tablaDePaginas->elements[table_index];
 
-t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger)   {
+        while (element != NULL) {
+            paginaActual = (t_pagina*) element->data;
+            //si no fue modificada
+            if (paginaActual->modificada != false){
+                if ((paginaActual->ultimaVezUsada) < (paginaLRU->ultimaVezUsada)){
+
+                    paginaLRU = paginaActual;
+                    printf("Element key: %s \n", paginaLRU->key);
+                    paginaLRU->key = element->key;
+                }
+            }
+            element = element->next;
+        }
+    }
+    printf("Pagina a reemplazar: %s \n", paginaLRU->marco->base);
+    printf("Su key: %s \n", paginaLRU->key);
+    return paginaLRU;
+}
+
+bool puedoReemplazarPagina(t_dictionary* tablaDePaginas){
+    t_pagina* paginaActual = malloc(sizeof(t_pagina));
+    int table_index;
+    for (table_index = 0; table_index < tablaDePaginas->table_max_size; table_index++) {
+        t_hash_element *element = tablaDePaginas->elements[table_index];
+
+        while (element != NULL) {
+            paginaActual = (t_pagina*)element->data;
+            //si no fue modificada entonces es una candidata a reemplazar
+            if((bool) (paginaActual->modificada) == false){
+                return true;
+            }
+            element = element->next;
+
+        }
+    }
+
+    return false;
+}
+
+
+t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger){
     char* contenidoPagina = formatearPagina(key, value, timestamp);
     bool recibiTimestamp;
     if (timestamp != NULL){
@@ -334,25 +405,33 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
         // tengo la key en la tabla de páginas?
         if(dictionary_has_key(segmento->tablaDePaginas, key))   {
             log_info(logger, "La key %s ya existe en la tabla %s. Se procede a modificar su valor.", key, nombreTabla);
-            pagina = reemplazarPagina(key, contenidoPagina, memoria->tamanioPagina, segmento->tablaDePaginas);
+            pagina = reemplazarPagina(key,NULL, contenidoPagina, memoria->tamanioPagina, segmento->tablaDePaginas);
         }   else if(hayMarcosLibres(*memoria))   {
             log_info(logger, "La key %s no existe en la tabla %s. Se procede a insertarla.", key, nombreTabla);
             pagina = insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria, recibiTimestamp);
+        }else {
+            printf("Si la pagina no estaba en la tabla y no hay marcos libres intento reemplazarla. \n");
+            if(puedoReemplazarPagina((t_dictionary*)segmento->tablaDePaginas)){
+                t_pagina* paginaLRU = lru(segmento->tablaDePaginas);
+                pagina = reemplazarPagina(paginaLRU->key, key, contenidoPagina, memoria->tamanioPagina, segmento->tablaDePaginas);
+                printf("La pagina a reemplazar tiene la key %s ", pagina->key);
+//              reemplazarPagina(nombreTabla, key, value, memoria, timestamp);
+//            else{
+//            gestionarJournal(t_control_conexion* conexionConLissandra, t_memoria* memoria, t_log* logger)
+         }else{
+               printf("MEMORIA FULL \n");
+            }
         }
-//        else {
-//            hacerJournaling();
-//            insert(nombreTabla, key, value, memoria, timestamp);
-//        }
     } else if(hayMarcosLibres(*memoria)) {
         log_info(logger, "La tabla %s no se encuentra en memoria. Se procede a crearla.", nombreTabla);
         t_segmento* nuevoSegmento = crearSegmento(nombreTabla, memoria);
         log_info(logger, "Se procede a insertar el nuevo valor.");
         pagina = insertarNuevaPagina(key, contenidoPagina, nuevoSegmento->tablaDePaginas, memoria, recibiTimestamp);
+    } else{
+        //Si la tabla no está en memoria y no hay marcos libres la memoria está FULL
+        //hacerJournal()
+        printf("No hay espacio para una tabla nueva.\n");
     }
-//    else {
-//        hacerJournaling();
-//        insert(nombreTabla, key, value, memoria);
-//    }
 
     free(contenidoPagina);
     return pagina;

@@ -305,7 +305,8 @@ t_pagina* crearPagina(char* key, t_memoria* memoria)  {
 }
 
 void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* value, int tamanioPagina, t_dictionary* tablaDePaginas)  {
-    strncpy(nuevaPagina->marco->base, value, tamanioPagina);
+    strncpy(nuevaPagina->marco->base, value, tamanioPagina - 1);
+    strcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0");
     dictionary_put(tablaDePaginas, nuevaPagina->key, nuevaPagina);
 }
 

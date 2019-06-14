@@ -91,10 +91,10 @@ void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
     }
 }
 
-char* gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, t_memoria* memoria, t_log* logger)    {
+char* gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra)    {
     char* value = string_substring(valueConComillas, 1, strlen(valueConComillas) - 2);
     free(valueConComillas);
-    t_pagina* nuevaPagina = insert(nombreTabla, key, value, memoria, NULL, logger);
+    t_pagina* nuevaPagina = insert(nombreTabla, key, value, memoria, NULL, logger, conexionLissandra);
     free(value);
     if (nuevaPagina == NULL){
         return "Memoria FULL";
@@ -115,7 +115,7 @@ char* gestionarSelect(char* nombreTabla, char* key, t_control_conexion* conexion
     t_paquete respuesta = recibirMensaje(conexionLissandra);
     if(respuesta.tipoMensaje == RESPUESTA)   {
         char** componentesSelect = string_split(respuesta.mensaje, ";");
-        insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger);
+        insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger, conexionLissandra);
         free(respuesta.mensaje);
         return string_from_format("%s%s%s", componentesSelect[0], key, componentesSelect[2]);
     } else
@@ -155,7 +155,7 @@ void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, cha
 
     char* request =string_from_format("INSERT %s %s \"%s\" %s", parametrosJournal->nombreTabla, key, value, timestamp);
     printf("Request a enviar a lissandra: %s \n", request);
-    t_log* logger = parametrosJournal->logger;
+   /* t_log* logger = parametrosJournal->logger;
 
 
     log_info(logger, "Se procede a enviar a lissandra la request: ", request);
@@ -170,7 +170,7 @@ void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, cha
     }
 
     free(logger);
-    free(respuesta.mensaje);
+    free(respuesta.mensaje);*/
 
 
 }
@@ -223,7 +223,7 @@ char* gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion
         case SELECT:
             return gestionarSelect(comando.parametros[0], comando.parametros[1], conexionLissandra, memoria, logger);
         case INSERT:
-            return gestionarInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], memoria, logger);
+            return gestionarInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], memoria, logger, conexionLissandra);
         case DROP:
             return gestionarDrop(comando.parametros[0], conexionLissandra->fd, memoria, logger);
         case CREATE:
@@ -289,6 +289,7 @@ t_pagina* reemplazarPagina(char* key,char* keyNueva, char* nuevoValor, int taman
     t_pagina* pagina = dictionary_get(tablaDePaginas, key);
     t_pagina* nuevaPagina = (t_pagina*) malloc(sizeof(t_pagina));
     nuevaPagina->marco = pagina->marco;
+    //nuevaPagina->modificada = true;
     time_t elTiempoActual;
     long elTiempo;
     elTiempo = (long) time(&elTiempoActual);
@@ -386,7 +387,7 @@ bool puedoReemplazarPagina(t_dictionary* tablaDePaginas){
 }
 
 
-t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger){
+t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger,  t_control_conexion* conexionLissandra){
     char* contenidoPagina = formatearPagina(key, value, timestamp);
     bool recibiTimestamp;
     if (timestamp != NULL){
@@ -415,11 +416,9 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
                 t_pagina* paginaLRU = lru(segmento->tablaDePaginas);
                 pagina = reemplazarPagina(paginaLRU->key, key, contenidoPagina, memoria->tamanioPagina, segmento->tablaDePaginas);
                 printf("La pagina a reemplazar tiene la key %s ", pagina->key);
-//              reemplazarPagina(nombreTabla, key, value, memoria, timestamp);
-//            else{
-//            gestionarJournal(t_control_conexion* conexionConLissandra, t_memoria* memoria, t_log* logger)
          }else{
                printf("MEMORIA FULL \n");
+                gestionarJournal(conexionLissandra, memoria, logger);
             }
         }
     } else if(hayMarcosLibres(*memoria)) {
@@ -430,7 +429,8 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
     } else{
         //Si la tabla no está en memoria y no hay marcos libres la memoria está FULL
         //hacerJournal()
-        printf("No hay espacio para una tabla nueva.\n");
+        printf("MEMORIA FULL, No hay espacio para una tabla nueva.\n");
+        gestionarJournal(conexionLissandra,  memoria, logger);
     }
 
     free(contenidoPagina);
@@ -572,9 +572,12 @@ int main(void) {
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
     t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};
+//
+    sem_t* semJournal;
 
     sem_init(conexionKernel.semaforo, 0, 0);
     sem_init(conexionLissandra.semaforo, 0, 0);
+//    sem_init(semJournal, 0, 1);
 
 	conectarseALissandra(&conexionLissandra, configuracion.ipFileSystem, configuracion.puertoFileSystem, logger);
 	int tamanioValue = getTamanioValue(&conexionLissandra, logger);
@@ -590,6 +593,7 @@ int main(void) {
     t_comando comando;
 
     while(1)    {
+//        sem_wait(semJournal);
 		sem_wait(conexionKernel.semaforo);
 		if(conexionKernel.fd > 0)	{
 			t_paquete request = recibirMensaje(&conexionKernel);

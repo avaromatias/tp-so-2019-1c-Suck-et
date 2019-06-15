@@ -574,8 +574,6 @@ void ejecutarConsola() {
             continue;
         }
         comando = instanciarComando(comandoParseado);
-        free(leido);
-        free(comandoParseado);
         if (validarComandosComunes(comando, logger)) {
             t_response *retorno = gestionarRequest(comando);
             if (retorno->tipoRespuesta == ERR) {

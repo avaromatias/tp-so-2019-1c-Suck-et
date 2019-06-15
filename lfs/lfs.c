@@ -90,6 +90,16 @@ int validarConsistencia(char *tipoConsistencia) {
     return -1;
 }
 
+int validarTamanioValor(char *valor) {
+    char* copiaValor=string_duplicate(valor);
+    valorSinComillas(copiaValor);
+    if(strlen(copiaValor) <= configuracion.tamanioValue){
+        free(copiaValor);
+        return 0;
+    }
+    free(copiaValor);
+    return -1;
+}
 int validarValor(char *valor) {
     if (string_starts_with(valor, "\"") && string_ends_with(valor, "\"")) {
         return 0;
@@ -348,9 +358,15 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     if (validarValor(valor) != 0) {
         retorno->tipoRespuesta = ERR;
-        retorno->valor = concat(1, "El valor debe estar enmascarado con \"\"\n");
+        retorno->valor = concat(1, "El valor debe estar enmascarado con \"\"");
         return retorno;
-    } else {
+    }
+    else if(validarTamanioValor(valor)!=0){
+        retorno->tipoRespuesta = ERR;
+        retorno->valor = concat(3, "El valor no puede ser mayor a ",string_from_format("%i",configuracion.tamanioValue)," bytes.");
+        return retorno;
+    }else {
+        valorSinComillas(valor);
         // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
         if (existeTabla(nombreTabla) == 0) {
             // Obtener la metadata asociada a dicha tabla.

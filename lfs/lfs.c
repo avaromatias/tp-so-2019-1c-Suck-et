@@ -182,47 +182,129 @@ int obtenerBloqueDisponible(char *nombreTabla, int particion) {
 
 t_response *lfsDescribeAll() {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
-    char** tablas=obtenerTablas();
-    char* respuesta=string_new();
-    for (int i = 0; i < tamanioDeArrayDeStrings(tablas); i++) {
-        char* nombreTabla=string_duplicate(tablas[i]);
-        t_response *retornoTabla =lfsDescribe(nombreTabla);
-        char* respuestaTabla=string_new();
-        respuestaTabla=concat(5,"----- ",string_duplicate(nombreTabla)," -----\n",string_duplicate(retornoTabla->valor),"\n");
-        string_append(&respuesta,respuestaTabla);
-        free(retornoTabla->valor);
-        free(retornoTabla);
+    char **tablas = obtenerTablas();
+    char *respuesta = string_new();
+    int cantidadDeTablas=tamanioDeArrayDeStrings(tablas);
+    if(cantidadDeTablas==0){
+        retorno->tipoRespuesta = ERR;
+        retorno->valor = concat(1, "No hay tablas.");
     }
-    retorno->tipoRespuesta=RESPUESTA;
-    retorno->valor=string_duplicate(respuesta);
-    free(respuesta);
+    else{
+        for (int i = 0; i < cantidadDeTablas; i++) {
+            char *nombreTabla = string_duplicate(tablas[i]);
+            t_response *retornoTabla = lfsDescribe(nombreTabla);
+            char *respuestaTabla = string_new();
+            respuestaTabla = concat(5, "----- ", string_duplicate(nombreTabla), " -----\n",
+                                    string_duplicate(retornoTabla->valor), "\n");
+            string_append(&respuesta, respuestaTabla);
+            free(retornoTabla->valor);
+            free(retornoTabla);
+        }
+        retorno->tipoRespuesta = RESPUESTA;
+        retorno->valor = string_duplicate(respuesta);
+        free(respuesta);
+    }
     free(tablas);
     return retorno;
 }
 
 t_response *lfsDescribe(char *nombreTabla) {
-    char *pathMetadata = obtenerPathArchivo(nombreTabla, "Metadata");
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
-    FILE *metadataTabla = fopen(pathMetadata, "r");
-    if(metadataTabla!=NULL) {
-        fseek(metadataTabla, 0, SEEK_END);
-        long fsize = ftell(metadataTabla);
-        fseek(metadataTabla, 0, SEEK_SET);  /* same as rewind(f); */
-        char *string = malloc(fsize + 1);
-        fread(string, 1, fsize, metadataTabla);
-        fseek(metadataTabla, 0, SEEK_SET);
-        fclose(metadataTabla);
-        string[fsize] = 0;
-        free(pathMetadata);
-        retorno->tipoRespuesta = RESPUESTA;
-        retorno->valor = string;
+    if (existeTabla(nombreTabla)==0) {
+        char *pathMetadata = obtenerPathArchivo(nombreTabla, "Metadata");
+        FILE *metadataTabla = fopen(pathMetadata, "r");
+        if (metadataTabla != NULL) {
+            fseek(metadataTabla, 0, SEEK_END);
+            long fsize = ftell(metadataTabla);
+            fseek(metadataTabla, 0, SEEK_SET);  /* same as rewind(f); */
+            char *string = malloc(fsize + 1);
+            fread(string, 1, fsize, metadataTabla);
+            fseek(metadataTabla, 0, SEEK_SET);
+            fclose(metadataTabla);
+            string[fsize] = 0;
+            free(pathMetadata);
+            retorno->tipoRespuesta = RESPUESTA;
+            retorno->valor = string;
 
+        } else {
+            retorno->tipoRespuesta = ERR;
+            retorno->valor = concat(3, "No se encontro la Metadata de la tabla ", nombreTabla, ".");
+        }
+    } else {
+        retorno->tipoRespuesta = ERR;
+        retorno->valor = concat(3, "La tabla ", nombreTabla, " no existe.");
+    }
+
+    return retorno;
+}
+
+int deleteFile(char *nombreArchivo) {
+    int status;
+    status = remove(nombreArchivo);
+    return status;
+}
+
+
+int borrarContenidoDeDirectorio(char *dirPath) {
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(dirPath);
+    if (d) {
+        while ((dir = readdir(d)) != NULL) {
+            char* nombreTabla=string_new();
+            nombreTabla=string_duplicate(dir->d_name);
+            char *pathArchivo = string_new();
+            string_append(&pathArchivo,dirPath);
+            string_append(&pathArchivo,"/");
+            string_append(&pathArchivo,nombreTabla);
+            if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
+                if (strcmp(dir->d_name, "Metadata") != 0) {
+                    t_config *archivoConfig = abrirArchivoConfiguracion(pathArchivo, logger);
+                    char **blocks = config_get_array_value(archivoConfig, "BLOCKS");
+                    for (int i = 0; i < tamanioDeArrayDeStrings(blocks); i++) {
+                        vaciarArchivo(obtenerPathBloque(atoi(blocks[i])));
+                        t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+                        bloque->tabla = concat(1, "");
+                        bloque->particion = NULL;
+                        dictionary_put(bloquesAsignados, string_duplicate(blocks[i]), bloque);
+                        free(blocks[i]);
+                    }
+                    free(blocks);
+                    config_destroy(archivoConfig);
+                }
+
+            }
+            if(deleteFile(pathArchivo)!=0){
+                return 0;
+            }
+            free(pathArchivo);
+            free(nombreTabla);
+        }
+        closedir(d);
+    }
+    free(dirPath);
+    return 1;
+}
+
+void vaciarArchivo(char* path){
+    FILE* archivo=fopen(path,"w");
+    fclose(archivo);
+}
+t_response *lfsDrop(char *nombreTabla) {
+    t_response *retorno = (t_response *) malloc(sizeof(t_response));
+    char* pathTabla=obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
+    if(existeTabla(nombreTabla)==0){
+        borrarContenidoDeDirectorio(pathTabla);
+        rmdir(pathTabla);
+        retorno->tipoRespuesta = RESPUESTA;
+        retorno->valor = concat(3, "La tabla ", nombreTabla, " fue eliminada con exito.");
     }
     else{
         retorno->tipoRespuesta = ERR;
-        retorno->valor = concat(3,"No se encontro la Metadata de la tabla ",nombreTabla,".");
+        retorno->valor = concat(3, "La tabla ", nombreTabla, " no existe.\n");
     }
 
+    free(nombreTabla);
     return retorno;
 }
 
@@ -429,7 +511,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             free(blockPath);
         }
 
-        for(int i = 0; i < tamanioDeArrayDeStrings(bloques); i++) {
+        for (int i = 0; i < tamanioDeArrayDeStrings(bloques); i++) {
             free(bloques[i]);
         }
         free(bloques);
@@ -547,17 +629,15 @@ t_response *gestionarRequest(t_comando comando) {
             return retorno;
 
         case DESCRIBE:
-            if (comando.cantidadParametros==0) {
-                retorno=lfsDescribeAll();
+            if (comando.cantidadParametros == 0) {
+                retorno = lfsDescribeAll();
             } else {
-                retorno=lfsDescribe(comando.parametros[0]);
+                retorno = lfsDescribe(comando.parametros[0]);
             }
             return retorno;
 
         case DROP:
-            retorno = (t_response *) malloc(sizeof(t_response));
-            retorno->valor = concat(1, "Drop");
-            retorno->tipoRespuesta = RESPUESTA;
+            retorno = lfsDrop(comando.parametros[0]);
             return retorno;
 
         case HELP:
@@ -669,26 +749,26 @@ void crearDirTables(char *puntoMontaje) {
     free(nombreArchivo);
 }
 
-char** obtenerTablas(){
+char **obtenerTablas() {
     DIR *d;
     struct dirent *dir;
-    char** tablas;
+    char **tablas;
     char *nombreArchivo = string_new();
     string_append(&nombreArchivo, configuracion.puntoMontaje);
     string_append(&nombreArchivo, "Tables");
     d = opendir(nombreArchivo);
-    int count=0;
-    int countOfDirectories=0;
+    int count = 0;
+    int countOfDirectories = 0;
     if (d) {
         struct dirent *ep = readdir(d);
-        while(NULL != ep){
+        while (NULL != ep) {
             countOfDirectories++;
             ep = readdir(d);
         }
 
         rewinddir(d);
         free(ep);
-        tablas = calloc(countOfDirectories-1, sizeof(char *));
+        tablas = calloc(countOfDirectories - 1, sizeof(char *));
         while ((dir = readdir(d)) != NULL) {
             if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
                 tablas[count] = strdup(dir->d_name);
@@ -697,11 +777,12 @@ char** obtenerTablas(){
         }
         closedir(d);
     }
-    tablas[count]=NULL;
+    tablas[count] = NULL;
 
     free(nombreArchivo);
     return tablas;
 }
+
 void cargarBloquesAsignados(char *path) {
     DIR *d;
     struct dirent *dir;
@@ -723,7 +804,7 @@ void cargarBloquesAsignados(char *path) {
                         bloque->particion = i;
                         dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
                     }
-                    for(int k = 0; k < tamanioDeArrayDeStrings(arrayDeBloques); k++) {
+                    for (int k = 0; k < tamanioDeArrayDeStrings(arrayDeBloques); k++) {
                         free(arrayDeBloques[k]);
                     }
                     free(arrayDeBloques);

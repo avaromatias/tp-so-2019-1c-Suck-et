@@ -91,16 +91,17 @@ int validarConsistencia(char *tipoConsistencia) {
 }
 
 int validarTamanioValor(char *valor) {
-    char* copiaValor=string_duplicate(valor);
+    char *copiaValor = string_duplicate(valor);
     valorSinComillas(copiaValor);
-    if(strlen(copiaValor) <= configuracion.tamanioValue){
+    if (strlen(copiaValor) <= configuracion.tamanioValue) {
         free(copiaValor);
         return 0;
     }
     free(copiaValor);
     return -1;
 }
-int validarValor(char *valor) {
+
+int validarComillasValor(char *valor) {
     if (string_starts_with(valor, "\"") && string_ends_with(valor, "\"")) {
         return 0;
     }
@@ -194,12 +195,11 @@ t_response *lfsDescribeAll() {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     char **tablas = obtenerTablas();
     char *respuesta = string_new();
-    int cantidadDeTablas=tamanioDeArrayDeStrings(tablas);
-    if(cantidadDeTablas==0){
+    int cantidadDeTablas = tamanioDeArrayDeStrings(tablas);
+    if (cantidadDeTablas == 0) {
         retorno->tipoRespuesta = ERR;
         retorno->valor = concat(1, "No hay tablas.");
-    }
-    else{
+    } else {
         for (int i = 0; i < cantidadDeTablas; i++) {
             char *nombreTabla = string_duplicate(tablas[i]);
             t_response *retornoTabla = lfsDescribe(nombreTabla);
@@ -220,7 +220,7 @@ t_response *lfsDescribeAll() {
 
 t_response *lfsDescribe(char *nombreTabla) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
-    if (existeTabla(nombreTabla)==0) {
+    if (existeTabla(nombreTabla) == 0) {
         char *pathMetadata = obtenerPathArchivo(nombreTabla, "Metadata");
         FILE *metadataTabla = fopen(pathMetadata, "r");
         if (metadataTabla != NULL) {
@@ -261,12 +261,12 @@ int borrarContenidoDeDirectorio(char *dirPath) {
     d = opendir(dirPath);
     if (d) {
         while ((dir = readdir(d)) != NULL) {
-            char* nombreTabla=string_new();
-            nombreTabla=string_duplicate(dir->d_name);
+            char *nombreTabla = string_new();
+            nombreTabla = string_duplicate(dir->d_name);
             char *pathArchivo = string_new();
-            string_append(&pathArchivo,dirPath);
-            string_append(&pathArchivo,"/");
-            string_append(&pathArchivo,nombreTabla);
+            string_append(&pathArchivo, dirPath);
+            string_append(&pathArchivo, "/");
+            string_append(&pathArchivo, nombreTabla);
             if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
                 if (strcmp(dir->d_name, "Metadata") != 0) {
                     t_config *archivoConfig = abrirArchivoConfiguracion(pathArchivo, logger);
@@ -284,7 +284,7 @@ int borrarContenidoDeDirectorio(char *dirPath) {
                 }
 
             }
-            if(deleteFile(pathArchivo)!=0){
+            if (deleteFile(pathArchivo) != 0) {
                 return 0;
             }
             free(pathArchivo);
@@ -296,20 +296,20 @@ int borrarContenidoDeDirectorio(char *dirPath) {
     return 1;
 }
 
-void vaciarArchivo(char* path){
-    FILE* archivo=fopen(path,"w");
+void vaciarArchivo(char *path) {
+    FILE *archivo = fopen(path, "w");
     fclose(archivo);
 }
+
 t_response *lfsDrop(char *nombreTabla) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
-    char* pathTabla=obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
-    if(existeTabla(nombreTabla)==0){
+    char *pathTabla = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
+    if (existeTabla(nombreTabla) == 0) {
         borrarContenidoDeDirectorio(pathTabla);
         rmdir(pathTabla);
         retorno->tipoRespuesta = RESPUESTA;
         retorno->valor = concat(3, "La tabla ", nombreTabla, " fue eliminada con exito.");
-    }
-    else{
+    } else {
         retorno->tipoRespuesta = ERR;
         retorno->valor = concat(3, "La tabla ", nombreTabla, " no existe.\n");
     }
@@ -339,6 +339,9 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
             }
             free(path);
         } else {
+            t_dictionary *keysEnTabla = dictionary_create();
+            dictionary_put(memTable, nombreTabla, keysEnTabla);
+
             // Crear el directorio para dicha tabla.
             mkdir(tablePath, 0777);
             // Crear el directorio para dicha tabla.
@@ -354,18 +357,71 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
     }
 }
 
-t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
-    t_response *retorno = (t_response *) malloc(sizeof(t_response));
-    if (validarValor(valor) != 0) {
+void validarValor(char *valor, t_response *retorno) {
+    if (validarComillasValor(valor) != 0) {
         retorno->tipoRespuesta = ERR;
         retorno->valor = concat(1, "El valor debe estar enmascarado con \"\"");
         return retorno;
-    }
-    else if(validarTamanioValor(valor)!=0){
+    } else if (validarTamanioValor(valor) != 0) {
         retorno->tipoRespuesta = ERR;
-        retorno->valor = concat(3, "El valor no puede ser mayor a ",string_from_format("%i",configuracion.tamanioValue)," bytes.");
+        retorno->valor = concat(3, "El valor no puede ser mayor a ",
+                                string_from_format("%i", configuracion.tamanioValue), " bytes.");
         return retorno;
-    }else {
+    }
+    return retorno;
+}
+
+t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
+    t_response *retorno = (t_response *) malloc(sizeof(t_response));
+    retorno->tipoRespuesta = RESPUESTA;
+    validarValor(valor, retorno);
+    if (retorno->tipoRespuesta == ERR) {
+        return retorno;
+    } else {
+        valorSinComillas(valor);
+        // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
+        if (existeTabla(nombreTabla) == 0) {
+            // Obtener la metadata asociada a dicha tabla.
+            char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
+            if (existeElArchivo(path)) {
+                char *linea = armarLinea(key, valor, timestamp);
+                t_dictionary *keysEnTabla;
+                if (dictionary_has_key(memTable, nombreTabla)) {
+                    keysEnTabla = dictionary_get(memTable, nombreTabla);
+                } else {
+                    keysEnTabla = dictionary_create();
+                    dictionary_put(memTable, nombreTabla, keysEnTabla);
+                }
+                t_list *listaDeRegistros;
+                if (dictionary_has_key(keysEnTabla, key)) {
+                    listaDeRegistros = (t_list *)dictionary_get(keysEnTabla, key);
+                } else {
+                    listaDeRegistros = list_create();
+                    dictionary_put(keysEnTabla, key, listaDeRegistros);
+                }
+                list_add(listaDeRegistros, linea);
+                retorno->tipoRespuesta = RESPUESTA;
+                retorno->valor = concat(1, "Se inserto el valor con exito.");
+            } else {
+                retorno->tipoRespuesta = ERR;
+                retorno->valor = concat(5, "No se pudo insertar en ", nombreTabla, ". No existe metadata en ", path,
+                                        ".");
+            }
+        } else {
+            retorno->tipoRespuesta = ERR;
+            retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".");
+        }
+    }
+    return retorno;
+}
+
+t_response *lfsInsertDump(char *nombreTabla, char *key, char *valor, time_t timestamp) {
+    t_response *retorno = (t_response *) malloc(sizeof(t_response));
+    retorno->tipoRespuesta = RESPUESTA;
+    validarValor(valor, retorno);
+    if (retorno->tipoRespuesta == ERR) {
+        return retorno;
+    } else {
         valorSinComillas(valor);
         // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
         if (existeTabla(nombreTabla) == 0) {
@@ -375,6 +431,20 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
                 // printf("Existe metadata en %s\n", path);
                 // TODO: Verificar si existe en memoria una lista de datos a dumpear. De no existir, alocar dicha memoria.
                 char *linea = armarLinea(key, valor, timestamp);
+                t_dictionary *keysEnTabla;
+                if (dictionary_has_key(memTable, nombreTabla)) {
+                    keysEnTabla = dictionary_get(memTable, nombreTabla);
+                } else {
+                    keysEnTabla = dictionary_create();
+                    dictionary_put(memTable, nombreTabla, keysEnTabla);
+                }
+                t_list *listaDeRegistros;
+                if (dictionary_has_key(keysEnTabla, key)) {
+                    listaDeRegistros = dictionary_get(keysEnTabla, key);
+                } else {
+                    listaDeRegistros = list_create();
+                }
+                list_add(listaDeRegistros, linea);
                 obtenerMetadata(nombreTabla);
                 t_metadata *meta = dictionary_get(metadatas, nombreTabla);
                 int particion = calcularParticion(key, meta);
@@ -452,6 +522,13 @@ char *generarContenidoParaParticion(char *tamanio, char *bloques) {
     string_append(&contenido, bloques);
     string_append(&contenido, "\n");
     return contenido;
+}
+
+int ordenarPorLinea(char *linea,char* linea2) {
+    char** lineaDesarmada=desarmarLinea(linea);
+    char** linea2Desarmada=desarmarLinea(linea2);
+    int esMenor=atoi(lineaDesarmada[0])<atoi(linea2Desarmada[0]);
+    return esMenor;
 }
 
 t_response *lfsSelect(char *nombreTabla, char *key) {
@@ -538,6 +615,27 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
 
 
         //4.2. Escaneo la memoria temporal de la tabla
+        if (dictionary_has_key(memTable, nombreTabla)) {
+            t_dictionary *tabla = dictionary_get(memTable, nombreTabla);
+            if (dictionary_has_key(tabla, key)) {
+                t_list *listaDeRegistros = (t_list*)dictionary_get(tabla, key);
+                if (!list_is_empty(listaDeRegistros)) {
+                    int tamanioLista = list_size(listaDeRegistros);
+                    t_list *listaOrdenada = list_sorted(listaDeRegistros, ordenarPorLinea);
+                    char *elemento = list_get(listaOrdenada, (tamanioLista-1));
+                    if (elemento != NULL) {
+                        char **lineaPartida = desarmarLinea(elemento);
+                        char *mayorTimestampMem = string_duplicate(lineaPartida[0]);
+                        if (atoi(mayorTimestampMem) > mayorTimestamp) {
+                            mayorTimestamp = atoi(mayorTimestampMem);
+                            valorMayorTimestamp = string_duplicate(lineaPartida[2]);
+                            mayorLinea = string_new();
+                            mayorLinea = concat(1, elemento);
+                        }
+                    }
+                }
+            }
+        }
 
 
         //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
@@ -1035,6 +1133,7 @@ int main(void) {
 
     configuracion = cargarConfiguracion("../lfs.cfg", logger);
     metadatas = dictionary_create();
+    memTable = dictionary_create();
     bloquesAsignados = dictionary_create();
     inicializarLFS(configuracion.puntoMontaje);
 

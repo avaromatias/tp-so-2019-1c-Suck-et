@@ -74,6 +74,7 @@ t_configuracion configuracion;
 t_log *logger;
 t_dictionary *bloquesAsignados;
 t_dictionary *metadatas;
+t_dictionary *memTable;
 t_bitarray *bitmap;
 pthread_mutex_t mutexAsignacionBloques;
 

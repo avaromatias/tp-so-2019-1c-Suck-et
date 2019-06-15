@@ -300,11 +300,16 @@ void vaciarArchivo(char *path) {
     FILE *archivo = fopen(path, "w");
     fclose(archivo);
 }
-
+static void liberarTabla(t_dictionary *tablaDeKeys){
+    dictionary_destroy(tablaDeKeys);
+}
 t_response *lfsDrop(char *nombreTabla) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     char *pathTabla = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
     if (existeTabla(nombreTabla) == 0) {
+        if(dictionary_has_key(memTable,nombreTabla)){
+            dictionary_remove_and_destroy(memTable,nombreTabla,liberarTabla);
+        }
         borrarContenidoDeDirectorio(pathTabla);
         rmdir(pathTabla);
         retorno->tipoRespuesta = RESPUESTA;
@@ -535,121 +540,127 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     //1. Verificar que la tabla exista en el File System
     if (existeTabla(nombreTabla) == 0) {
+        char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
+        if (existeElArchivo(path)) {
+            //2. Obtener la metadata asociada a dicha tabla
+            obtenerMetadata(nombreTabla);
+            t_metadata *meta = dictionary_get(metadatas, nombreTabla);
 
-        //2. Obtener la metadata asociada a dicha tabla
-        obtenerMetadata(nombreTabla);
-        t_metadata *meta = dictionary_get(metadatas, nombreTabla);
+            //3. Calcular cual es la partición que contiene dicho KEY
+            int particion = calcularParticion(key, meta);
 
-        //3. Calcular cual es la partición que contiene dicho KEY
-        int particion = calcularParticion(key, meta);
+            //4. Escanear la partición objetivo, todos los archivos temporales y la memoria temporal de dicha tabla (si existe) buscando la key deseada
 
-        //4. Escanear la partición objetivo, todos los archivos temporales y la memoria temporal de dicha tabla (si existe) buscando la key deseada
+            char *nombreArchivoParticion = obtenerNombreArchivoParticion(particion);
+            char *binaryPath = obtenerPathArchivo(nombreTabla, nombreArchivoParticion);
+            FILE *binarioParticion = fopen(binaryPath, "r");
+            FILE *binarioBloque;
 
-        char *nombreArchivoParticion = obtenerNombreArchivoParticion(particion);
-        char *binaryPath = obtenerPathArchivo(nombreTabla, nombreArchivoParticion);
-        FILE *binarioParticion = fopen(binaryPath, "r");
-        FILE *binarioBloque;
+            char seek;
+            char **palabras;
+            char *linea;
+            char str[2];
+            str[1] = '\0';
+            char *keyEncontrado;
+            char *timestampEncontrado;
+            int mayorTimestamp = 0;
+            char *valorMayorTimestamp = string_new();
+            char *mayorLinea = string_new();
+            mayorLinea = concat(1, "");
+            bool lineaContinuaEnOtroBloque = false;
 
-        char seek;
-        char **palabras;
-        char *linea;
-        char str[2];
-        str[1] = '\0';
-        char *keyEncontrado;
-        char *timestampEncontrado;
-        int mayorTimestamp = 0;
-        char *valorMayorTimestamp = string_new();
-        char *mayorLinea = string_new();
-        mayorLinea = concat(1, "");
-        bool lineaContinuaEnOtroBloque = false;
+            //4.0 Obtengo los bloques asignados a la particion obtenida
+            char **bloques = bloquesEnParticion(nombreTabla, nombreArchivoParticion);
+            int tamanioArray = tamanioDeArrayDeStrings(bloques);
+            for (int i = 0; i < tamanioArray; i++) {
 
-        //4.0 Obtengo los bloques asignados a la particion obtenida
-        char **bloques = bloquesEnParticion(nombreTabla, nombreArchivoParticion);
-        int tamanioArray = tamanioDeArrayDeStrings(bloques);
-        for (int i = 0; i < tamanioArray; i++) {
+                //4.1. Escaneo particion objetivo
+                char *blockPath = obtenerPathBloque(atoi(bloques[i]));
+                binarioBloque = fopen(blockPath, "r");
 
-            //4.1. Escaneo particion objetivo
-            char *blockPath = obtenerPathBloque(atoi(bloques[i]));
-            binarioBloque = fopen(blockPath, "r");
-
-            while (!feof(binarioBloque)) {
-                if (!lineaContinuaEnOtroBloque) {
-                    linea = string_new();
-                }
-                keyEncontrado = string_new();
-                timestampEncontrado = string_new();
-                while ((seek = getc(binarioBloque)) != EOF && seek != '\n') {
-                    str[0] = seek;
-                    string_append(&linea, str);
-                }
-                if (strcmp(linea, "") != 0) {
-                    palabras = desarmarLinea(linea);
-                    if (tamanioDeArrayDeStrings(palabras) == 3 &&
-                        seek == '\n') { // Si la línea no continua en otro bloque
-                        lineaContinuaEnOtroBloque = false;
-                        string_append(&timestampEncontrado, palabras[0]);
-                        string_append(&keyEncontrado, palabras[1]);
-                        if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
-                            mayorTimestamp = atoi(timestampEncontrado);
-                            valorMayorTimestamp = string_new();
-                            valorMayorTimestamp = concat(1, palabras[2]);
-                            mayorLinea = string_new();
-                            mayorLinea = concat(1, linea);
-                        }
-                    } else {
-                        lineaContinuaEnOtroBloque = true;
+                while (!feof(binarioBloque)) {
+                    if (!lineaContinuaEnOtroBloque) {
+                        linea = string_new();
                     }
-                }
-            }
-            free(blockPath);
-        }
-
-        for (int i = 0; i < tamanioDeArrayDeStrings(bloques); i++) {
-            free(bloques[i]);
-        }
-        free(bloques);
-        fclose(binarioBloque);
-        fclose(binarioParticion);
-
-        //4.2. Escaneo los archivos temporales
-
-
-        //4.2. Escaneo la memoria temporal de la tabla
-        if (dictionary_has_key(memTable, nombreTabla)) {
-            t_dictionary *tabla = dictionary_get(memTable, nombreTabla);
-            if (dictionary_has_key(tabla, key)) {
-                t_list *listaDeRegistros = (t_list*)dictionary_get(tabla, key);
-                if (!list_is_empty(listaDeRegistros)) {
-                    int tamanioLista = list_size(listaDeRegistros);
-                    t_list *listaOrdenada = list_sorted(listaDeRegistros, ordenarPorLinea);
-                    char *elemento = list_get(listaOrdenada, (tamanioLista-1));
-                    if (elemento != NULL) {
-                        char **lineaPartida = desarmarLinea(elemento);
-                        char *mayorTimestampMem = string_duplicate(lineaPartida[0]);
-                        if (atoi(mayorTimestampMem) > mayorTimestamp) {
-                            mayorTimestamp = atoi(mayorTimestampMem);
-                            valorMayorTimestamp = string_duplicate(lineaPartida[2]);
-                            mayorLinea = string_new();
-                            mayorLinea = concat(1, elemento);
+                    keyEncontrado = string_new();
+                    timestampEncontrado = string_new();
+                    while ((seek = getc(binarioBloque)) != EOF && seek != '\n') {
+                        str[0] = seek;
+                        string_append(&linea, str);
+                    }
+                    if (strcmp(linea, "") != 0) {
+                        palabras = desarmarLinea(linea);
+                        if (tamanioDeArrayDeStrings(palabras) == 3 &&
+                            seek == '\n') { // Si la línea no continua en otro bloque
+                            lineaContinuaEnOtroBloque = false;
+                            string_append(&timestampEncontrado, palabras[0]);
+                            string_append(&keyEncontrado, palabras[1]);
+                            if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
+                                mayorTimestamp = atoi(timestampEncontrado);
+                                valorMayorTimestamp = string_new();
+                                valorMayorTimestamp = concat(1, palabras[2]);
+                                mayorLinea = string_new();
+                                mayorLinea = concat(1, linea);
+                            }
+                        } else {
+                            lineaContinuaEnOtroBloque = true;
                         }
                     }
                 }
+                free(blockPath);
             }
-        }
+
+            for (int i = 0; i < tamanioDeArrayDeStrings(bloques); i++) {
+                free(bloques[i]);
+            }
+            free(bloques);
+            fclose(binarioBloque);
+            fclose(binarioParticion);
+
+            //4.2. Escaneo los archivos temporales
 
 
-        //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
-        if (strcmp(valorMayorTimestamp, "") != 0) {
-            retorno->tipoRespuesta = RESPUESTA;
-            retorno->valor = concat(1, mayorLinea);
-            return retorno;
+            //4.2. Escaneo la memoria temporal de la tabla
+            if (dictionary_has_key(memTable, nombreTabla)) {
+                t_dictionary *tabla = dictionary_get(memTable, nombreTabla);
+                if (dictionary_has_key(tabla, key)) {
+                    t_list *listaDeRegistros = (t_list *) dictionary_get(tabla, key);
+                    if (!list_is_empty(listaDeRegistros)) {
+                        int tamanioLista = list_size(listaDeRegistros);
+                        t_list *listaOrdenada = list_sorted(listaDeRegistros, ordenarPorLinea);
+                        char *elemento = list_get(listaOrdenada, (tamanioLista - 1));
+                        if (elemento != NULL) {
+                            char **lineaPartida = desarmarLinea(elemento);
+                            char *mayorTimestampMem = string_duplicate(lineaPartida[0]);
+                            if (atoi(mayorTimestampMem) > mayorTimestamp) {
+                                mayorTimestamp = atoi(mayorTimestampMem);
+                                valorMayorTimestamp = string_duplicate(lineaPartida[2]);
+                                mayorLinea = string_new();
+                                mayorLinea = concat(1, elemento);
+                            }
+                        }
+                    }
+                }
+            }
+
+
+            //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
+            if (strcmp(valorMayorTimestamp, "") != 0) {
+                retorno->tipoRespuesta = RESPUESTA;
+                retorno->valor = concat(1, mayorLinea);
+                return retorno;
+            } else {
+                retorno->tipoRespuesta = ERR;
+                retorno->valor = concat(1, "No se encontro ningun valor con esa key.");
+                free(mayorLinea);
+                return retorno;
+            }
         } else {
             retorno->tipoRespuesta = ERR;
-            retorno->valor = concat(1, "No se encontro ningun valor con esa key.");
-            free(mayorLinea);
+            retorno->valor = concat(3, "No existe la Metadata de la Tabla ", nombreTabla, ".");
             return retorno;
         }
-    } else {
+    }else {
         retorno->tipoRespuesta = ERR;
         retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".");
         return retorno;
@@ -797,7 +808,6 @@ void obtenerMetadata(char *tabla) {
 
     if (config == NULL) {
         log_error(logger, "No se pudo obtener el archivo Metadata.");
-        config_destroy(config);
         exit(1);
     }
 

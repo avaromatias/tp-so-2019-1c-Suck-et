@@ -195,6 +195,15 @@ int obtenerBloqueDisponible(char *nombreTabla, int particion) {
 }
 
 
+void retardo() {
+    t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
+    int tiempoDump=config_get_int_value(archivoConfig,"RETARDO");
+    if(!tiempoDump){
+        log_error(logger,"El RETARDO no esta seteado en el Archivo de Configuracion.");
+    }
+    tiempoDump=tiempoDump/1000;
+    sleep(tiempoDump);
+}
 void lfsDump() {
     t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
     int tiempoDump=config_get_int_value(archivoConfig,"TIEMPO_DUMP");
@@ -212,10 +221,12 @@ void lfsDump() {
             nombreArchivo = obtenerPathArchivo(nombreTabla, string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp"));
         }
         void _dumpKey(char *key, t_list *listaDeRegistros) {
+            int index=0;
             void _dumpRegistro(char* linea) {
                 FILE *archivoDump = fopen(nombreArchivo, "a");
                 fwrite(linea,1,strlen(linea),archivoDump);
                 fclose(archivoDump);
+                list_remove(listaDeRegistros,index);
             }
             list_iterate(listaDeRegistros, _dumpRegistro);
 
@@ -225,7 +236,6 @@ void lfsDump() {
     if(!dictionary_is_empty(memTable)){
         dictionary_iterator(memTable, dumpTabla);
     }
-    dictionary_clean(memTable);
     lfsDump();
 }
 
@@ -782,7 +792,7 @@ void ejecutarConsola() {
 }
 
 t_response *gestionarRequest(t_comando comando) {
-
+    retardo();
     t_response *retorno;
     if (!existeMetadata()) {
         retorno = (t_response *) malloc(sizeof(t_response));

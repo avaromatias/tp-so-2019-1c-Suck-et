@@ -83,8 +83,7 @@ void valorSinComillas(char *valor) {
 }
 
 char *armarLinea(char *key, char *valor, time_t timestamp) {
-    char *linea = string_new();
-    string_append(&linea, string_from_format("%ld", timestamp));
+    char *linea = string_from_format("%ld", timestamp);
     string_append(&linea, ";");
     string_append(&linea, key);
     string_append(&linea, ";");

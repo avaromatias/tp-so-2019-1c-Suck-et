@@ -109,7 +109,7 @@ int validarComillasValor(char *valor) {
 }
 
 void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
-    sem_t* semMetadata=obtenerSemaforoPath(obtenerPathArchivo(nombreTabla, "Metadata"));
+    sem_t *semMetadata = obtenerSemaforoPath(obtenerPathArchivo(nombreTabla, "Metadata"));
     sem_wait(semMetadata);
     FILE *f = fopen(obtenerPathArchivo(nombreTabla, "Metadata"), "w");
     char *linea = concat(9, "CONSISTENCY=", tipoConsistencia, "\n", "PARTITIONS=", particiones, "\n",
@@ -194,6 +194,41 @@ int obtenerBloqueDisponible(char *nombreTabla, int particion) {
     return -1;
 }
 
+
+void lfsDump() {
+    t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
+    int tiempoDump=config_get_int_value(archivoConfig,"TIEMPO_DUMP");
+    if(!tiempoDump){
+        log_error(logger,"El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
+    }
+    tiempoDump=tiempoDump/1000;
+    sleep(tiempoDump);
+    void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
+        int nroDump = 0;
+        char* nombreArchivo = obtenerPathArchivo(nombreTabla, string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp"));
+        while (existeElArchivo(nombreArchivo)) {
+            nroDump++;
+            nombreArchivo = obtenerPathArchivo(nombreTabla, string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp"));
+        }
+        void _dumpKey(char *key, t_list *listaDeRegistros) {
+            void _dumpRegistro(char* linea) {
+                FILE *archivoDump = fopen(nombreArchivo, "a");
+                fwrite(linea,1,strlen(linea),archivoDump);
+                fclose(archivoDump);
+            }
+            list_iterate(listaDeRegistros, _dumpRegistro);
+
+        }
+        dictionary_iterator(tablaDeKeys, _dumpKey);
+    }
+    if(!dictionary_is_empty(memTable)){
+        dictionary_iterator(memTable, dumpTabla);
+    }
+    dictionary_clean(memTable);
+    lfsDump();
+}
+
+
 t_response *lfsDescribeAll() {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     char **tablas = obtenerTablas();
@@ -207,7 +242,7 @@ t_response *lfsDescribeAll() {
             char *nombreTabla = string_duplicate(tablas[i]);
             t_response *retornoTabla = lfsDescribe(nombreTabla);
             char *respuestaTabla = string_new();
-            respuestaTabla = concat(4, "-----------------\nTABLE=",string_duplicate(nombreTabla),"\n",
+            respuestaTabla = concat(4, "-----------------\nTABLE=", string_duplicate(nombreTabla), "\n",
                                     string_duplicate(retornoTabla->valor));
             string_append(&respuesta, respuestaTabla);
             free(retornoTabla->valor);
@@ -225,7 +260,7 @@ t_response *lfsDescribe(char *nombreTabla) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     if (existeTabla(nombreTabla) == 0) {
         char *pathMetadata = obtenerPathArchivo(nombreTabla, "Metadata");
-        sem_t* semMetadata=obtenerSemaforoPath(pathMetadata);
+        sem_t *semMetadata = obtenerSemaforoPath(pathMetadata);
         sem_wait(semMetadata);
         FILE *metadataTabla = fopen(pathMetadata, "r");
         if (metadataTabla != NULL) {
@@ -265,7 +300,7 @@ int deleteFile(char *nombreArchivo) {
 int borrarContenidoDeDirectorio(char *dirPath) {
     DIR *d;
     struct dirent *dir;
-    sem_t* semDir=obtenerSemaforoPath(dirPath);
+    sem_t *semDir = obtenerSemaforoPath(dirPath);
     sem_wait(dirPath);
     d = opendir(dirPath);
     if (d) {
@@ -307,21 +342,23 @@ int borrarContenidoDeDirectorio(char *dirPath) {
 }
 
 void vaciarArchivo(char *path) {
-    sem_t* semArchivo=obtenerSemaforoPath(path);
+    sem_t *semArchivo = obtenerSemaforoPath(path);
     sem_wait(semArchivo);
     FILE *archivo = fopen(path, "w");
     fclose(archivo);
     sem_post(semArchivo);
 }
-static void liberarTabla(t_dictionary *tablaDeKeys){
+
+static void liberarTabla(t_dictionary *tablaDeKeys) {
     dictionary_destroy(tablaDeKeys);
 }
+
 t_response *lfsDrop(char *nombreTabla) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     char *pathTabla = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
     if (existeTabla(nombreTabla) == 0) {
-        if(dictionary_has_key(memTable,nombreTabla)){
-            dictionary_remove_and_destroy(memTable,nombreTabla,liberarTabla);
+        if (dictionary_has_key(memTable, nombreTabla)) {
+            dictionary_remove_and_destroy(memTable, nombreTabla, liberarTabla);
         }
         borrarContenidoDeDirectorio(pathTabla);
         rmdir(pathTabla);
@@ -412,7 +449,7 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
                 }
                 t_list *listaDeRegistros;
                 if (dictionary_has_key(keysEnTabla, key)) {
-                    listaDeRegistros = (t_list *)dictionary_get(keysEnTabla, key);
+                    listaDeRegistros = (t_list *) dictionary_get(keysEnTabla, key);
                 } else {
                     listaDeRegistros = list_create();
                     dictionary_put(keysEnTabla, key, listaDeRegistros);
@@ -433,7 +470,7 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
     return retorno;
 }
 
-t_response *lfsInsertDump(char *nombreTabla, char *key, char *valor, time_t timestamp) {
+t_response *lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, time_t timestamp) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     retorno->tipoRespuesta = RESPUESTA;
     validarValor(valor, retorno);
@@ -479,7 +516,7 @@ t_response *lfsInsertDump(char *nombreTabla, char *key, char *valor, time_t time
                 while (linea[indice] != '\0' && indice < string_length(linea)) {
                     bloque = obtenerBloqueDisponible(nombreTabla, particion);
                     char *pathBloque = obtenerPathBloque(bloque);
-                    sem_t* semBloque=obtenerSemaforoPath(pathBloque);
+                    sem_t *semBloque = obtenerSemaforoPath(pathBloque);
                     sem_wait(semBloque);
                     FILE *f = fopen(pathBloque, "a");
                     dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
@@ -510,7 +547,7 @@ t_response *lfsInsertDump(char *nombreTabla, char *key, char *valor, time_t time
                 }
                 char *bloques = convertirArrayAString(blocks);
                 int size = config_get_int_value(archivoConfig, "SIZE") + strlen(linea);
-                sem_t* semParticion=obtenerSemaforoPath(nombreArchivo);
+                sem_t *semParticion = obtenerSemaforoPath(nombreArchivo);
                 sem_wait(semParticion);
                 FILE *fParticion = fopen(nombreArchivo, "r+");
                 char *contenido = generarContenidoParaParticion(string_from_format("%i", size), bloques);
@@ -548,10 +585,10 @@ char *generarContenidoParaParticion(char *tamanio, char *bloques) {
     return contenido;
 }
 
-int ordenarPorLinea(char *linea,char* linea2) {
-    char** lineaDesarmada=desarmarLinea(linea);
-    char** linea2Desarmada=desarmarLinea(linea2);
-    int esMenor=atoi(lineaDesarmada[0])<atoi(linea2Desarmada[0]);
+int ordenarPorLinea(char *linea, char *linea2) {
+    char **lineaDesarmada = desarmarLinea(linea);
+    char **linea2Desarmada = desarmarLinea(linea2);
+    int esMenor = atoi(lineaDesarmada[0]) < atoi(linea2Desarmada[0]);
     return esMenor;
 }
 
@@ -572,7 +609,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
 
             char *nombreArchivoParticion = obtenerNombreArchivoParticion(particion);
             char *binaryPath = obtenerPathArchivo(nombreTabla, nombreArchivoParticion);
-            sem_t* semBinario=obtenerSemaforoPath(binaryPath);
+            sem_t *semBinario = obtenerSemaforoPath(binaryPath);
             sem_wait(semBinario);
             FILE *binarioParticion = fopen(binaryPath, "r");
             FILE *binarioBloque;
@@ -596,7 +633,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
 
                 //4.1. Escaneo particion objetivo
                 char *blockPath = obtenerPathBloque(atoi(bloques[i]));
-                sem_t* semBloque=obtenerSemaforoPath(blockPath);
+                sem_t *semBloque = obtenerSemaforoPath(blockPath);
                 sem_wait(semBloque);
                 binarioBloque = fopen(blockPath, "r");
 
@@ -685,7 +722,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             retorno->valor = concat(3, "No existe la Metadata de la Tabla ", nombreTabla, ".");
             return retorno;
         }
-    }else {
+    } else {
         retorno->tipoRespuesta = ERR;
         retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".");
         return retorno;
@@ -785,7 +822,8 @@ t_response *gestionarRequest(t_comando comando) {
             return retorno;
 
         case DROP:
-            retorno = lfsDrop(comando.parametros[0]);
+            lfsDump();
+            retorno = lfsDescribe(comando.parametros[0]);
             return retorno;
 
         case HELP:
@@ -873,6 +911,17 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, int tamanioValue, 
     return hiloConexiones;
 }
 
+pthread_t *crearHiloDump(t_log *logger) {
+    pthread_t *hiloConexiones = (pthread_t *) malloc(sizeof(pthread_t));
+
+    parametros_thread_lfs *parametros = (parametros_thread_lfs *) malloc(sizeof(parametros_thread_lfs));
+    parametros->logger = logger;
+
+    pthread_create(hiloConexiones, NULL, &lfsDump, parametros);
+
+    return hiloConexiones;
+}
+
 char *crearDirEnPuntoDeMontaje(char *puntoMontaje, char *nombreDir) {
     char *nombreArchivo = concat(2, puntoMontaje, nombreDir);
 
@@ -903,7 +952,7 @@ char **obtenerTablas() {
     char *nombreArchivo = string_new();
     string_append(&nombreArchivo, configuracion.puntoMontaje);
     string_append(&nombreArchivo, "Tables");
-    sem_t* semTable=obtenerSemaforoPath(nombreArchivo);
+    sem_t *semTable = obtenerSemaforoPath(nombreArchivo);
     sem_wait(semTable);
     d = opendir(nombreArchivo);
     int count = 0;
@@ -936,7 +985,7 @@ char **obtenerTablas() {
 void cargarBloquesAsignados(char *path) {
     DIR *d;
     struct dirent *dir;
-    sem_t* semDir=obtenerSemaforoPath(path);
+    sem_t *semDir = obtenerSemaforoPath(path);
     sem_wait(semDir);
     d = opendir(path);
     if (d) {
@@ -1044,7 +1093,7 @@ void crearDirBloques(char *puntoMontaje) {
             dictionary_put(bloquesAsignados, nroBloque, bloque);
             free(nroBloque);
             if (!existeElArchivo(unArchivoDeBloque)) {
-                sem_t* semBloque=obtenerSemaforoPath(unArchivoDeBloque);
+                sem_t *semBloque = obtenerSemaforoPath(unArchivoDeBloque);
                 sem_wait(semBloque);
                 FILE *file = fopen(unArchivoDeBloque, "w");
                 fclose(file);
@@ -1066,14 +1115,14 @@ void crearDirMetadata(char *puntoMontaje) {
     char *pathArchivoMetadata = concat(2, nombreArchivo, "/Metadata.bin");
     char *pathArchivoBitmap = concat(2, nombreArchivo, "/Bitmap.bin");
     if (!existeElArchivo(pathArchivoMetadata)) {
-        sem_t* semMetadata=obtenerSemaforoPath(pathArchivoMetadata);
+        sem_t *semMetadata = obtenerSemaforoPath(pathArchivoMetadata);
         sem_wait(semMetadata);
         FILE *fm = fopen(pathArchivoMetadata, "w");
         fclose(fm);
         sem_post(semMetadata);
     }
     if (!existeElArchivo(pathArchivoBitmap)) {
-        sem_t* semBitmap=obtenerSemaforoPath(pathArchivoBitmap);
+        sem_t *semBitmap = obtenerSemaforoPath(pathArchivoBitmap);
         sem_wait(semBitmap);
         FILE *fb = fopen(pathArchivoBitmap, "w");
         fclose(fb);
@@ -1084,16 +1133,14 @@ void crearDirMetadata(char *puntoMontaje) {
     free(pathArchivoBitmap);
 }
 
-sem_t* obtenerSemaforoPath(char* path){
-    sem_t* semaforo;
-    if(dictionary_has_key(archivosAbiertos,path))
-    {
-        semaforo=dictionary_get(archivosAbiertos,path);
-    }
-    else{
-        semaforo=(sem_t*) malloc(sizeof(sem_t));
+sem_t *obtenerSemaforoPath(char *path) {
+    sem_t *semaforo;
+    if (dictionary_has_key(archivosAbiertos, path)) {
+        semaforo = dictionary_get(archivosAbiertos, path);
+    } else {
+        semaforo = (sem_t *) malloc(sizeof(sem_t));
         sem_init(semaforo, 0, 1);
-        dictionary_put(archivosAbiertos,path,semaforo);
+        dictionary_put(archivosAbiertos, path, semaforo);
     }
     return semaforo;
 }
@@ -1212,6 +1259,7 @@ int main(void) {
     levantarServidor(configuracion.puertoEscucha, misConexiones, logger);
 
     pthread_t *hiloConexiones = crearHiloConexiones(misConexiones, configuracion.tamanioValue, logger);
+    pthread_t *hiloDump = crearHiloDump(logger);
 
     ejecutarConsola();
 

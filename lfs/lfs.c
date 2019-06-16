@@ -109,6 +109,8 @@ int validarComillasValor(char *valor) {
 }
 
 void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
+    sem_t* semMetadata=obtenerSemaforoPath(obtenerPathArchivo(nombreTabla, "Metadata"));
+    sem_wait(semMetadata);
     FILE *f = fopen(obtenerPathArchivo(nombreTabla, "Metadata"), "w");
     char *linea = concat(9, "CONSISTENCY=", tipoConsistencia, "\n", "PARTITIONS=", particiones, "\n",
                          "COMPACTION_TIME=",
@@ -116,6 +118,7 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
     fwrite(linea, sizeof(char) * (strlen(linea) + 1), 1, f);
     free(linea);
     fclose(f);
+    sem_post(semMetadata);
 }
 
 void crearBinarios(char *nombreTabla, int particiones) {
@@ -204,8 +207,8 @@ t_response *lfsDescribeAll() {
             char *nombreTabla = string_duplicate(tablas[i]);
             t_response *retornoTabla = lfsDescribe(nombreTabla);
             char *respuestaTabla = string_new();
-            respuestaTabla = concat(5, "----- ", string_duplicate(nombreTabla), " -----\n",
-                                    string_duplicate(retornoTabla->valor), "\n");
+            respuestaTabla = concat(4, "-----------------\nTABLE=",string_duplicate(nombreTabla),"\n",
+                                    string_duplicate(retornoTabla->valor));
             string_append(&respuesta, respuestaTabla);
             free(retornoTabla->valor);
             free(retornoTabla);
@@ -222,6 +225,8 @@ t_response *lfsDescribe(char *nombreTabla) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     if (existeTabla(nombreTabla) == 0) {
         char *pathMetadata = obtenerPathArchivo(nombreTabla, "Metadata");
+        sem_t* semMetadata=obtenerSemaforoPath(pathMetadata);
+        sem_wait(semMetadata);
         FILE *metadataTabla = fopen(pathMetadata, "r");
         if (metadataTabla != NULL) {
             fseek(metadataTabla, 0, SEEK_END);
@@ -240,6 +245,8 @@ t_response *lfsDescribe(char *nombreTabla) {
             retorno->tipoRespuesta = ERR;
             retorno->valor = concat(3, "No se encontro la Metadata de la tabla ", nombreTabla, ".");
         }
+
+        sem_post(semMetadata);
     } else {
         retorno->tipoRespuesta = ERR;
         retorno->valor = concat(3, "La tabla ", nombreTabla, " no existe.");
@@ -258,6 +265,8 @@ int deleteFile(char *nombreArchivo) {
 int borrarContenidoDeDirectorio(char *dirPath) {
     DIR *d;
     struct dirent *dir;
+    sem_t* semDir=obtenerSemaforoPath(dirPath);
+    sem_wait(dirPath);
     d = opendir(dirPath);
     if (d) {
         while ((dir = readdir(d)) != NULL) {
@@ -292,13 +301,17 @@ int borrarContenidoDeDirectorio(char *dirPath) {
         }
         closedir(d);
     }
+    sem_post(semDir);
     free(dirPath);
     return 1;
 }
 
 void vaciarArchivo(char *path) {
+    sem_t* semArchivo=obtenerSemaforoPath(path);
+    sem_wait(semArchivo);
     FILE *archivo = fopen(path, "w");
     fclose(archivo);
+    sem_post(semArchivo);
 }
 static void liberarTabla(t_dictionary *tablaDeKeys){
     dictionary_destroy(tablaDeKeys);
@@ -466,6 +479,8 @@ t_response *lfsInsertDump(char *nombreTabla, char *key, char *valor, time_t time
                 while (linea[indice] != '\0' && indice < string_length(linea)) {
                     bloque = obtenerBloqueDisponible(nombreTabla, particion);
                     char *pathBloque = obtenerPathBloque(bloque);
+                    sem_t* semBloque=obtenerSemaforoPath(pathBloque);
+                    sem_wait(semBloque);
                     FILE *f = fopen(pathBloque, "a");
                     dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
                     int longitudArchivo = obtenerTamanioBloque(bloque);
@@ -479,6 +494,7 @@ t_response *lfsInsertDump(char *nombreTabla, char *key, char *valor, time_t time
                         indice++;
                     }
                     fclose(f);
+                    sem_post(semBloque);
                     free(pathBloque);
                     if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
                         bitarray_set_bit(bitmap, bloque);
@@ -494,10 +510,13 @@ t_response *lfsInsertDump(char *nombreTabla, char *key, char *valor, time_t time
                 }
                 char *bloques = convertirArrayAString(blocks);
                 int size = config_get_int_value(archivoConfig, "SIZE") + strlen(linea);
+                sem_t* semParticion=obtenerSemaforoPath(nombreArchivo);
+                sem_wait(semParticion);
                 FILE *fParticion = fopen(nombreArchivo, "r+");
                 char *contenido = generarContenidoParaParticion(string_from_format("%i", size), bloques);
                 fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
                 fclose(fParticion);
+                sem_post(semParticion);
                 free(contenido);
                 config_destroy(archivoConfig);
                 retorno->tipoRespuesta = RESPUESTA;
@@ -553,9 +572,10 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
 
             char *nombreArchivoParticion = obtenerNombreArchivoParticion(particion);
             char *binaryPath = obtenerPathArchivo(nombreTabla, nombreArchivoParticion);
+            sem_t* semBinario=obtenerSemaforoPath(binaryPath);
+            sem_wait(semBinario);
             FILE *binarioParticion = fopen(binaryPath, "r");
             FILE *binarioBloque;
-
             char seek;
             char **palabras;
             char *linea;
@@ -576,6 +596,8 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
 
                 //4.1. Escaneo particion objetivo
                 char *blockPath = obtenerPathBloque(atoi(bloques[i]));
+                sem_t* semBloque=obtenerSemaforoPath(blockPath);
+                sem_wait(semBloque);
                 binarioBloque = fopen(blockPath, "r");
 
                 while (!feof(binarioBloque)) {
@@ -608,14 +630,17 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                     }
                 }
                 free(blockPath);
+                fclose(binarioBloque);
+                sem_post(semBloque);
             }
 
             for (int i = 0; i < tamanioDeArrayDeStrings(bloques); i++) {
                 free(bloques[i]);
             }
             free(bloques);
-            fclose(binarioBloque);
+
             fclose(binarioParticion);
+            sem_post(semBinario);
 
             //4.2. Escaneo los archivos temporales
 
@@ -878,6 +903,8 @@ char **obtenerTablas() {
     char *nombreArchivo = string_new();
     string_append(&nombreArchivo, configuracion.puntoMontaje);
     string_append(&nombreArchivo, "Tables");
+    sem_t* semTable=obtenerSemaforoPath(nombreArchivo);
+    sem_wait(semTable);
     d = opendir(nombreArchivo);
     int count = 0;
     int countOfDirectories = 0;
@@ -898,6 +925,7 @@ char **obtenerTablas() {
             }
         }
         closedir(d);
+        sem_post(semTable);
     }
     tablas[count] = NULL;
 
@@ -908,6 +936,8 @@ char **obtenerTablas() {
 void cargarBloquesAsignados(char *path) {
     DIR *d;
     struct dirent *dir;
+    sem_t* semDir=obtenerSemaforoPath(path);
+    sem_wait(semDir);
     d = opendir(path);
     if (d) {
         while ((dir = readdir(d)) != NULL) {
@@ -935,6 +965,7 @@ void cargarBloquesAsignados(char *path) {
             }
         }
         closedir(d);
+        sem_post(semDir);
     }
 }
 
@@ -1013,8 +1044,11 @@ void crearDirBloques(char *puntoMontaje) {
             dictionary_put(bloquesAsignados, nroBloque, bloque);
             free(nroBloque);
             if (!existeElArchivo(unArchivoDeBloque)) {
+                sem_t* semBloque=obtenerSemaforoPath(unArchivoDeBloque);
+                sem_wait(semBloque);
                 FILE *file = fopen(unArchivoDeBloque, "w");
                 fclose(file);
+                sem_post(semBloque);
             } else if (!archivoVacio(unArchivoDeBloque) &&
                        obtenerTamanioBloque(i) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
                 bitarray_set_bit(bitmap, i);
@@ -1032,16 +1066,36 @@ void crearDirMetadata(char *puntoMontaje) {
     char *pathArchivoMetadata = concat(2, nombreArchivo, "/Metadata.bin");
     char *pathArchivoBitmap = concat(2, nombreArchivo, "/Bitmap.bin");
     if (!existeElArchivo(pathArchivoMetadata)) {
+        sem_t* semMetadata=obtenerSemaforoPath(pathArchivoMetadata);
+        sem_wait(semMetadata);
         FILE *fm = fopen(pathArchivoMetadata, "w");
         fclose(fm);
+        sem_post(semMetadata);
     }
     if (!existeElArchivo(pathArchivoBitmap)) {
+        sem_t* semBitmap=obtenerSemaforoPath(pathArchivoBitmap);
+        sem_wait(semBitmap);
         FILE *fb = fopen(pathArchivoBitmap, "w");
         fclose(fb);
+        sem_post(semBitmap);
     }
     free(nombreArchivo);
     free(pathArchivoMetadata);
     free(pathArchivoBitmap);
+}
+
+sem_t* obtenerSemaforoPath(char* path){
+    sem_t* semaforo;
+    if(dictionary_has_key(archivosAbiertos,path))
+    {
+        semaforo=dictionary_get(archivosAbiertos,path);
+    }
+    else{
+        semaforo=(sem_t*) malloc(sizeof(sem_t));
+        sem_init(semaforo, 0, 1);
+        dictionary_put(archivosAbiertos,path,semaforo);
+    }
+    return semaforo;
 }
 
 int crearDirectoriosBase(char *puntoMontaje) {
@@ -1115,7 +1169,6 @@ void *atenderConexiones(void *parametrosThread) {
                                 } else
                                     atenderMensajes(header, mensaje, parametrosThread);
                             }
-                            free(mensaje);
                             break;
                     }
                 }
@@ -1143,6 +1196,7 @@ int main(void) {
 
     configuracion = cargarConfiguracion("../lfs.cfg", logger);
     metadatas = dictionary_create();
+    archivosAbiertos = dictionary_create();
     memTable = dictionary_create();
     bloquesAsignados = dictionary_create();
     inicializarLFS(configuracion.puntoMontaje);

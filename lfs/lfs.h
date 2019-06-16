@@ -75,6 +75,7 @@ t_log *logger;
 t_dictionary *bloquesAsignados;
 t_dictionary *metadatas;
 t_dictionary *memTable;
+t_dictionary *archivosAbiertos;
 t_bitarray *bitmap;
 pthread_mutex_t mutexAsignacionBloques;
 
@@ -115,6 +116,7 @@ int obtenerTamanioBloque(int bloque);
 
 int obtenerTamanioBloques(char *puntoMontaje);
 
+sem_t* obtenerSemaforoPath(char* path);
 
 int obtenerCantidadBloques(char *puntoMontaje);
 

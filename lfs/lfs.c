@@ -197,47 +197,51 @@ int obtenerBloqueDisponible(char *nombreTabla, int particion) {
 
 void retardo() {
     t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
-    int tiempoDump=config_get_int_value(archivoConfig,"RETARDO");
-    if(!tiempoDump){
-        log_error(logger,"El RETARDO no esta seteado en el Archivo de Configuracion.");
+    int tiempoDump = config_get_int_value(archivoConfig, "RETARDO");
+    if (!tiempoDump) {
+        log_error(logger, "El RETARDO no esta seteado en el Archivo de Configuracion.");
     }
-    tiempoDump=tiempoDump/1000;
+    tiempoDump = tiempoDump / 1000;
     sleep(tiempoDump);
     config_destroy(archivoConfig);
 }
-void lfsDump() {
-    t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
-    int tiempoDump=config_get_int_value(archivoConfig,"TIEMPO_DUMP");
-    if(!tiempoDump){
-        log_error(logger,"El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
-    }
-    tiempoDump=tiempoDump/1000;
-    sleep(tiempoDump);
-    config_destroy(archivoConfig);
-    void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
-        int nroDump = 0;
-        char* nombreArchivo = obtenerPathArchivo(nombreTabla, string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp"));
-        while (existeElArchivo(nombreArchivo)) {
-            nroDump++;
-            nombreArchivo = obtenerPathArchivo(nombreTabla, string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp"));
-        }
-        void _dumpKey(char *key, t_list *listaDeRegistros) {
-            int index=0;
-            void _dumpRegistro(char* linea) {
-                FILE *archivoDump = fopen(nombreArchivo, "a");
-                fwrite(linea,1,strlen(linea),archivoDump);
-                fclose(archivoDump);
-                list_remove(listaDeRegistros,index);
-            }
-            list_iterate(listaDeRegistros, _dumpRegistro);
 
+void lfsDump() {
+    while (1) {
+        t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
+        int tiempoDump = config_get_int_value(archivoConfig, "TIEMPO_DUMP");
+        if (!tiempoDump) {
+            log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
         }
-        dictionary_iterator(tablaDeKeys, _dumpKey);
+        tiempoDump = tiempoDump / 1000;
+        sleep(tiempoDump);
+        config_destroy(archivoConfig);
+        void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
+            int nroDump = 0;
+            char *nombreArchivo = obtenerPathArchivo(nombreTabla,
+                                                     string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp"));
+            while (existeElArchivo(nombreArchivo)) {
+                nroDump++;
+                nombreArchivo = obtenerPathArchivo(nombreTabla,
+                                                   string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp"));
+            }
+            void _dumpKey(char *key, t_list *listaDeRegistros) {
+                int index = 0;
+                void _dumpRegistro(char *linea) {
+                    FILE *archivoDump = fopen(nombreArchivo, "a");
+                    fwrite(linea, 1, strlen(linea), archivoDump);
+                    fclose(archivoDump);
+                    list_remove(listaDeRegistros, index);
+                }
+                list_iterate(listaDeRegistros, _dumpRegistro);
+
+            }
+            dictionary_iterator(tablaDeKeys, _dumpKey);
+        }
+        if (!dictionary_is_empty(memTable)) {
+            dictionary_iterator(memTable, dumpTabla);
+        }
     }
-    if(!dictionary_is_empty(memTable)){
-        dictionary_iterator(memTable, dumpTabla);
-    }
-    lfsDump();
 }
 
 
@@ -1279,5 +1283,6 @@ int main(void) {
     free(misConexiones);
     free(bloquesAsignados);
     free(metadatas);
+    free(hiloDump);
     return 0;
 }

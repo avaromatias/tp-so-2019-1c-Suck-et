@@ -203,6 +203,7 @@ void lfsDump() {
     }
     tiempoDump=tiempoDump/1000;
     sleep(tiempoDump);
+    config_destroy(archivoConfig);
     void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
         int nroDump = 0;
         char* nombreArchivo = obtenerPathArchivo(nombreTabla, string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp"));
@@ -822,8 +823,7 @@ t_response *gestionarRequest(t_comando comando) {
             return retorno;
 
         case DROP:
-            lfsDump();
-            retorno = lfsDescribe(comando.parametros[0]);
+            retorno = lfsDrop(comando.parametros[0]);
             return retorno;
 
         case HELP:

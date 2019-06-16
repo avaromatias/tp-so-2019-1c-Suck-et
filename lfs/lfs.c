@@ -203,6 +203,7 @@ void retardo() {
     }
     tiempoDump=tiempoDump/1000;
     sleep(tiempoDump);
+    config_destroy(archivoConfig);
 }
 void lfsDump() {
     t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);

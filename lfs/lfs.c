@@ -323,6 +323,8 @@ int borrarContenidoDeDirectorio(char *dirPath) {
     sem_wait(semDir);
     d = opendir(dirPath);
     if (d) {
+        int puntoEncontrado=0;
+        int puntoPuntoEncontrado=0;
         while ((dir = readdir(d)) != NULL) {
             char *nombreTabla = string_new();
             nombreTabla = string_duplicate(dir->d_name);
@@ -330,6 +332,12 @@ int borrarContenidoDeDirectorio(char *dirPath) {
             string_append(&pathArchivo, dirPath);
             string_append(&pathArchivo, "/");
             string_append(&pathArchivo, nombreTabla);
+            if(strcmp(dir->d_name, ".") == 0){
+                puntoEncontrado=1;
+            }
+            if(strcmp(dir->d_name, "..") == 0){
+                puntoPuntoEncontrado=1;
+            }
             if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
                 if (string_contains(dir->d_name, ".bin")) {
                     t_config *archivoConfig = abrirArchivoConfiguracion(pathArchivo, logger);
@@ -345,13 +353,31 @@ int borrarContenidoDeDirectorio(char *dirPath) {
                     free(blocks);
                     config_destroy(archivoConfig);
                 }
-
+                if (deleteFile(pathArchivo) != 0) {
+                    return 0;
+                }
             }
+
+            free(pathArchivo);
+            free(nombreTabla);
+        }
+        if(puntoEncontrado){
+            char *pathArchivo = string_new();
+            string_append(&pathArchivo, dirPath);
+            string_append(&pathArchivo, "/.");
+            free(pathArchivo);
             if (deleteFile(pathArchivo) != 0) {
                 return 0;
             }
+        }
+        if(puntoPuntoEncontrado){
+            char *pathArchivo = string_new();
+            string_append(&pathArchivo, dirPath);
+            string_append(&pathArchivo, "/..");
             free(pathArchivo);
-            free(nombreTabla);
+            if (deleteFile(pathArchivo) != 0) {
+                return 0;
+            }
         }
         closedir(d);
     }
@@ -644,57 +670,57 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             char *mayorLinea = string_new();
             mayorLinea = concat(1, "");
             bool lineaContinuaEnOtroBloque = false;
+            if(binarioParticion!=NULL) {
+                //4.0 Obtengo los bloques asignados a la particion obtenida
+                char **bloques = bloquesEnParticion(nombreTabla, nombreArchivoParticion);
+                int tamanioArray = tamanioDeArrayDeStrings(bloques);
+                for (int i = 0; i < tamanioArray; i++) {
 
-            //4.0 Obtengo los bloques asignados a la particion obtenida
-            char **bloques = bloquesEnParticion(nombreTabla, nombreArchivoParticion);
-            int tamanioArray = tamanioDeArrayDeStrings(bloques);
-            for (int i = 0; i < tamanioArray; i++) {
+                    //4.1. Escaneo particion objetivo
+                    char *blockPath = obtenerPathBloque(atoi(bloques[i]));
+                    sem_t *semBloque = obtenerSemaforoPath(blockPath);
+                    sem_wait(semBloque);
+                    binarioBloque = fopen(blockPath, "r");
 
-                //4.1. Escaneo particion objetivo
-                char *blockPath = obtenerPathBloque(atoi(bloques[i]));
-                sem_t *semBloque = obtenerSemaforoPath(blockPath);
-                sem_wait(semBloque);
-                binarioBloque = fopen(blockPath, "r");
-
-                while (!feof(binarioBloque)) {
-                    if (!lineaContinuaEnOtroBloque) {
-                        linea = string_new();
-                    }
-                    keyEncontrado = string_new();
-                    timestampEncontrado = string_new();
-                    while ((seekBloque = getc(binarioBloque)) != EOF && seekBloque != '\n') {
-                        str[0] = seekBloque;
-                        string_append(&linea, str);
-                    }
-                    if (strcmp(linea, "") != 0) {
-                        palabras = desarmarLinea(linea);
-                        if (tamanioDeArrayDeStrings(palabras) == 3 &&
-                            seekBloque == '\n') { // Si la línea no continua en otro bloque
-                            lineaContinuaEnOtroBloque = false;
-                            string_append(&timestampEncontrado, palabras[0]);
-                            string_append(&keyEncontrado, palabras[1]);
-                            if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
-                                mayorTimestamp = atoi(timestampEncontrado);
-                                valorMayorTimestamp = string_new();
-                                valorMayorTimestamp = concat(1, palabras[2]);
-                                mayorLinea = string_new();
-                                mayorLinea = concat(1, linea);
+                    while (!feof(binarioBloque)) {
+                        if (!lineaContinuaEnOtroBloque) {
+                            linea = string_new();
+                        }
+                        keyEncontrado = string_new();
+                        timestampEncontrado = string_new();
+                        while ((seekBloque = getc(binarioBloque)) != EOF && seekBloque != '\n') {
+                            str[0] = seekBloque;
+                            string_append(&linea, str);
+                        }
+                        if (strcmp(linea, "") != 0) {
+                            palabras = desarmarLinea(linea);
+                            if (tamanioDeArrayDeStrings(palabras) == 3 &&
+                                seekBloque == '\n') { // Si la línea no continua en otro bloque
+                                lineaContinuaEnOtroBloque = false;
+                                string_append(&timestampEncontrado, palabras[0]);
+                                string_append(&keyEncontrado, palabras[1]);
+                                if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
+                                    mayorTimestamp = atoi(timestampEncontrado);
+                                    valorMayorTimestamp = string_new();
+                                    valorMayorTimestamp = concat(1, palabras[2]);
+                                    mayorLinea = string_new();
+                                    mayorLinea = concat(1, linea);
+                                }
+                            } else {
+                                lineaContinuaEnOtroBloque = true;
                             }
-                        } else {
-                            lineaContinuaEnOtroBloque = true;
                         }
                     }
+                    free(blockPath);
+                    fclose(binarioBloque);
+                    sem_post(semBloque);
                 }
-                free(blockPath);
-                fclose(binarioBloque);
-                sem_post(semBloque);
+
+                freeArrayDeStrings(bloques);
+
+                fclose(binarioParticion);
+                sem_post(semBinario);
             }
-
-            freeArrayDeStrings(bloques);
-
-            fclose(binarioParticion);
-            sem_post(semBinario);
-
 
             //4.2. Escaneo los archivos temporales
             int nroTemporal = 0;
@@ -867,7 +893,7 @@ t_response *gestionarRequest(t_comando comando) {
             } else {
                 timestamp = (time_t) time(NULL);
             }
-            printf("Timestamp: %i\n", (int) timestamp);
+            //printf("Timestamp: %i\n", (int) timestamp);
             retorno = lfsInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], timestamp);
             return retorno;
 

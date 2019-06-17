@@ -62,7 +62,8 @@ typedef struct {
 } parametros_thread_lfs;
 
 typedef struct {
-    char *comando;
+    Header header;
+    char *mensaje;
 } parametros_thread_request;
 
 typedef struct {
@@ -83,8 +84,7 @@ pthread_mutex_t mutexAsignacionBloques;
 //Header de funciones
 t_configuracion cargarConfiguracion(char *path, t_log *logger);
 
-void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros);
-
+void atenderMensajes(void* parametrosRequest);
 
 char** obtenerTablas();
 t_response *lfsDescribe(char *nombreTabla);

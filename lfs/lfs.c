@@ -50,7 +50,10 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 }
 
-void atenderMensajes(Header header, char *mensaje, parametros_thread_lfs *parametros) {
+void atenderMensajes(void* parametrosRequest) {
+    parametros_thread_request *parametros = (parametros_thread_request *) parametrosRequest;
+    Header header = parametros->header;
+    char *mensaje = parametros->mensaje;
     char **comandoParseado = parser(mensaje);
     t_response *retorno;
     t_comando comando = instanciarComando(comandoParseado);
@@ -970,6 +973,18 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, int tamanioValue, 
     return hiloConexiones;
 }
 
+pthread_t *crearHiloRequest(Header header, char* mensaje) {
+    pthread_t *hiloRequest = (pthread_t *) malloc(sizeof(pthread_t));
+
+    parametros_thread_request *parametros = (parametros_thread_request *) malloc(sizeof(parametros_thread_request));
+
+    parametros->header = header;
+    parametros->mensaje = mensaje;
+    pthread_create(hiloRequest, NULL, &atenderMensajes, parametros);
+
+    return hiloRequest;
+}
+
 pthread_t *crearHiloDump(t_log *logger) {
     pthread_t *hiloConexiones = (pthread_t *) malloc(sizeof(pthread_t));
 
@@ -1273,7 +1288,9 @@ void *atenderConexiones(void *parametrosThread) {
                                     Componente componente = *((Componente *) mensaje);
                                     atenderHandshake(header, componente, parametros);
                                 } else
-                                    atenderMensajes(header, mensaje, parametrosThread);
+                                {
+                                    pthread_t *hiloRequest = crearHiloRequest(header, mensaje);
+                                }
                             }
                             break;
                     }

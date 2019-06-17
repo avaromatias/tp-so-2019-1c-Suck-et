@@ -550,7 +550,7 @@ t_response *lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, tim
                     sem_post(semBloque);
                     free(pathBloque);
                     if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
-                        bitarray_set_bit(bitarray, bloque);
+                        //bitarray_set_bit(bitarray, bloque);
                     }
                 }
                 free(path);
@@ -1078,15 +1078,6 @@ void crearDirBloques(char *puntoMontaje) {
     int bloques = obtenerCantidadBloques(puntoMontaje);
     if (bloques != -1) {
 
-        int tamanioBitarray = bloques / 8;
-        char *data = malloc(sizeof(char) * tamanioBitarray);
-
-        for (int i = 0; i < tamanioBitarray; i++) {
-            data[i] = 0;
-        }
-
-        bitarray = bitarray_create_with_mode(data, sizeof(data), MSB_FIRST);
-
         for (int i = 0; i < bloques; i++) {
             char *nroBloque = string_from_format("%i", i);
             char *unArchivoDeBloque = concat(4, nombreArchivo, "/", nroBloque, ".bin");
@@ -1103,7 +1094,7 @@ void crearDirBloques(char *puntoMontaje) {
                 sem_post(semBloque);
             } else if (!archivoVacio(unArchivoDeBloque) &&
                        obtenerTamanioBloque(i) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
-                bitarray_set_bit(bitarray, i);
+                //bitarray_set_bit(bitarray, i);
             }
             free(unArchivoDeBloque);
             //printf("%i", bitarray_test_bit(bitarray, i));
@@ -1172,31 +1163,12 @@ void inicializarBitmap() {
     string_append(&bitmapPath, configuracion.puntoMontaje);
     string_append(&bitmapPath, "Metadata/Bitmap.bin");
     int fd = open(bitmapPath, O_RDWR);
+    int tamanioBitarray = obtenerCantidadBloques(configuracion.puntoMontaje) / 8;
     if(lseek(fd, 0, SEEK_END) <= 0) {
-        int tamanioBitarray = obtenerCantidadBloques(configuracion.puntoMontaje) / 8;
         ftruncate(fd, tamanioBitarray);
     }
-
-    struct stat mystat;
-    if (fstat(fd, &mystat) < 0) {
-        printf("Error al establecer fstat\n");
-        close(fd);
-        return NULL;
-    }
-
-    bitmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
-}
-
-void syncBitmap(void *bitarrayMapeado) {
-    int cantidadBloques = obtenerCantidadBloques(configuracion.puntoMontaje);
-    int tamanioBitarray = cantidadBloques / 8;
-    char *bloques = malloc(cantidadBloques);
-    for(int i = 0; i < cantidadBloques; i++) {
-        bloques[i] = bitarray_test_bit(bitarray, i);
-    }
-    memcpy(bitarrayMapeado, bloques, sizeof(bloques));
-    msync(bitarrayMapeado, tamanioBitarray, MS_SYNC);
-    free(bloques);
+    bitmap = mmap(NULL, tamanioBitarray, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
+    bitarray = bitarray_create_with_mode(bitmap, tamanioBitarray, MSB_FIRST);
 }
 
 void *atenderConexiones(void *parametrosThread) {
@@ -1283,9 +1255,10 @@ int main(void) {
     bloquesAsignados = dictionary_create();
     inicializarLFS(configuracion.puntoMontaje);
     inicializarBitmap();
-    bitarray_set_bit(bitarray, 0);
-    bitarray_set_bit(bitarray, 2);
-    syncBitmap(bitmap);
+    //bitarray_set_bit(bitarray, 2);
+    //bitarray_set_bit(bitarray, 4);
+    //bitarray_set_bit(bitarray, 6);
+    bitarray_clean_bit(bitarray, 8);
     for(int i = 0; i < 16; i++) {
         printf("%d", bitarray_test_bit(bitarray, i));
     }

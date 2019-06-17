@@ -17,6 +17,7 @@
 #include <string.h>
 #include <commons/config.h>
 #include <commons/log.h>
+#include <commons/collections/list.h>
 #include <commons/collections/queue.h>
 #include "../libs/config.h"
 #include "../libs/sockets.h"
@@ -43,7 +44,11 @@ typedef struct {
     char* consistencia;
 } memoria_Conocida;
 
-t_dictionary tablaDeMemorias;
+typedef struct {
+    t_log *logger;
+    GestorConexiones *conexiones;
+    t_list *memoriasConocidas;
+} parametros_consola_kernel;
 
 //Para Planificador
 t_queue *colaDeNew;
@@ -51,31 +56,37 @@ t_queue *colaDeReady;
 t_queue *colaDeExecute;
 t_list *finalizados;
 
-//Funciones propias de Kernel
+// ***** COMPORTAMIENTOS DEL KERNEL *****
+
 t_configuracion cargarConfiguracion(char *, t_log *);
 
-int gestionarRequest(t_comando requestParseada, int fdMemoria);
+int gestionarRequest(t_comando requestParseada, parametros_consola_kernel *parametros);
+
+void ejecutarConsola(int (*gestionarRequest)(t_comando, parametros_consola_kernel*), parametros_consola_kernel *parametros);
+
+void *analizarRequest(t_comando requestParseada, parametros_consola_kernel *parametros);
+
+void *administrarRequestsLQL(t_archivoLQL archivoLQL, parametros_consola_kernel *parametros);
+
+int conectarseAMemoriaPrincipal(char* ipMemoria, int puertoMemoria, GestorConexiones* misConexiones, t_log* logger);
+
+// ***** GESTIÓN DE COMANDOS *****
 
 bool validarComandosKernel(t_comando requestParseada, t_log *logger);
 
 bool esComandoValidoDeKernel(t_comando comando);
 
-void ejecutarConsola(int (*gestionarRequest)(t_comando, int), t_log *logger, int fdMemoria);
+int gestionarSelectKernel(char *nombreTabla, char *key, GestorConexiones* misConexiones);
 
-void *analizarRequest(t_comando requestParseada, t_log *logger, int fdMemoria);
+int gestionarCreateKernel(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones, char *tiempoCompactacion, GestorConexiones* misConexiones);
 
-void *administrarRequestsLQL(t_archivoLQL archivoLQL, t_log *logger, int fdMemoria);
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, GestorConexiones* misConexiones);
 
-int gestionarRun(char *pathArchivo, int fdMemoria);
+int gestionarDropKernel(char *nombreTabla, GestorConexiones* misConexiones);
 
-int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria);
+int gestionarAdd(char** parametrosDeRequest, parametros_consola_kernel *parametros);
 
-int gestionarCreateKernel(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones, char *tiempoCompactacion, int fdMemoria);
+int gestionarRun(char *pathArchivo, parametros_consola_kernel *parametros);
 
-int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria);
-
-int gestionarDropKernel(char *nombreTabla, int fdMemoria);
-
-int conectarseAMemoriaPrincipal(char* ipMemoria, int puertoMemoria, GestorConexiones* misConexiones, t_log* logger);
 
 #endif /* KERNEL_H_ */

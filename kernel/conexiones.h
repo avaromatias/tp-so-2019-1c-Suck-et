@@ -36,5 +36,6 @@ typedef struct  {
 pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_log* logger);
 void* atenderConexiones(void* parametrosThread);
 void atenderMensajes(Header header, char* mensaje);
+void confirmarHandshake(Header header, parametros_thread parametros);
 
 #endif //KERNEL_CONEXIONES_H

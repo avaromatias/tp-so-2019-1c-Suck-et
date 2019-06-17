@@ -66,6 +66,7 @@ void *atenderConexiones(void *parametrosThread) {
                                         //gestionarRespuesta();//atenderMensajes(header, mensaje, parametros);
                                         break;
                                     case CONEXION_ACEPTADA:
+                                        confirmarHandshake(header, parametros);
                                         break;
                                         //Componente componente = *((Componente *) mensaje);
                                         //atenderHandshake(header, componente, parametros);
@@ -108,6 +109,11 @@ int conectarseAMemoriaPrincipal(char* ipMemoria, int puertoMemoria, GestorConexi
     }
     return fdMemoria;
 }
+
+void confirmarHandshake(Header header, parametros_thread parametros) {
+
+}
+
 /*
 void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char *ipMemoria, int puertoMemoria, t_log *logger) {
     log_info(logger, "Intentando conectarse a Memoria Principal.");

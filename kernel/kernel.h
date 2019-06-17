@@ -37,6 +37,12 @@ typedef struct {
     int cantidadDeLineas;
 } t_archivoLQL;
 
+typedef struct {
+    int indice;
+    int fileDescriptor;
+    char* consistencia;
+} memoria_Conocida;
+
 t_dictionary tablaDeMemorias;
 
 //Para Planificador

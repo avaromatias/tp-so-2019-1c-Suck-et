@@ -14,8 +14,7 @@ int main(void) {
     log_info(logger, "Iniciando el proceso Kernel");
 
     t_configuracion configuracion = cargarConfiguracion("kernel.cfg", logger);
-    //t_dictionary *tablaDeMemoriasConocidas = dictionary_create();
-    //t_memoria_conocida memoriaConocida = {.fdMemoria =0};
+    t_list *tablaMemoriasConocidas = list_create();
 
     log_info(logger, "IP Memoria: %s", configuracion.ipMemoria);
     log_info(logger, "Puerto Memoria: %i", configuracion.puertoMemoria);
@@ -26,14 +25,13 @@ int main(void) {
 
     GestorConexiones *misConexiones= inicializarConexion();
 
-    int fdMemoria = conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
-    //todo probamos con una sola memoria por ahora
-     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
+    conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
 
-    ejecutarConsola(gestionarRequest, logger, fdMemoria);
+    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
+
+    ejecutarConsola(gestionarRequest, logger, misConexiones);
 
     pthread_join(&hiloRespuestas, NULL);
-    //ejecutarConsola(gestionarRequest, logger, tablaDeMemoriasConocidas);
 
     return EXIT_SUCCESS;
 }
@@ -79,7 +77,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 }
 
-void ejecutarConsola(int (*gestionarRequest)(t_comando, int), t_log *logger, int fdMemoria) {
+void ejecutarConsola(int (*gestionarRequest)(t_comando, int), t_log *logger, GestorConexiones *misConexiones) {
     t_comando requestParseada;
     do {
         char *leido = readline("Kernel@suck-ets:~$ ");
@@ -89,19 +87,19 @@ void ejecutarConsola(int (*gestionarRequest)(t_comando, int), t_log *logger, int
             continue;
         }
         requestParseada = instanciarComando(comandoParseado);
-        analizarRequest(requestParseada, logger, fdMemoria);
+        analizarRequest(requestParseada, logger, misConexiones);
         //free(leido);
         //free(comandoParseado);
     } while (requestParseada.tipoRequest != EXIT);
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
-void *analizarRequest(t_comando requestParseada, t_log *logger, int fdMemoria) {
+void *analizarRequest(t_comando requestParseada, t_log *logger, GestorConexiones *misConexiones) {
     if (requestParseada.tipoRequest == INVALIDO) {
         printf("Comando inválido.\n");
     } else {
         if (validarComandosComunes(requestParseada, logger) || validarComandosKernel(requestParseada, logger)) {
-            if (gestionarRequest(requestParseada, fdMemoria) == 0) {
+            if (gestionarRequest(requestParseada, misConexiones) == 0) {
                 log_info(logger, "Request procesada correctamente.");
             } else {
                 log_error(logger, "No se pudo procesar la request solicitada.");
@@ -110,30 +108,30 @@ void *analizarRequest(t_comando requestParseada, t_log *logger, int fdMemoria) {
     }
 }
 
-int gestionarRequest(t_comando requestParseada, int fdMemoria) {
+int gestionarRequest(t_comando requestParseada, GestorConexiones *misConexiones) {
     switch (requestParseada.tipoRequest) {
         case SELECT:
-            return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], fdMemoria);
+            return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], misConexiones);
         case INSERT:
             return gestionarInsertKernel(requestParseada.parametros[0], requestParseada.parametros[1], requestParseada.parametros[2],
-                                         fdMemoria);
+                                         misConexiones);
         case CREATE:
             return gestionarCreateKernel(requestParseada.parametros[0], requestParseada.parametros[1], requestParseada.parametros[2],
-                                         requestParseada.parametros[3], fdMemoria);
+                                         requestParseada.parametros[3], misConexiones);
         case DROP:
-            return gestionarDropKernel(requestParseada.parametros[0], fdMemoria);
+            return gestionarDropKernel(requestParseada.parametros[0], misConexiones);
         case DESCRIBE:
             return 0;//gestionarDescribeKernel();
         case JOURNAL:
             return 0;//gestionarJournalKernel();
         case ADD:
-            //printf("Tipo de Request: % %s %s ", requestParseada.tipoRequest, requestParseada.parametros[1],
-            //       requestParseada.parametros[2]); //nombreTabla en realidad vien
-            //printf("To: %s", requestParseada.parametros[3]);
-            //gestionarAdd(requestParseada.parametros, tablaDeMemoriasConocidas);
+            printf("Tipo de Request: %s %s %s ", "ADD", requestParseada.parametros[1], // no pongo requestParseada.tipoRequest porque va a romper
+                   requestParseada.parametros[2]); //nombreTabla en realidad vien
+            printf("To: %s", requestParseada.parametros[3]);
+            gestionarAdd(requestParseada.parametros, misConexiones, tablaDeMemoriasConocidas);
             return 0;
         case RUN:
-            gestionarRun(requestParseada.parametros[0], fdMemoria);
+            gestionarRun(requestParseada.parametros[0], misConexiones);
             break;
         case METRICS:
             //gestionarMetricas();
@@ -266,7 +264,7 @@ bool esComandoValidoDeKernel(t_comando comando) {
     }
 }
 
-int gestionarRun(char *pathArchivo, int fdMemoria) {
+int gestionarRun(char *pathArchivo, GestorConexiones *misConexiones) {
     t_archivoLQL archivoLQL;
     t_log *logger;
     char *linea = NULL;
@@ -295,13 +293,13 @@ int gestionarRun(char *pathArchivo, int fdMemoria) {
         lineaLeida++;
         archivoLQL.cantidadDeLineas++;
     }
-    administrarRequestsLQL(archivoLQL, logger, fdMemoria);
+    administrarRequestsLQL(archivoLQL, logger, misConexiones);
     //ver si no conviene dejar aparte cuando conviene enviar a una determinada memoria
     //asignarAMemoriaCorrecta(request, tablaDeMemorias);
     fclose(archivo);
 }
 
-void *administrarRequestsLQL(t_archivoLQL archivoLQL, t_log *logger, int fdMemoria) {
+void *administrarRequestsLQL(t_archivoLQL archivoLQL, t_log *logger, GestorConexiones *misConexiones) {
     t_comando requestParseada;
     int contadorDeRequest = 0;
     do {
@@ -313,7 +311,7 @@ void *administrarRequestsLQL(t_archivoLQL archivoLQL, t_log *logger, int fdMemor
             free(unaRequest);
             free(comandoParseado);
 
-            analizarRequest(requestParseada, logger, fdMemoria);
+            //analizarRequest(requestParseada, logger, misConexiones);
         }
     } while (contadorDeRequest > archivoLQL.cantidadDeLineas);
     printf("Ya analizamos todo lo solicitado para el archivo LQL ingresado.\n");
@@ -361,8 +359,19 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
     char *consistencia = parametrosNecesarios[3];
 
     return fdMemoria;
+}*/
+
+int gestionarAdd(char** parametros, GestorConexiones *misConexiones, t_log* logger){
+   int numeroMemoria = parametros[1];
+   int memoriaEncontrada = list_get(misConexiones->conexiones, (numeroMemoria - 1)) // hacemos -1 por la ubicación 0
+   if (memoriaEncontrada != NULL) {
+       memoria_Conocida memoriaConocida = {.indice = 1, .fileDescriptor = memoriaEncontrada, .consistencia = (char*) malloc(sizeof(char*)) };
+       memoriaConocida.consistencia = parametros[3]
+       list_add(memoriasConocidas, memoriaConocida);
+       return 0;
+   } else {
+       log_info(logger, "La memoria solicitada no se encuentra dentro de las memorias conocidas.\n");
+       return -1;
+   }
 }
 
-int gestionarAdd(int fdMemoria)
-
-*/

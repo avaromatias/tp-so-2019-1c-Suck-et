@@ -217,3 +217,10 @@ int obtenerCantidadParametros(char** request) {
     for (contador; request[contador] != NULL; contador++);
     return (contador- 1); //restamos el tipoRequest
 }
+
+void freeArrayDeStrings(char **array) {
+    for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
+        free(array[i]);
+    }
+    free(array);
+}

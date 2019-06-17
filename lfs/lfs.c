@@ -317,7 +317,7 @@ int borrarContenidoDeDirectorio(char *dirPath) {
     DIR *d;
     struct dirent *dir;
     sem_t *semDir = obtenerSemaforoPath(dirPath);
-    sem_wait(dirPath);
+    sem_wait(semDir);
     d = opendir(dirPath);
     if (d) {
         while ((dir = readdir(d)) != NULL) {
@@ -328,7 +328,7 @@ int borrarContenidoDeDirectorio(char *dirPath) {
             string_append(&pathArchivo, "/");
             string_append(&pathArchivo, nombreTabla);
             if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
-                if (strcmp(dir->d_name, "Metadata") != 0) {
+                if (string_contains(dir->d_name, ".bin")) {
                     t_config *archivoConfig = abrirArchivoConfiguracion(pathArchivo, logger);
                     char **blocks = config_get_array_value(archivoConfig, "BLOCKS");
                     for (int i = 0; i < tamanioDeArrayDeStrings(blocks); i++) {
@@ -629,7 +629,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             sem_wait(semBinario);
             FILE *binarioParticion = fopen(binaryPath, "r");
             FILE *binarioBloque;
-            char seek;
+            char seekBloque;
             char **palabras;
             char *linea;
             char str[2];
@@ -659,14 +659,14 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                     }
                     keyEncontrado = string_new();
                     timestampEncontrado = string_new();
-                    while ((seek = getc(binarioBloque)) != EOF && seek != '\n') {
-                        str[0] = seek;
+                    while ((seekBloque = getc(binarioBloque)) != EOF && seekBloque != '\n') {
+                        str[0] = seekBloque;
                         string_append(&linea, str);
                     }
                     if (strcmp(linea, "") != 0) {
                         palabras = desarmarLinea(linea);
                         if (tamanioDeArrayDeStrings(palabras) == 3 &&
-                            seek == '\n') { // Si la línea no continua en otro bloque
+                            seekBloque == '\n') { // Si la línea no continua en otro bloque
                             lineaContinuaEnOtroBloque = false;
                             string_append(&timestampEncontrado, palabras[0]);
                             string_append(&keyEncontrado, palabras[1]);
@@ -687,15 +687,59 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                 sem_post(semBloque);
             }
 
-            for (int i = 0; i < tamanioDeArrayDeStrings(bloques); i++) {
-                free(bloques[i]);
-            }
-            free(bloques);
+            freeArrayDeStrings(bloques);
 
             fclose(binarioParticion);
             sem_post(semBinario);
 
+
             //4.2. Escaneo los archivos temporales
+            int nroTemporal = 0;
+            char *nombreArchivoTemporal = string_new();
+            string_append(&nombreArchivoTemporal, nombreTabla);
+            string_append(&nombreArchivoTemporal, string_itoa(nroTemporal));
+            string_append(&nombreArchivoTemporal, ".tmp");
+            char *archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
+            lineaContinuaEnOtroBloque = false;
+            while(existeElArchivo(archivoTemporalPath)) {
+                FILE *archivoTemporal = fopen(archivoTemporalPath, "r");
+                char seekTemporal;
+                while (!feof(archivoTemporal)) {
+                    if (!lineaContinuaEnOtroBloque) {
+                        linea = string_new();
+                    }
+                    keyEncontrado = string_new();
+                    timestampEncontrado = string_new();
+                    while ((seekTemporal = getc(archivoTemporal)) != EOF && seekTemporal != '\n') {
+                        str[0] = seekTemporal;
+                        string_append(&linea, str);
+                    }
+                    if (strcmp(linea, "") != 0) {
+                        palabras = desarmarLinea(linea);
+                        if (tamanioDeArrayDeStrings(palabras) == 3 &&
+                            seekTemporal == '\n') { // Si la línea no continua en otro bloque
+                            lineaContinuaEnOtroBloque = false;
+                            string_append(&timestampEncontrado, palabras[0]);
+                            string_append(&keyEncontrado, palabras[1]);
+                            if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
+                                mayorTimestamp = atoi(timestampEncontrado);
+                                valorMayorTimestamp = string_new();
+                                valorMayorTimestamp = concat(1, palabras[2]);
+                                mayorLinea = string_new();
+                                mayorLinea = concat(1, linea);
+                            }
+                        } else {
+                            lineaContinuaEnOtroBloque = true;
+                        }
+                    }
+                }
+                nroTemporal++;
+                nombreArchivoTemporal = string_new();
+                string_append(&nombreArchivoTemporal, nombreTabla);
+                string_append(&nombreArchivoTemporal, string_itoa(nroTemporal));
+                string_append(&nombreArchivoTemporal, ".tmp");
+                archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
+            }
 
 
             //4.2. Escaneo la memoria temporal de la tabla

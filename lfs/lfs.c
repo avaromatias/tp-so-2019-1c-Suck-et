@@ -165,7 +165,7 @@ int obtenerTamanioBloque(int bloque) {
 }
 
 int estaLibreElBloque(int bloque) {
-    if (bitarray_test_bit(bitmap, bloque) == 0) {
+    if (bitarray_test_bit(bitarray, bloque) == 0) {
         return 1;
     }
     return 0;
@@ -550,7 +550,7 @@ t_response *lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, tim
                     sem_post(semBloque);
                     free(pathBloque);
                     if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
-                        bitarray_set_bit(bitmap, bloque);
+                        bitarray_set_bit(bitarray, bloque);
                     }
                 }
                 free(path);
@@ -1085,19 +1085,7 @@ void crearDirBloques(char *puntoMontaje) {
             data[i] = 0;
         }
 
-        char *archivoBitmap = string_new();
-        string_append(&archivoBitmap, puntoMontaje);
-        string_append(&archivoBitmap, "Metadata/Bitmap.bin");
-        //int file = open(archivoBitmap, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-
-        /*char *data = (char *) mmap(NULL, sizeof(data), PROT_WRITE | PROT_READ, MAP_SHARED, file, 0);
-        if (data == MAP_FAILED) {                                           //
-            printf("Error al mapear a memoria: %s\n", strerror(errno));     // Hay que borrar esto una vez
-            close(file);                                                    // que quede andando el bitmap
-        }                                                                   //*/
-        bitmap = bitarray_create_with_mode(data, sizeof(data), MSB_FIRST);
-
-        free(archivoBitmap);
+        bitarray = bitarray_create_with_mode(data, sizeof(data), MSB_FIRST);
 
         for (int i = 0; i < bloques; i++) {
             char *nroBloque = string_from_format("%i", i);
@@ -1115,10 +1103,10 @@ void crearDirBloques(char *puntoMontaje) {
                 sem_post(semBloque);
             } else if (!archivoVacio(unArchivoDeBloque) &&
                        obtenerTamanioBloque(i) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
-                bitarray_set_bit(bitmap, i);
+                bitarray_set_bit(bitarray, i);
             }
             free(unArchivoDeBloque);
-            //printf("%i", bitarray_test_bit(bitmap, i));
+            //printf("%i", bitarray_test_bit(bitarray, i));
             //No hago un free del bloque porque lo necesito para el diccionario de bloques, en que momento deberia liberarlo?
         }
         free(nombreArchivo);
@@ -1177,6 +1165,38 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_lf
         enviarPaquete(header.fdRemitente, HANDSHAKE, tamanioValue);
         free(tamanioValue);
     }
+}
+
+void inicializarBitmap() {
+    char *bitmapPath = string_new();
+    string_append(&bitmapPath, configuracion.puntoMontaje);
+    string_append(&bitmapPath, "Metadata/Bitmap.bin");
+    int fd = open(bitmapPath, O_RDWR);
+    if(lseek(fd, 0, SEEK_END) <= 0) {
+        int tamanioBitarray = obtenerCantidadBloques(configuracion.puntoMontaje) / 8;
+        ftruncate(fd, tamanioBitarray);
+    }
+
+    struct stat mystat;
+    if (fstat(fd, &mystat) < 0) {
+        printf("Error al establecer fstat\n");
+        close(fd);
+        return NULL;
+    }
+
+    bitmap = mmap(NULL, mystat.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
+}
+
+void syncBitmap(void *bitarrayMapeado) {
+    int cantidadBloques = obtenerCantidadBloques(configuracion.puntoMontaje);
+    int tamanioBitarray = cantidadBloques / 8;
+    char *bloques = malloc(cantidadBloques);
+    for(int i = 0; i < cantidadBloques; i++) {
+        bloques[i] = bitarray_test_bit(bitarray, i);
+    }
+    memcpy(bitarrayMapeado, bloques, sizeof(bloques));
+    msync(bitarrayMapeado, tamanioBitarray, MS_SYNC);
+    free(bloques);
 }
 
 void *atenderConexiones(void *parametrosThread) {
@@ -1262,6 +1282,14 @@ int main(void) {
     memTable = dictionary_create();
     bloquesAsignados = dictionary_create();
     inicializarLFS(configuracion.puntoMontaje);
+    inicializarBitmap();
+    bitarray_set_bit(bitarray, 0);
+    bitarray_set_bit(bitarray, 2);
+    syncBitmap(bitmap);
+    for(int i = 0; i < 16; i++) {
+        printf("%d", bitarray_test_bit(bitarray, i));
+    }
+    printf("\n");
 
     log_info(logger, "Puerto Escucha: %i", configuracion.puertoEscucha);
     log_info(logger, "Punto Montaje: %s", configuracion.puntoMontaje);

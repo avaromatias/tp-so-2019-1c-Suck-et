@@ -76,7 +76,8 @@ t_dictionary *bloquesAsignados;
 t_dictionary *metadatas;
 t_dictionary *memTable;
 t_dictionary *archivosAbiertos;
-t_bitarray *bitmap;
+t_bitarray *bitarray;
+void *bitmap;
 pthread_mutex_t mutexAsignacionBloques;
 
 

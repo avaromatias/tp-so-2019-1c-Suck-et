@@ -9,11 +9,11 @@
 
 #include "generales.h"
 
-void printArrayDeStrings(char** arrayDeStrings){
+void printArrayDeStrings(char **arrayDeStrings) {
 
-    int count=0;
+    int count = 0;
     while (arrayDeStrings[count] != NULL) {
-        for (int i = 0; i <strlen(arrayDeStrings[count]) ; ++i) {
+        for (int i = 0; i < strlen(arrayDeStrings[count]); ++i) {
             printf("%c", arrayDeStrings[count][i]);
 
         }
@@ -21,10 +21,11 @@ void printArrayDeStrings(char** arrayDeStrings){
         count++;
     }
 }
-int tamanioDeArrayDeStrings(char** arrayDeString){
 
-    int count=0;
-    if(arrayDeString == NULL){
+int tamanioDeArrayDeStrings(char **arrayDeString) {
+
+    int count = 0;
+    if (arrayDeString == NULL) {
         return 0;
     }
     while (arrayDeString[count] != NULL) {
@@ -32,23 +33,24 @@ int tamanioDeArrayDeStrings(char** arrayDeString){
     }
     return count;
 }
-char* convertirArrayAString(char** array){
-    char* resultado=string_new();
-    string_append(&resultado,"[");
+
+char *convertirArrayAString(char **array) {
+    char *resultado = string_new();
+    string_append(&resultado, "[");
     for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
-        string_append(&resultado,(char*)array[i]);
-        if(i <(tamanioDeArrayDeStrings(array)-1)){
-            string_append(&resultado,",");
+        string_append(&resultado, (char *) array[i]);
+        if (i < (tamanioDeArrayDeStrings(array) - 1)) {
+            string_append(&resultado, ",");
 
         }
     }
-    string_append(&resultado,"]");
+    string_append(&resultado, "]");
     return resultado;
 }
 
-int arrayIncluye(char** array, char* elemento){
+int arrayIncluye(char **array, char *elemento) {
     for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
-        if(strcmp(array[i],elemento)==0){
+        if (strcmp(array[i], elemento) == 0) {
             return 1;
         }
     }
@@ -104,8 +106,8 @@ int archivoVacio(char *path) {
     return c == EOF;
 }
 
-int pesoString(char* string)    {
-    return string == NULL? 0 : sizeof(char) * (strlen(string) + 1);
+int pesoString(char *string) {
+    return string == NULL ? 0 : sizeof(char) * (strlen(string) + 1);
 }
 
 char *concat(int count, ...) {
@@ -136,32 +138,32 @@ char *concat(int count, ...) {
 }
 
 
-char** parser(char* input){
+char **parser(char *input) {
     string_trim(&input);
-    if(string_is_empty(input))
+    if (string_is_empty(input))
         return NULL;
-    char** parseado = string_split(input, "\"");
-    char** parseadoSinVal=string_split(parseado[0]," ");
+    char **parseado = string_split(input, "\"");
+    char **parseadoSinVal = string_split(parseado[0], " ");
     int cantidadElementosSinComillas = tamanioDeArrayDeStrings(parseado);
     int cantidadElementosSinEspacios = tamanioDeArrayDeStrings(parseadoSinVal);
     int cantidadElementosComandoParseado = cantidadElementosSinComillas + cantidadElementosSinEspacios;
-    char** comandoParseado = (char**) malloc(sizeof(char*) * cantidadElementosComandoParseado);
+    char **comandoParseado = (char **) malloc(sizeof(char *) * cantidadElementosComandoParseado);
 
     int i = 0;
-    while(i < cantidadElementosSinEspacios) {
+    while (i < cantidadElementosSinEspacios) {
         comandoParseado[i] = parseadoSinVal[i];
         i++;
     }
 
-    char* valor = parseado[1];
+    char *valor = parseado[1];
     comandoParseado[i] = valor;
 
-    if(valor != NULL) {
+    if (valor != NULL) {
         comandoParseado[i] = string_from_format("\"%s\"", valor);
         free(valor);
         i++;
-        if(parseado[2]){
-            comandoParseado[i]=parseado[2];
+        if (parseado[2]) {
+            comandoParseado[i] = parseado[2];
             i++;
         }
         comandoParseado[i] = NULL;
@@ -170,15 +172,15 @@ char** parser(char* input){
     return comandoParseado;
 }
 
-int minimo(int a, int b)    {
-    return a < b? a : b;
+int minimo(int a, int b) {
+    return a < b ? a : b;
 }
 
-t_comando instanciarComando(char** request) {//request ya parseada
+t_comando instanciarComando(char **request) {//request ya parseada
     int cantidadParametros = obtenerCantidadParametros(request);
     t_comando comando;
     comando.cantidadParametros = cantidadParametros;
-    comando.parametros=malloc(cantidadParametros*sizeof(char*));
+    comando.parametros = malloc(cantidadParametros * sizeof(char *));
     for (int i = 0; i < cantidadParametros; i++) {
         comando.parametros[i] = string_duplicate(request[i + 1]);//primero lo evitamos porque es de "TipoRequest"
     }
@@ -212,8 +214,15 @@ t_comando instanciarComando(char** request) {//request ya parseada
     return comando;
 }
 
-int obtenerCantidadParametros(char** request) {
+int obtenerCantidadParametros(char **request) {
     int contador = 0;
     for (contador; request[contador] != NULL; contador++);
-    return (contador- 1); //restamos el tipoRequest
+    return (contador - 1); //restamos el tipoRequest
+}
+
+void freeArrayDeStrings(char **array) {
+    for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
+        free(array[i]);
+    }
+    free(array);
 }

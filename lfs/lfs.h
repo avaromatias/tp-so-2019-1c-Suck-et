@@ -45,9 +45,9 @@ typedef struct {
 } t_configuracion;
 
 typedef struct {
-    int consistency;
+    char *consistency;
     int partitions;
-    char *compaction_time;
+    int compaction_time;
 } t_metadata;
 
 typedef struct {
@@ -67,6 +67,12 @@ typedef struct {
 } parametros_thread_request;
 
 typedef struct {
+    char* tabla;
+    char *tiempoCompactacion;
+    pthread_mutex_t* sem;
+} parametros_thread_compactacion;
+
+typedef struct {
     char *tabla;
     int particion;
 } t_bloqueAsignado;
@@ -77,6 +83,7 @@ t_dictionary *bloquesAsignados;
 t_dictionary *metadatas;
 t_dictionary *memTable;
 t_dictionary *archivosAbiertos;
+t_dictionary *tablasEnUso;
 t_bitarray *bitmap;
 pthread_mutex_t mutexAsignacionBloques;
 

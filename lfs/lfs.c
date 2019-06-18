@@ -402,16 +402,29 @@ t_response *lfsDrop(char *nombreTabla) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     char *pathTabla = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
     if (existeTabla(nombreTabla) == 0) {
-        if (dictionary_has_key(memTable, nombreTabla)) {
-            dictionary_remove_and_destroy(memTable, nombreTabla, liberarTabla);
+        pthread_mutex_t* semaforoTabla;
+        if(dictionary_has_key(tablasEnUso,nombreTabla)){
+            semaforoTabla=dictionary_get(tablasEnUso,nombreTabla);
         }
+        else{
+            dictionary_put(tablasEnUso,nombreTabla,semaforoTabla);
+        }
+        pthread_mutex_lock(&semaforoTabla);
+        pthread_mutex_unlock(&semaforoTabla);
         borrarContenidoDeDirectorio(pathTabla);
-        rmdir(pathTabla);
-        retorno->tipoRespuesta = RESPUESTA;
-        retorno->valor = concat(3, "La tabla ", nombreTabla, " fue eliminada con exito.");
+        if(rmdir(pathTabla)!=0){
+            retorno->tipoRespuesta = ERR;
+            retorno->valor = concat(3, "Ocurrio un error al eliminar la tabla ", nombreTabla, ".");
+        }else{
+            if (dictionary_has_key(memTable, nombreTabla)) {
+                dictionary_remove_and_destroy(memTable, nombreTabla, liberarTabla);
+            }
+            retorno->tipoRespuesta = RESPUESTA;
+            retorno->valor = concat(3, "La tabla ", nombreTabla, " fue eliminada con exito.");        }
+
     } else {
         retorno->tipoRespuesta = ERR;
-        retorno->valor = concat(3, "La tabla ", nombreTabla, " no existe.\n");
+        retorno->valor = concat(3, "La tabla ", nombreTabla, " no existe.");
     }
 
     free(nombreTabla);
@@ -441,6 +454,8 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
         } else {
             t_dictionary *keysEnTabla = dictionary_create();
             dictionary_put(memTable, nombreTabla, keysEnTabla);
+            pthread_mutex_t* semaforoTabla;;
+            dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
 
             // Crear el directorio para dicha tabla.
             mkdir(tablePath, 0777);
@@ -450,13 +465,37 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
             // Crear los archivos binarios asociados a cada partición de la tabla y
             // asignar a cada uno un bloque
             crearBinarios(nombreTabla, atoi(particiones));
+            crearHiloCompactacion(nombreTabla,tiempoCompactacion,semaforoTabla);
             retorno->tipoRespuesta = RESPUESTA;
             retorno->valor = concat(3, "La tabla ", nombreTabla, " fue creada con exito.\n");
         }
         return retorno;
     }
 }
+void compactacion(void* parametrosThread){
+    parametros_thread_compactacion *parametros = (parametros_thread_compactacion *) parametrosThread;
+    char *nombreTabla = parametros->tabla;
+    int tiempoCompactacion = atoi(parametros->tiempoCompactacion)/1000;
+    while(1) {
+        sleep(tiempoCompactacion);
+        pthread_mutex_t *sem = parametros->sem;
+        pthread_mutex_lock(&sem);
+        renombrarTemporales(nombreTabla);
+        pthread_mutex_unlock(&sem);
+    }
 
+}
+void crearHiloCompactacion(char* nombreTabla,char*tiempoCompactacion,pthread_mutex_t* sem){
+    pthread_t *hiloCompactacion = (pthread_t *) malloc(sizeof(pthread_t));
+
+    parametros_thread_compactacion *parametros = (parametros_thread_compactacion *) malloc(sizeof(parametros_thread_compactacion));
+
+    parametros->tabla = nombreTabla;
+    parametros->sem = sem;
+    parametros->tiempoCompactacion = tiempoCompactacion;
+
+    pthread_create(hiloCompactacion, NULL, &compactacion, parametros);
+}
 void validarValor(char *valor, t_response *retorno) {
     if (validarComillasValor(valor) != 0) {
         retorno->tipoRespuesta = ERR;
@@ -481,6 +520,15 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
         valorSinComillas(valor);
         // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
         if (existeTabla(nombreTabla) == 0) {
+            pthread_mutex_t* semaforoTabla;
+            if(dictionary_has_key(tablasEnUso,nombreTabla)){
+                semaforoTabla=dictionary_get(tablasEnUso,nombreTabla);
+            }
+            else{
+                dictionary_put(tablasEnUso,nombreTabla,semaforoTabla);
+            }
+            pthread_mutex_lock(&semaforoTabla);
+            pthread_mutex_unlock(&semaforoTabla);
             // Obtener la metadata asociada a dicha tabla.
             char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
             if (existeElArchivo(path)) {
@@ -628,6 +676,28 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
     free(contenido);
 }
 
+void renombrarTemporales(char* nombreTabla){
+    DIR *d;
+    struct dirent *dir;
+    obtenerMetadata(nombreTabla);
+    t_metadata *meta = dictionary_get(metadatas, nombreTabla);
+    char* pathTabla=obtenerPathTabla(nombreTabla,configuracion.puntoMontaje);
+
+    d = opendir(pathTabla);
+    if (d) {
+        while ((dir = readdir(d)) != NULL) {
+            char *nombreArchivo = string_duplicate(dir->d_name);
+            if (string_contains(nombreArchivo,".tmp")) {
+                char* pathArchivo=string_new();
+                pathArchivo=obtenerPathArchivo(nombreTabla,nombreArchivo);
+                char* newPathArchivo=string_duplicate(pathArchivo);
+                string_append(&newPathArchivo,"c");
+                rename(pathArchivo,newPathArchivo);
+                free(nombreArchivo);
+            }
+        }
+    }
+}
 
 char *generarContenidoParaParticion(char *tamanio, char *bloques) {
     char *contenido = string_new();
@@ -651,6 +721,15 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     //1. Verificar que la tabla exista en el File System
     if (existeTabla(nombreTabla) == 0) {
+        pthread_mutex_t* semaforoTabla;
+        if(dictionary_has_key(tablasEnUso,nombreTabla)){
+            semaforoTabla=dictionary_get(tablasEnUso,nombreTabla);
+        }
+        else{
+            dictionary_put(tablasEnUso,nombreTabla,semaforoTabla);
+        }
+        pthread_mutex_lock(&semaforoTabla);
+        pthread_mutex_unlock(&semaforoTabla);
         char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
         if (existeElArchivo(path)) {
             //2. Obtener la metadata asociada a dicha tabla
@@ -979,11 +1058,11 @@ void obtenerMetadata(char *tabla) {
     }
 
     if (config_has_property(config, "CONSISTENCY")) {
-        metadata->consistency = config_get_int_value(config, "CONSISTENCY");
+        metadata->consistency = string_duplicate(config_get_string_value(config, "CONSISTENCY"));
     }
 
     if (config_has_property(config, "COMPACTION_TIME")) {
-        metadata->compaction_time = config_get_string_value(config, "COMPACTION_TIME");
+        metadata->compaction_time = config_get_int_value(config, "COMPACTION_TIME");
     }
 
     dictionary_put(metadatas, tabla, metadata);
@@ -1108,6 +1187,9 @@ void cargarBloquesAsignados(char *path) {
                 char* nombreTabla=string_duplicate(dirTab->d_name);
                 obtenerMetadata(nombreTabla);
                 t_metadata *meta = dictionary_get(metadatas, nombreTabla);
+                pthread_mutex_t* semaforoTabla;
+                dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
+                crearHiloCompactacion(nombreTabla,string_from_format("%i",meta->compaction_time),semaforoTabla);
                 char* pathTabla=string_new();
                 pathTabla=concat(3,path,"/",nombreTabla);
 
@@ -1376,6 +1458,7 @@ int main(void) {
     metadatas = dictionary_create();
     archivosAbiertos = dictionary_create();
     memTable = dictionary_create();
+    tablasEnUso = dictionary_create();
     bloquesAsignados = dictionary_create();
     inicializarLFS(configuracion.puntoMontaje);
 

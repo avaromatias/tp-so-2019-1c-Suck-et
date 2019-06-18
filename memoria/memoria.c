@@ -432,17 +432,12 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
             log_info(logger, "La key %s no existe en la tabla %s. Se procede a insertarla.", key, nombreTabla);
             pagina = insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria, recibiTimestamp);
         }else {
-            printf("Si la pagina no estaba en la tabla y no hay marcos libres intento reemplazarla. \n");
-
-            //Obtengo la pagina a reemplazar si hay
             t_pagina* paginaLRU = lru(segmento->tablaDePaginas);
             if (paginaLRU != NULL){
                 pagina = eliminarPaginaLruEInsertarNueva(paginaLRU, key, contenidoPagina,segmento->tablaDePaginas, memoria, recibiTimestamp);
-                printf("La pagina nueva tiene la key %s ", pagina->key);
             }else{
-                printf("MEMORIA FULL \n");
+                log_info(logger, "La memoria se encuentra FULL");
                 gestionarJournal(conexionLissandra, memoria, logger);
-
                 return insert(nombreTabla,key,value,memoria, timestamp,logger,conexionLissandra);
             }
         }
@@ -452,7 +447,7 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
         log_info(logger, "Se procede a insertar el nuevo valor.");
         pagina = insertarNuevaPagina(key, contenidoPagina, nuevoSegmento->tablaDePaginas, memoria, recibiTimestamp);
     } else{
-        printf("MEMORIA FULL, No hay espacio para una tabla nueva.\n");
+        log_info(logger, "La memoria se encuentra FULL, todavia no se puede crear la nueva tabla");
         gestionarJournal(conexionLissandra,  memoria, logger);
         return insert(nombreTabla, key, value, memoria, timestamp,logger,  conexionLissandra);
     }

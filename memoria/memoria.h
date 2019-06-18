@@ -112,7 +112,6 @@ void eliminarPagina(void* pagina);
 void eliminarSegmento(void* segmento);
 
 //JOURNAL
-//void enviarInsertLissandra(t_control_conexion* conexionConLissandra, char* key, char* value, char* timestamp);
 typedef  struct {
     char* nombreTabla;
     t_control_conexion* conexionLissandra;
@@ -121,6 +120,7 @@ typedef  struct {
 }parametros_journal;
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
-bool puedoReemplazarPagina(t_dictionary* tablaDePaginas);
+void vaciarMemoria(t_memoria* memoria, t_log* logger);
+pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal);
 
 #endif /* MEMORIA_H_ */

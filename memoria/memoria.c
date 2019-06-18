@@ -286,7 +286,13 @@ char* formatearPagina(char* key, char* value, char* timestamp)   {
 t_pagina* eliminarPaginaLruEInsertarNueva(t_pagina* paginaLRU,char* keyNueva, char* nuevoValue,t_dictionary* tablaDePaginas, t_memoria* memoria, bool recibiTimestamp){
     t_pagina* paginaNueva;
     printf("Elimina pagina con key: %s\n", paginaLRU->key);
-    dictionary_remove_and_destroy(tablaDePaginas, paginaLRU->key, &free);
+
+
+    //la pagina que obtiene está llegando sin un char* key
+    //dictionary_remove_and_destroy(tablaDePaginas, paginaLRU->key, &eliminarPagina);
+    t_pagina* unaPagina = dictionary_remove(tablaDePaginas, paginaLRU->key);
+    unaPagina->marco->ocupado = false;
+    free(unaPagina);
     memoria->marcosOcupados = memoria->marcosOcupados -1;
     printf("Inserto nueva pagina con key %s y contenido %s\n", keyNueva, nuevoValue);
     paginaNueva = insertarNuevaPagina(keyNueva, nuevoValue, tablaDePaginas, memoria, recibiTimestamp);
@@ -364,7 +370,6 @@ t_pagina* lru(t_dictionary* tablaDePaginas) {
                 if ((paginaActual->ultimaVezUsada) < (paginaLRU->ultimaVezUsada)){
 
                     paginaLRU = paginaActual;
-                    printf("Element key: %s \n", paginaLRU->key);
                     paginaLRU->key = element->key;
                     encontrePaginaLRU = true;
                 }

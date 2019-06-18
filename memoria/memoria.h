@@ -123,4 +123,10 @@ void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, cha
 void vaciarMemoria(t_memoria* memoria, t_log* logger);
 pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal);
 
+//gossiping
+typedef struct {
+    char* ipSeed;
+    char* puertoSeed;
+}t_nodo_memoria;
+
 #endif /* MEMORIA_H_ */

@@ -282,6 +282,26 @@ pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexio
         fflush(stdout);
     }*/
 }
+
+void gestionarGossiping(char** ipSeeds, char** puertoSeeds, t_log* logger){
+    int i = 0;
+    while (ipSeeds[i] != NULL && puertoSeeds[i] != NULL){
+        conectarseANodoMemoria(ipSeeds[i], puertoSeeds[i], logger);
+    }
+
+}
+pthread_t * crearHiloGossiping(t_memoria* memoria, t_log* logger, t_configuracion configuracion){
+/*    while (1){
+        sleep(configuracion.retardoGossiping);
+        //definir una estructura tabla de gossiping para enviarle a kernel
+        //intentar conectarme a la primer ip_seed-puerto_seed
+        //si tengo exito agregarlo a la estructura
+        //si todavia tengo ip_seed-puerto_seed intentar conectarme
+        //si no enviar resultado a kernel
+        gestionarGossiping(configuracion.ipSeeds, configuracion.puertoSeeds, logger);
+    }
+*/
+}
 char* formatearPagina(char* key, char* value, char* timestamp)   {
     long tiempo;
     if(timestamp == NULL)   {
@@ -621,6 +641,7 @@ int main(void) {
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &conexionKernel, logger);
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra);
     pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal);
+    pthread_t* hiloGossiping = crearHiloGossiping(memoriaPrincipal, logger, configuracion);
     t_comando comando;
 
     while(1)    {
@@ -651,6 +672,7 @@ int main(void) {
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
     pthread_join(*hiloJournal, NULL);
+    pthread_join(*hiloGossiping, NULL);
 
 	return 0;
 }

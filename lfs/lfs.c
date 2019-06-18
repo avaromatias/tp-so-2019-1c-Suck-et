@@ -50,7 +50,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 }
 
-void atenderMensajes(void* parametrosRequest) {
+void atenderMensajes(void *parametrosRequest) {
     parametros_thread_request *parametros = (parametros_thread_request *) parametrosRequest;
     Header header = parametros->header;
     char *mensaje = parametros->mensaje;
@@ -221,19 +221,19 @@ void lfsDump() {
         config_destroy(archivoConfig);
         void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
             int nroDump = 0;
-            char *nombreArchivo = obtenerPathArchivo(nombreTabla,
-                                                     string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp"));
+            char *nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
+            char *nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
             while (existeElArchivo(nombreArchivo)) {
                 nroDump++;
-                nombreArchivo = obtenerPathArchivo(nombreTabla,
-                                                   string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp"));
+                nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
+                nombreArchivo = obtenerPathArchivo(nombreTabla,nombreDump);
             }
             void _dumpKey(char *key, t_list *listaDeRegistros) {
                 int index = 0;
                 void _dumpRegistro(char *linea) {
                     FILE *archivoDump = fopen(nombreArchivo, "a");
-                    fwrite(linea, 1, strlen(linea), archivoDump);
                     fclose(archivoDump);
+                    escribirEnBloque(linea, nombreDump, -1, nombreArchivo);
                     list_remove(listaDeRegistros, index);
                 }
                 list_iterate(listaDeRegistros, _dumpRegistro);
@@ -323,8 +323,8 @@ int borrarContenidoDeDirectorio(char *dirPath) {
     sem_wait(semDir);
     d = opendir(dirPath);
     if (d) {
-        int puntoEncontrado=0;
-        int puntoPuntoEncontrado=0;
+        int puntoEncontrado = 0;
+        int puntoPuntoEncontrado = 0;
         while ((dir = readdir(d)) != NULL) {
             char *nombreTabla = string_new();
             nombreTabla = string_duplicate(dir->d_name);
@@ -332,11 +332,11 @@ int borrarContenidoDeDirectorio(char *dirPath) {
             string_append(&pathArchivo, dirPath);
             string_append(&pathArchivo, "/");
             string_append(&pathArchivo, nombreTabla);
-            if(strcmp(dir->d_name, ".") == 0){
-                puntoEncontrado=1;
+            if (strcmp(dir->d_name, ".") == 0) {
+                puntoEncontrado = 1;
             }
-            if(strcmp(dir->d_name, "..") == 0){
-                puntoPuntoEncontrado=1;
+            if (strcmp(dir->d_name, "..") == 0) {
+                puntoPuntoEncontrado = 1;
             }
             if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
                 if (string_contains(dir->d_name, ".bin")) {
@@ -361,7 +361,7 @@ int borrarContenidoDeDirectorio(char *dirPath) {
             free(pathArchivo);
             free(nombreTabla);
         }
-        if(puntoEncontrado){
+        if (puntoEncontrado) {
             char *pathArchivo = string_new();
             string_append(&pathArchivo, dirPath);
             string_append(&pathArchivo, "/.");
@@ -370,7 +370,7 @@ int borrarContenidoDeDirectorio(char *dirPath) {
                 return 0;
             }
         }
-        if(puntoPuntoEncontrado){
+        if (puntoPuntoEncontrado) {
             char *pathArchivo = string_new();
             string_append(&pathArchivo, dirPath);
             string_append(&pathArchivo, "/..");
@@ -551,56 +551,8 @@ t_response *lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, tim
                 char *nombreArchivo = string_new();
                 char *p = string_itoa(particion);
                 nombreArchivo = concat(4, obtenerPathTabla(nombreTabla, configuracion.puntoMontaje), "/", p, ".bin");
-                t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-                bloqueA->tabla = concat(1, nombreTabla);
-                bloqueA->particion = particion;
-                printf("Linea %s", linea);
-                // TODO: Insertar en la memoria temporal del punto anterior una nueva entrada que contenga los datos enviados en la request.
-                int indice = 0;
-                int bloque;
-                while (linea[indice] != '\0' && indice < string_length(linea)) {
-                    bloque = obtenerBloqueDisponible(nombreTabla, particion);
-                    char *pathBloque = obtenerPathBloque(bloque);
-                    sem_t *semBloque = obtenerSemaforoPath(pathBloque);
-                    sem_wait(semBloque);
-                    FILE *f = fopen(pathBloque, "a");
-                    dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
-                    int longitudArchivo = obtenerTamanioBloque(bloque);
-                    while (getc(f) != EOF) {
-                        longitudArchivo++;
-                    }
-                    while (longitudArchivo < obtenerTamanioBloques(configuracion.puntoMontaje) &&
-                           indice < string_length(linea)) {
-                        fputc(linea[indice], f);
-                        longitudArchivo++;
-                        indice++;
-                    }
-                    fclose(f);
-                    sem_post(semBloque);
-                    free(pathBloque);
-                    if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
-                        bitarray_set_bit(bitmap, bloque);
-                    }
-                }
+                escribirEnBloque(linea, nombreTabla, p, nombreArchivo);
                 free(path);
-                t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
-                char **blocks = string_get_string_as_array(config_get_string_value(archivoConfig, "BLOCKS"));
-                if (!arrayIncluye(blocks, string_from_format("%i", bloque))) {
-                    int tam = tamanioDeArrayDeStrings(blocks);
-                    blocks[tam] = string_from_format("%i", bloque);
-                    blocks[tam + 1] = NULL;
-                }
-                char *bloques = convertirArrayAString(blocks);
-                int size = config_get_int_value(archivoConfig, "SIZE") + strlen(linea);
-                sem_t *semParticion = obtenerSemaforoPath(nombreArchivo);
-                sem_wait(semParticion);
-                FILE *fParticion = fopen(nombreArchivo, "r+");
-                char *contenido = generarContenidoParaParticion(string_from_format("%i", size), bloques);
-                fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
-                fclose(fParticion);
-                sem_post(semParticion);
-                free(contenido);
-                config_destroy(archivoConfig);
                 retorno->tipoRespuesta = RESPUESTA;
                 retorno->valor = concat(1, "Se inserto el valor con exito.");
 
@@ -616,6 +568,64 @@ t_response *lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, tim
         return retorno;
 
     }
+}
+
+void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombreArchivo) {
+    t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+    bloqueA->tabla = concat(1, nombreTabla);
+    bloqueA->particion = particion;
+    // TODO: Insertar en la memoria temporal del punto anterior una nueva entrada que contenga los datos enviados en la request.
+    int indice = 0;
+    int bloque;
+    while (linea[indice] != '\0' && indice < string_length(linea)) {
+        bloque = obtenerBloqueDisponible(nombreTabla, particion);
+        char *pathBloque = obtenerPathBloque(bloque);
+        sem_t *semBloque = obtenerSemaforoPath(pathBloque);
+        sem_wait(semBloque);
+        FILE *f = fopen(pathBloque, "a");
+        dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
+        int longitudArchivo = obtenerTamanioBloque(bloque);
+        while (getc(f) != EOF) {
+            longitudArchivo++;
+        }
+        while (longitudArchivo < obtenerTamanioBloques(configuracion.puntoMontaje) &&
+               indice < string_length(linea)) {
+            fputc(linea[indice], f);
+            longitudArchivo++;
+            indice++;
+        }
+        fclose(f);
+        sem_post(semBloque);
+        free(pathBloque);
+        if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
+            bitarray_set_bit(bitmap, bloque);
+        }
+    }
+    int size;
+    char *bloques;
+    if (archivoVacio(nombreArchivo)) {
+        size = strlen(linea);
+        bloques = concat(3, "[", string_from_format("%i", bloque), "]");
+    } else {
+        t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
+        char **blocks = string_get_string_as_array(config_get_string_value(archivoConfig, "BLOCKS"));
+        if (!arrayIncluye(blocks, string_from_format("%i", bloque))) {
+            int tam = tamanioDeArrayDeStrings(blocks);
+            blocks[tam] = string_from_format("%i", bloque);
+            blocks[tam + 1] = NULL;
+        }
+        bloques = convertirArrayAString(blocks);
+        size = config_get_int_value(archivoConfig, "SIZE") + strlen(linea);
+        config_destroy(archivoConfig);
+    }
+    sem_t *semParticion = obtenerSemaforoPath(nombreArchivo);
+    sem_wait(semParticion);
+    FILE *fParticion = fopen(nombreArchivo, "r+");
+    char *contenido = generarContenidoParaParticion(string_from_format("%i", size), bloques);
+    fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
+    fclose(fParticion);
+    sem_post(semParticion);
+    free(contenido);
 }
 
 
@@ -670,7 +680,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             char *mayorLinea = string_new();
             mayorLinea = concat(1, "");
             bool lineaContinuaEnOtroBloque = false;
-            if(binarioParticion!=NULL) {
+            if (binarioParticion != NULL) {
                 //4.0 Obtengo los bloques asignados a la particion obtenida
                 char **bloques = bloquesEnParticion(nombreTabla, nombreArchivoParticion);
                 int tamanioArray = tamanioDeArrayDeStrings(bloques);
@@ -730,7 +740,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             string_append(&nombreArchivoTemporal, ".tmp");
             char *archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
             lineaContinuaEnOtroBloque = false;
-            while(existeElArchivo(archivoTemporalPath)) {
+            while (existeElArchivo(archivoTemporalPath)) {
                 FILE *archivoTemporal = fopen(archivoTemporalPath, "r");
                 char seekTemporal;
                 while (!feof(archivoTemporal)) {
@@ -768,6 +778,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                 string_append(&nombreArchivoTemporal, string_itoa(nroTemporal));
                 string_append(&nombreArchivoTemporal, ".tmp");
                 archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
+
             }
 
 
@@ -889,6 +900,7 @@ t_response *gestionarRequest(t_comando comando) {
             // En caso que un request no lo provea (por ejemplo insertando un valor desde la consola),
             // se usará el valor actual del Epoch UNIX.
             if (comando.cantidadParametros == 4 && comando.parametros[3] != NULL) {
+                string_trim(&comando.parametros[3]);
                 timestamp = (time_t) strtol(comando.parametros[3], NULL, 10);
             } else {
                 timestamp = (time_t) time(NULL);
@@ -999,7 +1011,7 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, int tamanioValue, 
     return hiloConexiones;
 }
 
-pthread_t *crearHiloRequest(Header header, char* mensaje) {
+pthread_t *crearHiloRequest(Header header, char *mensaje) {
     pthread_t *hiloRequest = (pthread_t *) malloc(sizeof(pthread_t));
 
     parametros_thread_request *parametros = (parametros_thread_request *) malloc(sizeof(parametros_thread_request));
@@ -1083,40 +1095,58 @@ char **obtenerTablas() {
 }
 
 void cargarBloquesAsignados(char *path) {
-    DIR *d;
-    struct dirent *dir;
+    DIR *dTablas;
+    struct dirent *dirTab;
     sem_t *semDir = obtenerSemaforoPath(path);
     sem_wait(semDir);
-    d = opendir(path);
-    if (d) {
-        while ((dir = readdir(d)) != NULL) {
-            if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
-                char *nombreTabla = dir->d_name;
+    dTablas = opendir(path);
+    if (dTablas) {
+        while ((dirTab = readdir(dTablas)) != NULL) {
+            if (strcmp(dirTab->d_name, ".") != 0 && strcmp(dirTab->d_name, "..") != 0) {
+                DIR *d;
+                struct dirent *dir;
+                char* nombreTabla=string_duplicate(dirTab->d_name);
                 obtenerMetadata(nombreTabla);
                 t_metadata *meta = dictionary_get(metadatas, nombreTabla);
-                int *partitions = meta->partitions;
-                for (int i = 0; i < partitions; i++) {
-                    char *nombreArchivo = string_from_format("%i", i);
-                    string_append(&nombreArchivo, ".bin");
-                    char **arrayDeBloques = bloquesEnParticion(nombreTabla, nombreArchivo);
-                    for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
-                        t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-                        bloque->tabla = concat(1, nombreTabla);
-                        bloque->particion = i;
-                        dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
+                char* pathTabla=string_new();
+                pathTabla=concat(3,path,"/",nombreTabla);
+
+                d = opendir(pathTabla);
+                if (d) {
+                    while ((dir = readdir(d)) != NULL) {
+                        if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0&& strcmp(dir->d_name, "Metadata") != 0) {
+                            char *nombreArchivo = string_duplicate(dir->d_name);
+                            char*pathArchivo=string_new();
+                            int particion=-1;
+                            if(string_contains(nombreArchivo,".bin")){
+                                particion=atoi(string_split(nombreArchivo,".bin")[0]);
+                            }else{
+                                particion=-1;
+                            }
+                            pathArchivo=concat(3,pathTabla,"/",string_duplicate(nombreArchivo));
+                            char **arrayDeBloques = bloquesEnParticion(nombreTabla, nombreArchivo);
+                            for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
+                                t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+                                bloque->tabla = concat(1, nombreTabla);
+                                bloque->particion = particion;
+                                dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
+                            }
+                            for (int k = 0; k < tamanioDeArrayDeStrings(arrayDeBloques); k++) {
+                                free(arrayDeBloques[k]);
+                            }
+                            free(arrayDeBloques);
+                            free(nombreArchivo);
+                        }
                     }
-                    for (int k = 0; k < tamanioDeArrayDeStrings(arrayDeBloques); k++) {
-                        free(arrayDeBloques[k]);
-                    }
-                    free(arrayDeBloques);
-                    free(nombreArchivo);
                 }
+
             }
         }
-        closedir(d);
+        closedir(dTablas);
         sem_post(semDir);
     }
 }
+
 
 int obtenerCantidadBloques(char *puntoMontaje) {
     char *nombreArchivo = string_new();
@@ -1313,8 +1343,7 @@ void *atenderConexiones(void *parametrosThread) {
                                 if (header.tipoMensaje == HANDSHAKE) {
                                     Componente componente = *((Componente *) mensaje);
                                     atenderHandshake(header, componente, parametros);
-                                } else
-                                {
+                                } else {
                                     pthread_t *hiloRequest = crearHiloRequest(header, mensaje);
                                 }
                             }

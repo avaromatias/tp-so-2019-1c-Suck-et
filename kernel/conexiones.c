@@ -66,7 +66,7 @@ void *atenderConexiones(void *parametrosThread) {
                                         //gestionarRespuesta();//atenderMensajes(header, mensaje, parametros);
                                         break;
                                     case CONEXION_ACEPTADA:
-                                        //confirmarHandshake(header, parametros);
+                                        log_info(logger, "La memoria conectada recientemente ya se encuentra disponible para ser utilizada.\n");
                                         break;
                                         //Componente componente = *((Componente *) mensaje);
                                         //atenderHandshake(header, componente, parametros);
@@ -104,17 +104,11 @@ int conectarseAMemoriaPrincipal(char* ipMemoria, int puertoMemoria, GestorConexi
         log_error(logger, "Hubo un error al intentar conectarse a la Memoria Principal. Cerrando el proceso...");
         exit(-1);
     } else {
-        log_info(logger, "Conexión con Memoria Principal establecida.");
         hacerHandshake(fdMemoria, KERNEL);
+        log_info(logger, "Conexión con Memoria Principal establecida.");
     }
     return fdMemoria;
 }
-
-/*void confirmarHandshake(Header header, parametros_thread parametros) {
-    t_log *logger = parametros.logger;
-    list_add(parametros.conexion, header.fdRemitente);
-    log_info(logger, "La memoria conectada recientemente ya se encuentra disponible para ser utilizada.\n")
-}*/
 
 /*
 void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char *ipMemoria, int puertoMemoria, t_log *logger) {
@@ -128,34 +122,4 @@ void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char *ipMe
         enviarPaquete(memoriaConocida.fdMemoria, HANDSHAKE, NULL);
         memoriaConocida->utilizacion = 1;
     }
-}
-
-void atenderHandshake(Header header, Componente componente, parametros_thread_memoria *parametros) {
-    if (componente == MEMORIA) {
-        switch (header.tipoMensaje) {
-            case CONEXION_ACEPTADA:
-                if (!memoriaEsConocida) {
-                    agregarMemoriaATabla();
-                } else {
-                    log_warning(parametros->logger,
-                                "Se ha tratado de conectar un proceso a traves del FD: %i y no tiene permiso de hacerlo.",
-                                header.fdRemitente)
-                }
-                break;
-            case CONEXION_RECHAZADA:
-                log_error(parametros->logger, "No se ha podido hacer handshake con la memoria en FD: %i",
-                          header.fdRemitente);
-                break;
-        }
-    }
-}
-
-void atenderMensajes(Header header, char *mensaje) {
-    if (header.tipoMensaje == RESPUESTA) {
-        //hacerHandshake(header.fdRemitente, KERNEL);
-    };
-    printf("Estoy recibiendo un mensaje del file descriptor %i: %s", header.fdRemitente, mensaje);
-    fflush(stdout);
-}
-
-*/
+}*/

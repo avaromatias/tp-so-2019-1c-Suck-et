@@ -274,6 +274,14 @@ pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexio
     return hiloConsola;
 }
 
+pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal){
+    /*while (1){
+        sleep(retardoJournal);
+        gestionarJournal(conexixonLissandra, memoria, logger);
+        printf("Se gestionó el journal\n");
+        fflush(stdout);
+    }*/
+}
 char* formatearPagina(char* key, char* value, char* timestamp)   {
     long tiempo;
     if(timestamp == NULL)   {
@@ -617,6 +625,7 @@ int main(void) {
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &conexionKernel, logger);
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra);
+    pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal);
     t_comando comando;
 
     while(1)    {
@@ -646,6 +655,7 @@ int main(void) {
     }
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
+    pthread_join(*hiloJournal, NULL);
 
 	return 0;
 }

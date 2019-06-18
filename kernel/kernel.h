@@ -42,19 +42,23 @@ typedef struct {
     int indice;
     int fileDescriptor;
     char* consistencia;
-} memoria_Conocida;
+} memoria_conocida;
 
 typedef struct {
     t_log *logger;
     GestorConexiones *conexiones;
-    t_list *memoriasConocidas;
+    t_dictionary *metadataTablas;
+    t_dictionary *memoriasConCriterios;
 } parametros_consola_kernel;
 
+typedef struct {
+    t_queue *colaDeNew;
+    t_queue *colaDeReady;
+    t_queue *colaDeExecute;
+    t_list *finalizados;
+} colasPlanificacion;
+
 //Para Planificador
-t_queue *colaDeNew;
-t_queue *colaDeReady;
-t_queue *colaDeExecute;
-t_list *finalizados;
 
 // ***** COMPORTAMIENTOS DEL KERNEL *****
 
@@ -76,13 +80,13 @@ bool validarComandosKernel(t_comando requestParseada, t_log *logger);
 
 bool esComandoValidoDeKernel(t_comando comando);
 
-int gestionarSelectKernel(char *nombreTabla, char *key, GestorConexiones* misConexiones);
+int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria);
 
-int gestionarCreateKernel(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones, char *tiempoCompactacion, GestorConexiones* misConexiones);
+int gestionarCreateKernel(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones, char *tiempoCompactacion, int fdMemoria);
 
-int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, GestorConexiones* misConexiones);
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria);
 
-int gestionarDropKernel(char *nombreTabla, GestorConexiones* misConexiones);
+int gestionarDropKernel(char *nombreTabla, int fdMemoria);
 
 int gestionarAdd(char** parametrosDeRequest, parametros_consola_kernel *parametros);
 

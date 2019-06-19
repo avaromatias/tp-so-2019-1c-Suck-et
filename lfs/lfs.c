@@ -319,8 +319,6 @@ int deleteFile(char *nombreArchivo) {
 int borrarContenidoDeDirectorio(char *dirPath) {
     DIR *d;
     struct dirent *dir;
-    sem_t *semDir = obtenerSemaforoPath(dirPath);
-    sem_wait(semDir);
     d = opendir(dirPath);
     if (d) {
         int puntoEncontrado = 0;
@@ -342,14 +340,7 @@ int borrarContenidoDeDirectorio(char *dirPath) {
                 if (string_contains(dir->d_name, ".bin")) {
                     t_config *archivoConfig = abrirArchivoConfiguracion(pathArchivo, logger);
                     char **blocks = config_get_array_value(archivoConfig, "BLOCKS");
-                    for (int i = 0; i < tamanioDeArrayDeStrings(blocks); i++) {
-                        vaciarArchivo(obtenerPathBloque(atoi(blocks[i])));
-                        t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-                        bloque->tabla = concat(1, "");
-                        bloque->particion = NULL;
-                        dictionary_put(bloquesAsignados, string_duplicate(blocks[i]), bloque);
-                        free(blocks[i]);
-                    }
+                    liberarBloques(blocks);
                     free(blocks);
                     config_destroy(archivoConfig);
                 }
@@ -381,7 +372,6 @@ int borrarContenidoDeDirectorio(char *dirPath) {
         }
         closedir(d);
     }
-    sem_post(semDir);
     free(dirPath);
     return 1;
 }
@@ -483,13 +473,106 @@ void compactacion(void *parametrosThread) {
 //        pthread_mutex_lock(&sem);
 //        renombrarTemporales(nombreTabla);
 //        pthread_mutex_unlock(&sem);
-        char *bloquesTemp = obtenerBloquesSegunExtension(nombreTabla, ".tmp"); //TODO: Cambiar .tmp por .tmpc
+        char *bloquesTemp = obtenerBloquesSegunExtension(nombreTabla, ".tmpc"); //TODO: Cambiar .tmp por .tmpc
         char *bloquesBin = obtenerBloquesSegunExtension(nombreTabla, ".bin");
-        char *bloquesString = concat(3, bloquesTemp, ",", bloquesBin);
-        char **bloques = string_split(bloquesString, ",");
-        int i = 0;
+        eliminarArchivosTmpc(nombreTabla);
+        char *bloquesTotales = string_new();
+        if (!string_is_empty(bloquesTemp)) {
+            bloquesTotales = concat(1, bloquesTemp);
+        }
+        if (!string_is_empty(bloquesBin)) {
+            bloquesTotales = concat(3, bloquesTotales, ",", bloquesBin);
+        }
+        char **bloques = string_split(bloquesTotales, ",");
+        char **lineas = obtenerLineasDeBloques(bloques); //TODO: Funcion de Tute
+        if(tamanioDeArrayDeStrings(lineas)>0) {
+            char **lineasMaximas = filtrarKeyMax(lineas);
+            pthread_mutex_lock(&sem);
+            liberarBloques(bloques);
+            for (int j = 0; j < tamanioDeArrayDeStrings(lineasMaximas); j++) {
+                char *linea = desarmarLinea(lineasMaximas[j]);
+                lfsInsertCompactacion(nombreTabla, linea[1], linea[2], linea[0]);
+            }
+        }
+        pthread_mutex_unlock(&sem);
     }
 
+}
+
+void eliminarArchivosTmpc(char * nombreTabla) {
+    DIR *d;
+    struct dirent *dir;
+    char** dirPath=obtenerPathTabla(nombreTabla,configuracion.puntoMontaje);
+    d = opendir(dirPath);
+    if (d) {
+        int puntoEncontrado = 0;
+        int puntoPuntoEncontrado = 0;
+        while ((dir = readdir(d)) != NULL) {
+            char *nombreTabla = string_new();
+            nombreTabla = string_duplicate(dir->d_name);
+            char *pathArchivo = string_new();
+            string_append(&pathArchivo, dirPath);
+            string_append(&pathArchivo, "/");
+            string_append(&pathArchivo, nombreTabla);
+            if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
+                if (string_contains(dir->d_name, ".tmpc")) {
+                    if (deleteFile(pathArchivo) != 0) {
+                        return 0;
+                    }
+                }
+
+            }
+
+            free(pathArchivo);
+            free(nombreTabla);
+        }
+        closedir(d);
+    }
+    free(dirPath);
+    return 1;
+}
+void liberarBloques(char **nroBloques) {
+    for (int i = 0; i < tamanioDeArrayDeStrings(nroBloques); i++) {
+        liberarBloque(nroBloques[i]);
+        free(nroBloques[i]);
+    }
+    free(nroBloques);
+}
+
+void liberarBloque(char *nroBloque) {
+    vaciarArchivo(obtenerPathBloque(atoi(nroBloque)));
+    t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+    bloque->tabla = concat(1, "");
+    bloque->particion = NULL;
+    dictionary_put(bloquesAsignados, string_duplicate(nroBloque), bloque);
+}
+
+char **filtrarKeyMax(char **listaLineas) {
+    t_dictionary *keys = dictionary_create();
+    for (int i = 0; i < tamanioDeArrayDeStrings(listaLineas); i++) {
+        char *key = string_split(listaLineas[i],",")[1];
+        if (!dictionary_has_key(keys, key)) {
+            dictionary_put(keys, key, key);
+        }
+    }
+    char **lineasSinRepetir;
+    void obtenerMaxTimestamp(char *keyD, char *valorD) {
+        char *mayorLinea = string_new();
+        int mayorTimestamp = -1;
+        for (int i = 0; i < tamanioDeArrayDeStrings(listaLineas); i++) {
+            char **linea = desarmarLinea(listaLineas[i]);
+            char* key=linea[1];
+            int timestamp = atoi(linea[0]);
+            if (strcmp(keyD, key) == 0 && timestamp > mayorTimestamp) {
+                mayorTimestamp = timestamp;
+                mayorLinea = listaLineas[i];
+            }
+        }
+        lineasSinRepetir[tamanioDeArrayDeStrings(lineasSinRepetir)] = mayorLinea;
+    }
+    dictionary_iterator(keys, obtenerMaxTimestamp);
+
+    return lineasSinRepetir;
 }
 
 void crearHiloCompactacion(char *nombreTabla, char *tiempoCompactacion, pthread_mutex_t *sem) {
@@ -571,42 +654,18 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
     return retorno;
 }
 
-t_response *lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, time_t timestamp) {
-    t_response *retorno = (t_response *) malloc(sizeof(t_response));
-    retorno->tipoRespuesta = RESPUESTA;
-    validarValor(valor, retorno);
-    if (retorno->tipoRespuesta == ERR) {
-        return retorno;
-    } else {
-        valorSinComillas(valor);
-        // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
-        if (existeTabla(nombreTabla) == 0) {
-            // Obtener la metadata asociada a dicha tabla.
-            char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
-            if (existeElArchivo(path)) {
-                char *linea = armarLinea(key, valor, timestamp);
-                obtenerMetadata(nombreTabla);
-                t_metadata *meta = dictionary_get(metadatas, nombreTabla);
-                int particion = calcularParticion(key, meta);
-                char *nombreArchivo = string_new();
-                char *p = string_itoa(particion);
-                nombreArchivo = concat(4, obtenerPathTabla(nombreTabla, configuracion.puntoMontaje), "/", p, ".bin");
-                escribirEnBloque(linea, nombreTabla, p, nombreArchivo);
-                free(path);
-                retorno->tipoRespuesta = RESPUESTA;
-                retorno->valor = concat(1, "Se inserto el valor con exito.");
-
-            } else {
-                retorno->tipoRespuesta = ERR;
-                retorno->valor = concat(5, "No se pudo insertar en ", nombreTabla, ". No existe metadata en ", path,
-                                        ".");
-            }
-        } else {
-            retorno->tipoRespuesta = ERR;
-            retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".");
-        }
-        return retorno;
-
+void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, time_t timestamp) {
+    char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
+    if (existeElArchivo(path)) {
+        char *linea = armarLinea(key, valor, timestamp);
+        obtenerMetadata(nombreTabla);
+        t_metadata *meta = dictionary_get(metadatas, nombreTabla);
+        int particion = calcularParticion(key, meta);
+        char *nombreArchivo = string_new();
+        char *p = string_itoa(particion);
+        nombreArchivo = concat(4, obtenerPathTabla(nombreTabla, configuracion.puntoMontaje), "/", p, ".bin");
+        escribirEnBloque(linea, nombreTabla, p, nombreArchivo);
+        free(path);
     }
 }
 
@@ -660,7 +719,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
     }
     sem_t *semParticion = obtenerSemaforoPath(nombreArchivo);
     sem_wait(semParticion);
-    FILE *fParticion = fopen(nombreArchivo, "r+");
+    FILE *fParticion = fopen(nombreArchivo, "w");
     char *contenido = generarContenidoParaParticion(string_from_format("%i", size), bloques);
     fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
     fclose(fParticion);
@@ -1167,8 +1226,6 @@ char **obtenerTablas() {
 void cargarBloquesAsignados(char *path) {
     DIR *dTablas;
     struct dirent *dirTab;
-    sem_t *semDir = obtenerSemaforoPath(path);
-    sem_wait(semDir);
     dTablas = opendir(path);
     if (dTablas) {
         while ((dirTab = readdir(dTablas)) != NULL) {
@@ -1217,7 +1274,6 @@ void cargarBloquesAsignados(char *path) {
             }
         }
         closedir(dTablas);
-        sem_post(semDir);
     }
 }
 
@@ -1225,9 +1281,9 @@ void cargarBloquesAsignados(char *path) {
 char *obtenerBloquesSegunExtension(char *nombreTabla, char *ext) {
     int nroTemporal = 0;
     char *bloques = string_new();
-    char *archivoTemporalPath=string_new();
+    char *archivoTemporalPath = string_new();
     char *nombreArchivoTemporal = string_new();
-    if(strcmp(ext,".tmp")==0){
+    if (strcmp(ext, ".tmp") == 0) {
         string_append(&nombreArchivoTemporal, nombreTabla);
     }
     string_append(&nombreArchivoTemporal, string_itoa(nroTemporal));
@@ -1238,7 +1294,7 @@ char *obtenerBloquesSegunExtension(char *nombreTabla, char *ext) {
                 convertirArrayAString(bloquesEnParticion(nombreTabla, nombreArchivoTemporal))), ",");
         nroTemporal++;
         nombreArchivoTemporal = string_new();
-        if(strcmp(ext,".tmp")==0){
+        if (strcmp(ext, ".tmp") == 0) {
             string_append(&nombreArchivoTemporal, nombreTabla);
         }
         string_append(&nombreArchivoTemporal, string_itoa(nroTemporal));

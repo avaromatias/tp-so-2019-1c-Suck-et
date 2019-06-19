@@ -98,6 +98,8 @@ t_response *lfsDescribe(char *nombreTabla);
 
 char *obtenerBloquesSegunExtension(char*nombreTabla,char* ext);
 
+char **filtrarKeyMax(char **listaLineas);
+
 char* stringDeArraySinCorchetes(char* array);
 
 t_response* lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);

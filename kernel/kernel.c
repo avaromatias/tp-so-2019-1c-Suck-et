@@ -14,7 +14,6 @@ int main(void) {
     log_info(logger, "Iniciando el proceso Kernel");
 
     t_configuracion configuracion = cargarConfiguracion("kernel.cfg", logger);
-    t_list *tablaMemoriasConocidas = list_create();
 
     log_info(logger, "IP Memoria: %s", configuracion.ipMemoria);
     log_info(logger, "Puerto Memoria: %i", configuracion.puertoMemoria);
@@ -22,6 +21,16 @@ int main(void) {
     log_info(logger, "Multiprocesamiento: %i", configuracion.multiprocesamiento);
     log_info(logger, "Refresh Metadata: %i", configuracion.refreshMetadata);
     log_info(logger, "Retardo de Ejecución : %i", configuracion.refreshMetadata);
+
+    t_dictionary *metadataTablasConocidas = dictionary_create(); //voy a tener el nombreTabla, criterio, particiones y tpo_Compactación
+    t_dictionary *tablaDeMemoriasConCriterios = dictionary_create(); //voy a tener relacion de criterio con un t_list* de FDs
+
+    t_queue *colaDeNew = queue_create();
+    t_queue *colaDeReady = queue_create();
+    t_queue *colaDeExecute = queue_create();
+    t_list *finalizados = list_create();
+
+
 
     GestorConexiones *misConexiones = inicializarConexion();
     conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
@@ -32,12 +41,13 @@ int main(void) {
 
     parametros->logger = logger;
     parametros->conexiones = misConexiones;
-    parametros->memoriasConocidas = tablaMemoriasConocidas;
+    parametros->metadataTablas = metadataTablasConocidas;
+    parametros->memoriasConCriterios = tablaDeMemoriasConCriterios;
 
     ejecutarConsola(gestionarRequest, parametros);
 
     //pthread_join(&hiloRespuestas, NULL);
-
+    free(parametros);
     return EXIT_SUCCESS;
 }
 
@@ -120,20 +130,22 @@ void *analizarRequest(t_comando requestParseada, parametros_consola_kernel *para
 int gestionarRequest(t_comando requestParseada, parametros_consola_kernel *parametros) {
 
     GestorConexiones *misConexiones = parametros->conexiones;
+    int fdMemoria = 1;// misConexiones->conexiones[0];
+    //int fdMemoria = seleccionarMemoriaIndicada(parametros);
 
     switch (requestParseada.tipoRequest) {
         case SELECT:
-            return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], misConexiones);
+            return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], fdMemoria);
         case INSERT:
             return gestionarInsertKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                          requestParseada.parametros[2],
-                                         misConexiones);
+                                         fdMemoria);
         case CREATE:
             return gestionarCreateKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                          requestParseada.parametros[2],
-                                         requestParseada.parametros[3], misConexiones);
+                                         requestParseada.parametros[3], fdMemoria);
         case DROP:
-            return gestionarDropKernel(requestParseada.parametros[0], misConexiones);
+            return gestionarDropKernel(requestParseada.parametros[0], fdMemoria);
         case DESCRIBE:
             return 0;//gestionarDescribeKernel();
         case JOURNAL:
@@ -283,7 +295,7 @@ int gestionarRun(char *pathArchivo, parametros_consola_kernel *parametros) {
     t_archivoLQL archivoLQL;
     t_log *logger = parametros->logger;
     GestorConexiones *misConexiones = parametros->conexiones;
-    t_list *tablaMemoriasConocidas = parametros->memoriasConocidas;
+    //t_list *tablaMemoriasConocidas = parametros->memoriasConocidas;
 
     char *linea = NULL;
     int lineaLeida = 0;
@@ -335,7 +347,7 @@ void *administrarRequestsLQL(t_archivoLQL archivoLQL, parametros_consola_kernel 
     printf("Ya analizamos todo lo solicitado para el archivo LQL ingresado.\n");
 }
 
-int gestionarSelectKernel(char *nombreTabla, char *key, GestorConexiones* misConexiones) {
+int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria) {
     //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
     char *request = string_from_format("SELECT %s %s", nombreTabla, key);
     //enviarPaquete(fdMemoria, REQUEST, request);
@@ -343,17 +355,17 @@ int gestionarSelectKernel(char *nombreTabla, char *key, GestorConexiones* misCon
     return 0;
 }
 
-int gestionarCreateKernel(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones, char *tiempoCompactacion, GestorConexiones* misConexiones) {
+int gestionarCreateKernel(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones, char *tiempoCompactacion, int fdMemoria) {
     //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
     char *request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones,
                                        tiempoCompactacion);
-    //enviarPaquete(fdMemoria, REQUEST, request);
+    enviarPaquete(fdMemoria, REQUEST, request);
     free(request);
     //recibo mensaje de Memoria o directamente fallo yo?
     return 0;
 }
 
-int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, GestorConexiones* misConexiones) {
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria) {
     //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
     char *request = string_from_format("INSERT %s %s %s", nombreTabla, key, valor);
     //enviarPaquete(fdMemoria, REQUEST, request);
@@ -362,7 +374,7 @@ int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, GestorConex
     return 0;
 }
 
-int gestionarDropKernel(char *nombreTabla, GestorConexiones* misConexiones) {
+int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
     //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
     char *request = string_from_format("DROP %s %s", nombreTabla);
     //enviarPaquete(fdMemoria, REQUEST, request);
@@ -371,36 +383,27 @@ int gestionarDropKernel(char *nombreTabla, GestorConexiones* misConexiones) {
     return 0;
 }
 
-/*int administrarAdd(char **parametrosNecesarios, t_dictionary tablaDeMemoriasConocidas) {
-    char *palabraMemory = parametrosNecesarios[0];
-    char *numeroMemoria = parametrosNecesarios[1];
-    char *palabraTo = parametrosNecesarios[2];
-    char *consistencia = parametrosNecesarios[3];
-
-    return fdMemoria;
-}*/
-
 int gestionarAdd(char **parametrosDeRequest, parametros_consola_kernel *parametros) {
 
     t_log *logger = parametros->logger;
+    int numeroMemoria = (int)parametrosDeRequest[1];
+    char* criterio = parametrosDeRequest[3];
     GestorConexiones *misConexiones = parametros->conexiones;
-    t_list *tablaMemoriasConocidas = parametros->memoriasConocidas;
+    t_dictionary *tablaMemoriasConCriterios = parametros->memoriasConCriterios;
 
-    int numeroMemoria = 1; //parametrosDeRequest[1];
-    int *memoriaEncontrada = list_get(misConexiones->conexiones, (numeroMemoria - 1)); // hacemos -1 por la ubicación 0
-    if (memoriaEncontrada != NULL) {
-        int i = 0; //para iniciar el indice
-        memoria_Conocida *memoriaConocida;
-        memoriaConocida->indice= i;
-        memoriaConocida->fileDescriptor = (int) memoriaEncontrada;
-        memoriaConocida->consistencia = (char *) malloc(sizeof(char *));
-        memoriaConocida->consistencia = parametrosDeRequest[3];
-        list_add(tablaMemoriasConocidas, memoriaConocida);
+    bool memoriaEncontrada = (list_size(misConexiones->conexiones) >= numeroMemoria);
+
+    if (memoriaEncontrada) {
+        int *fdMemoriaSolicitada= (int*)list_get(misConexiones->conexiones, numeroMemoria - 1); // hacemos -1 por la ubicación 0
+        t_queue *colaFileDescriptors = dictionary_get(tablaMemoriasConCriterios, criterio);
+        queue_push(colaFileDescriptors, fdMemoriaSolicitada);
         log_info(logger, "La memoria ha sido agregada a la tabla de Memorias conocidas.\n");
-        i++;
         return 0;
     } else {
         log_warning(logger, "La memoria solicitada no se encuentra dentro de las memorias conocidas.\n");
         return -1;
     }
 }
+/*int seleccionarMemoriaIndicada (parametros_consola_kernel *parametros, ){
+    //Reconocer
+}*/

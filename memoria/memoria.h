@@ -99,7 +99,7 @@ t_marco* getMarcoLibre(t_memoria* memoria);
 t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger,  t_control_conexion* conexionLissandra);
 t_pagina* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria, bool recibiTimestamp);
 t_segmento* crearSegmento(char* nombreTabla, t_memoria* memoria);
-t_pagina* reemplazarPagina(char* key,char* keyNueva, char* nuevoValor, int tamanioPagina, t_dictionary* tablaDePaginas);
+t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dictionary* tablaDePaginas);
 t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria);
 
 //void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString);
@@ -112,7 +112,6 @@ void eliminarPagina(void* pagina);
 void eliminarSegmento(void* segmento);
 
 //JOURNAL
-//void enviarInsertLissandra(t_control_conexion* conexionConLissandra, char* key, char* value, char* timestamp);
 typedef  struct {
     char* nombreTabla;
     t_control_conexion* conexionLissandra;
@@ -121,6 +120,13 @@ typedef  struct {
 }parametros_journal;
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
-bool puedoReemplazarPagina(t_dictionary* tablaDePaginas);
+void vaciarMemoria(t_memoria* memoria, t_log* logger);
+pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal);
+
+//gossiping
+typedef struct {
+    char* ipSeed;
+    char* puertoSeed;
+}t_nodo_memoria;
 
 #endif /* MEMORIA_H_ */

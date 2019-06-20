@@ -401,6 +401,7 @@ t_response *lfsDrop(char *nombreTabla) {
         pthread_mutex_unlock(&semaforoTabla);
         pthread_t* hiloTabla=dictionary_get(hilosTablas,nombreTabla);
         pthread_cancel(*hiloTabla);
+        dictionary_remove(hiloTabla,nombreTabla);
         borrarContenidoDeDirectorio(pathTabla);
         if (rmdir(pathTabla) != 0) {
             retorno->tipoRespuesta = ERR;

@@ -24,6 +24,7 @@ typedef enum  {
     REQUEST,
     RESPUESTA,
     HANDSHAKE,
+    GOSSIPING,
     ERR,
     CONEXION_ACEPTADA,
     CONEXION_RECHAZADA

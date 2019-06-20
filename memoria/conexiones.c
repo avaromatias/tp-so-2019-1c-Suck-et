@@ -74,6 +74,9 @@ void* atenderConexiones(void* parametrosThread)    {
                                     case REQUEST: ;
                                         atenderMensajes(header, mensaje, parametros);
                                         break;
+                                    case GOSSIPING: ;
+                                        //atenderGossising();
+                                        break;
                                 }
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
@@ -111,7 +114,7 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
         }
     }
     else if(componente == MEMORIA)  {
-        //
+        //No deberia hacer un "HANDSHAKE" con una memoria
     }
 }
 
@@ -190,16 +193,17 @@ void conectarseALissandra(t_control_conexion* conexionLissandra, char* ipLissand
     }
 }
 
-void conectarseANodoMemoria(char* unaIp, int unPuerto, t_log* logger){
+bool conectarseANodoMemoria(char* unaIp, int unPuerto, t_log* logger){
     log_info(logger, "Intentando conectarse a una memoria seed...");
     int fdNodoMemoria = crearSocketCliente(unaIp, unPuerto, logger);
     if(fdNodoMemoria< 0) {
         char* mensajeError = string_from_format("Hubo un error al intentar conectarse a la memoria con ip %s y puerto %i . Cerrando el proceso...", unaIp, unPuerto);
         log_error(logger, mensajeError);
-        exit(-1);
+        return true;
     }
     else{
         char* mensajeInfo = string_from_format("Conexion establecida con memoria con ip %s y puerto %i", unaIp, unPuerto);
         log_info(logger, mensajeInfo);
+        return false;
     }
 }

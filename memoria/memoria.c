@@ -290,8 +290,8 @@ void gestionarGossiping(char** ipSeeds, char** puertoSeeds, t_log* logger){
     }
 
 }
-pthread_t * crearHiloGossiping(t_memoria* memoria, t_log* logger, t_configuracion configuracion){
-/*    while (1){
+pthread_t * crearHiloGossiping(t_memoria* memoria, t_log* logger, t_configuracion configuracion, t_list* listaGossiping){
+    while (1){
         sleep(configuracion.retardoGossiping);
         //definir una estructura tabla de gossiping para enviarle a kernel
         //intentar conectarme a la primer ip_seed-puerto_seed
@@ -300,7 +300,7 @@ pthread_t * crearHiloGossiping(t_memoria* memoria, t_log* logger, t_configuracio
         //si no enviar resultado a kernel
         gestionarGossiping(configuracion.ipSeeds, configuracion.puertoSeeds, logger);
     }
-*/
+
 }
 char* formatearPagina(char* key, char* value, char* timestamp)   {
     long tiempo;
@@ -630,6 +630,7 @@ int main(void) {
 
     sem_init(conexionKernel.semaforo, 0, 0);
     sem_init(conexionLissandra.semaforo, 0, 0);
+    t_list* listaGossiping = list_create();
 
 	conectarseALissandra(&conexionLissandra, configuracion.ipFileSystem, configuracion.puertoFileSystem, logger);
 	int tamanioValue = getTamanioValue(&conexionLissandra, logger);
@@ -641,7 +642,7 @@ int main(void) {
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &conexionKernel, logger);
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra);
     pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal);
-    pthread_t* hiloGossiping = crearHiloGossiping(memoriaPrincipal, logger, configuracion);
+    pthread_t* hiloGossiping = crearHiloGossiping(memoriaPrincipal, logger, configuracion, listaGossiping);
     t_comando comando;
 
     while(1)    {

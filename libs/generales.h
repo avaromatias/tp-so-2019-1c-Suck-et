@@ -52,5 +52,6 @@ char *armarLinea(char *key, char *valor, time_t timestamp);
 char **desarmarLinea(char *linea);
 int archivoVacio(char *path);
 void freeArrayDeStrings(char **array);
+void vaciarString(char** string);
 
 #endif //TP_2019_1C_SUCK_ET_ARRAYDESTRING_H

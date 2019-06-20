@@ -224,3 +224,8 @@ void freeArrayDeStrings(char **array) {
     }
     free(array);
 }
+
+void vaciarString(char** string) {
+    *string = realloc(*string, strlen("") + 1);
+    *string[0] = '\0';
+}

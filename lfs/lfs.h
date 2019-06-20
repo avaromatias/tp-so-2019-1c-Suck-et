@@ -84,6 +84,7 @@ t_dictionary *metadatas;
 t_dictionary *memTable;
 t_dictionary *archivosAbiertos;
 t_dictionary *tablasEnUso;
+t_dictionary *hilosTablas;
 t_bitarray *bitmap;
 pthread_mutex_t mutexAsignacionBloques;
 
@@ -120,6 +121,7 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 
 char *generarContenidoParaParticion(char *tamanio, char *bloques);
 
+pthread_t* crearHiloCompactacion(char *nombreTabla, char *tiempoCompactacion, pthread_mutex_t *sem);
 
 char *obtenerNombreArchivoParticion(int particion);
 

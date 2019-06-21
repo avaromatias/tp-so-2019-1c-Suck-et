@@ -218,6 +218,9 @@ void* gestionarJournal(t_control_conexion* conexionConLissandra, t_memoria* memo
     vaciarMemoria(memoria, logger);
 }
 
+void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros){
+
+}
 char* gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger) {
     switch(comando.tipoRequest) {
         case SELECT:
@@ -283,22 +286,42 @@ pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexio
     }*/
 }
 
-void gestionarGossiping(char** ipSeeds, char** puertoSeeds, t_log* logger){
-    int i = 0;
+void gestionarGossiping(char** ipSeeds, char** puertoSeeds, t_log* logger, t_list* listaGossiping){
+/*    int i = 0;
+    int fdNodoMemoria;
     while (ipSeeds[i] != NULL && puertoSeeds[i] != NULL){
-        conectarseANodoMemoria(ipSeeds[i], puertoSeeds[i], logger);
-    }
+        fdNodoMemoria = conectarseANodoMemoria(ipSeeds[i], puertoSeeds[i], logger);
+        if (fdNodoMemoria != NULL){
+            t_control_conexion conexionNodoMemoria = {.fd = fdNodoMemoria};
+            enviarPaquete(fdNodoMemoria, GOSSIPING, "DAME_LISTA_GOSSIPING");
+
+            t_paquete respuesta = recibirMensaje(&conexionNodoMemoria);
+            if(respuesta.tipoMensaje == RESPUESTA_GOSSIPING)   {
+                nodoMemoria* unNodoMemoria = malloc(sizeof(nodoMemoria));
+                unNodoMemoria->direccionIpSeed = (char*)respuesta.mensaje;
+                list_add_all(listaGossiping, unNodoMemoria);
+                free(unNodoMemoria);
+                //log_info(logger, respuesta.mensaje);
+            } else{
+                log_error(logger, respuesta.mensaje);
+            }
+
+            //free(logger);
+            free(respuesta.mensaje);
+        }
+
+        i++;
+    }*/
 
 }
 pthread_t * crearHiloGossiping(t_memoria* memoria, t_log* logger, t_configuracion configuracion, t_list* listaGossiping){
     while (1){
         sleep(configuracion.retardoGossiping);
-        //definir una estructura tabla de gossiping para enviarle a kernel
-        //intentar conectarme a la primer ip_seed-puerto_seed
-        //si tengo exito agregarlo a la estructura
-        //si todavia tengo ip_seed-puerto_seed intentar conectarme
-        //si no enviar resultado a kernel
-        gestionarGossiping(configuracion.ipSeeds, configuracion.puertoSeeds, logger);
+        gestionarGossiping(configuracion.ipSeeds, configuracion.puertoSeeds, logger, listaGossiping);
+        //conocer mis memorias
+        //intercambiar listaGossiping con ellas
+
+
     }
 
 }

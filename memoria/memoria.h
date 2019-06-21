@@ -125,8 +125,8 @@ pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexio
 
 //gossiping
 typedef struct{
-    char* ipSeed;
-    char* puertoSeed;
+    char* direccionIpSeed;
 } nodoMemoria;
 
+//void atenderPedidoMemoria(Header header,char* mensaje,parametros_thread_memoria* parametros);
 #endif /* MEMORIA_H_ */

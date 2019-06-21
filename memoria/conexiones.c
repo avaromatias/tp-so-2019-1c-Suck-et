@@ -75,7 +75,7 @@ void* atenderConexiones(void* parametrosThread)    {
                                         atenderMensajes(header, mensaje, parametros);
                                         break;
                                     case GOSSIPING: ;
-                                        //atenderGossising();
+                                        atenderPedidoMemoria(header, mensaje, parametros);
                                         break;
                                 }
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
@@ -114,9 +114,15 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
         }
     }
     else if(componente == MEMORIA)  {
-        //No deberia hacer un "HANDSHAKE" con una memoria
+        enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, NULL);
     }
 }
+
+/*void atenderGossiping(Header header, char* mensaje, t_log* logger){
+    if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
+
+    }
+}*/
 
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros)    {
 
@@ -199,11 +205,11 @@ bool conectarseANodoMemoria(char* unaIp, int unPuerto, t_log* logger){
     if(fdNodoMemoria< 0) {
         char* mensajeError = string_from_format("Hubo un error al intentar conectarse a la memoria con ip %s y puerto %i . Cerrando el proceso...", unaIp, unPuerto);
         log_error(logger, mensajeError);
-        return true;
+        return NULL;
     }
     else{
         char* mensajeInfo = string_from_format("Conexion establecida con memoria con ip %s y puerto %i", unaIp, unPuerto);
         log_info(logger, mensajeInfo);
-        return false;
+        return fdNodoMemoria;
     }
 }

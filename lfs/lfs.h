@@ -125,8 +125,6 @@ pthread_t* crearHiloCompactacion(char *nombreTabla, char *tiempoCompactacion, pt
 
 char *obtenerNombreArchivoParticion(int particion);
 
-char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo);
-
 int obtenerTamanioBloque(int bloque);
 
 int obtenerTamanioBloques(char *puntoMontaje);
@@ -134,6 +132,14 @@ int obtenerTamanioBloques(char *puntoMontaje);
 sem_t* obtenerSemaforoPath(char* path);
 
 int obtenerCantidadBloques(char *puntoMontaje);
+char *obtenerLineaMasReciente(char **bloques, char *key);
+char *obtenerStringBloquesDeArchivo(char *nombreTabla, char *nombreArchivo);
+char **convertirStringDeBloquesAArray(char *bloques);
+//void eliminarCharDeString(char *string, char ch);
+//char *stringDeArraySinCorchetes(char *array);
+//char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo);
+char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext);
+char **obtenerLineasDeBloques(char **bloques);
 
 /**
 * @NAME: gestionarRequest

@@ -347,7 +347,6 @@ int borrarContenidoDeDirectorio(char *dirPath) {
                     return 0;
                 }
             }
-
             free(pathArchivo);
             free(nombreTabla);
         }
@@ -413,7 +412,6 @@ t_response *lfsDrop(char *nombreTabla) {
             retorno->tipoRespuesta = RESPUESTA;
             retorno->valor = concat(3, "La tabla ", nombreTabla, " fue eliminada con exito.");
         }
-
     } else {
         retorno->tipoRespuesta = ERR;
         retorno->valor = concat(3, "La tabla ", nombreTabla, " no existe.");
@@ -466,6 +464,54 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
     }
 }
 
+char **obtenerLineasDeBloques(char **bloques) {
+    char *blockPath = NULL;
+    bool lineaContinuaEnOtroArchivo = false;
+    char *linea = string_new();
+    char seek;
+    char str[2];
+    str[1] = '\0';
+    char **palabras = NULL;
+    int tamanioArray = tamanioDeArrayDeStrings(bloques);
+    char *stringDeLineas = string_new();
+
+    for (int i = 0; i < tamanioArray; i++) {
+        blockPath = obtenerPathBloque(atoi(bloques[i]));
+        sem_t *semBloque = obtenerSemaforoPath(blockPath);
+        sem_wait(semBloque);
+
+        FILE *binarioBloque = fopen(blockPath, "r");
+
+        while (!feof(binarioBloque)) {
+            if (!lineaContinuaEnOtroArchivo) {
+                vaciarString(&linea);
+            }
+            while ((seek = getc(binarioBloque)) != EOF && seek != '\n') {
+                str[0] = seek;
+                string_append(&linea, str);
+            }
+            if (strcmp(linea, "") != 0) {
+                palabras = desarmarLinea(linea);
+                if (tamanioDeArrayDeStrings(palabras) == 3 && seek == '\n') { // Si la línea no continua en otro bloque
+                    lineaContinuaEnOtroArchivo = false;
+                    string_append(&stringDeLineas, linea);
+                    string_append(&stringDeLineas, ",");
+                } else {
+                    lineaContinuaEnOtroArchivo = true;
+                }
+            }
+        }
+        if(palabras != NULL) freeArrayDeStrings(palabras);
+        vaciarString(&blockPath);
+        fclose(binarioBloque);
+        sem_post(semBloque);
+    }
+    stringDeLineas = string_substring_until(stringDeLineas, strlen(stringDeLineas) - 1);
+    free(linea);
+    if(blockPath != NULL) free(blockPath);
+    return convertirStringDeBloquesAArray(stringDeLineas);
+}
+
 void compactacion(void *parametrosThread) {
     parametros_thread_compactacion *parametros = (parametros_thread_compactacion *) parametrosThread;
     char *nombreTabla = parametros->tabla;
@@ -476,8 +522,8 @@ void compactacion(void *parametrosThread) {
         pthread_mutex_lock(&sem);
         renombrarTemporales(nombreTabla);
         pthread_mutex_unlock(&sem);
-        char *bloquesTemp = obtenerBloquesSegunExtension(nombreTabla, ".tmpc");
-        char *bloquesBin = obtenerBloquesSegunExtension(nombreTabla, ".bin");
+        char *bloquesTemp = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
+        char *bloquesBin = obtenerStringBloquesSegunExtension(nombreTabla, ".bin");
         eliminarArchivosTmpc(nombreTabla);
         char *bloquesTotales = string_new();
         if (!string_is_empty(bloquesTemp)) {
@@ -487,7 +533,7 @@ void compactacion(void *parametrosThread) {
             bloquesTotales = concat(3, bloquesTotales, ",", bloquesBin);
         }
         char **bloques = string_split(bloquesTotales, ",");
-        char **lineas = obtenerLineasDeBloques(bloques); //TODO: Funcion de Tute
+        char **lineas = obtenerLineasDeBloques(bloques);
         if(tamanioDeArrayDeStrings(lineas)>0) {
             char **lineasMaximas = filtrarKeyMax(lineas);
             pthread_mutex_lock(&sem);
@@ -499,7 +545,6 @@ void compactacion(void *parametrosThread) {
         }
         pthread_mutex_unlock(&sem);
     }
-
 }
 
 void eliminarArchivosTmpc(char * nombreTabla) {
@@ -534,6 +579,7 @@ void eliminarArchivosTmpc(char * nombreTabla) {
     free(dirPath);
     return 1;
 }
+
 void liberarBloques(char **nroBloques) {
     for (int i = 0; i < tamanioDeArrayDeStrings(nroBloques); i++) {
         liberarBloque(nroBloques[i]);
@@ -776,6 +822,7 @@ int ordenarPorLinea(char *linea, char *linea2) {
 
 t_response *lfsSelect(char *nombreTabla, char *key) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
+
     //1. Verificar que la tabla exista en el File System
     if (existeTabla(nombreTabla) == 0) {
         pthread_mutex_t *semaforoTabla;
@@ -788,6 +835,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
         pthread_mutex_unlock(&semaforoTabla);
         char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
         if (existeElArchivo(path)) {
+
             //2. Obtener la metadata asociada a dicha tabla
             obtenerMetadata(nombreTabla);
             t_metadata *meta = dictionary_get(metadatas, nombreTabla);
@@ -795,130 +843,18 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             //3. Calcular cual es la partición que contiene dicho KEY
             int particion = calcularParticion(key, meta);
 
-            //4. Escanear la partición objetivo, todos los archivos temporales y la memoria temporal de dicha tabla (si existe) buscando la key deseada
-
+            //4. Obtengo los bloques de la particion
             char *nombreArchivoParticion = obtenerNombreArchivoParticion(particion);
-            char *binaryPath = obtenerPathArchivo(nombreTabla, nombreArchivoParticion);
-            sem_t *semBinario = obtenerSemaforoPath(binaryPath);
-            sem_wait(semBinario);
-            FILE *binarioParticion = fopen(binaryPath, "r");
-            FILE *binarioBloque;
-            char seekBloque;
-            char **palabras;
-            char *linea;
-            char str[2];
-            str[1] = '\0';
-            char *keyEncontrado;
-            char *timestampEncontrado;
-            int mayorTimestamp = 0;
-            char *valorMayorTimestamp = string_new();
-            char *mayorLinea = string_new();
-            mayorLinea = concat(1, "");
-            bool lineaContinuaEnOtroBloque = false;
-            if (binarioParticion != NULL) {
-                //4.0 Obtengo los bloques asignados a la particion obtenida
-                char **bloques = bloquesEnParticion(nombreTabla, nombreArchivoParticion);
-                int tamanioArray = tamanioDeArrayDeStrings(bloques);
-                for (int i = 0; i < tamanioArray; i++) {
+            char *bloquesParticion = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivoParticion);
 
-                    //4.1. Escaneo particion objetivo
-                    char *blockPath = obtenerPathBloque(atoi(bloques[i]));
-                    sem_t *semBloque = obtenerSemaforoPath(blockPath);
-                    sem_wait(semBloque);
-                    binarioBloque = fopen(blockPath, "r");
+            //5. Obtengo los bloques de los archivos temporales
+            char *bloquesTemporales = obtenerStringBloquesSegunExtension(nombreTabla, ".tmp");
 
-                    while (!feof(binarioBloque)) {
-                        if (!lineaContinuaEnOtroBloque) {
-                            linea = string_new();
-                        }
-                        keyEncontrado = string_new();
-                        timestampEncontrado = string_new();
-                        while ((seekBloque = getc(binarioBloque)) != EOF && seekBloque != '\n') {
-                            str[0] = seekBloque;
-                            string_append(&linea, str);
-                        }
-                        if (strcmp(linea, "") != 0) {
-                            palabras = desarmarLinea(linea);
-                            if (tamanioDeArrayDeStrings(palabras) == 3 &&
-                                seekBloque == '\n') { // Si la línea no continua en otro bloque
-                                lineaContinuaEnOtroBloque = false;
-                                string_append(&timestampEncontrado, palabras[0]);
-                                string_append(&keyEncontrado, palabras[1]);
-                                if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
-                                    mayorTimestamp = atoi(timestampEncontrado);
-                                    valorMayorTimestamp = string_new();
-                                    valorMayorTimestamp = concat(1, palabras[2]);
-                                    mayorLinea = string_new();
-                                    mayorLinea = concat(1, linea);
-                                }
-                            } else {
-                                lineaContinuaEnOtroBloque = true;
-                            }
-                        }
-                    }
-                    free(blockPath);
-                    fclose(binarioBloque);
-                    sem_post(semBloque);
-                }
+            //6. Obtengo los bloques de los archivos temporales que se están compactando
+            char *bloquesTemporalesCompactacion = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
 
-                freeArrayDeStrings(bloques);
-
-                fclose(binarioParticion);
-                sem_post(semBinario);
-            }
-
-            //4.2. Escaneo los archivos temporales
-            int nroTemporal = 0;
-            char *nombreArchivoTemporal = string_new();
-            string_append(&nombreArchivoTemporal, nombreTabla);
-            string_append(&nombreArchivoTemporal, string_itoa(nroTemporal));
-            string_append(&nombreArchivoTemporal, ".tmp");
-            char *archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
-            lineaContinuaEnOtroBloque = false;
-            while (existeElArchivo(archivoTemporalPath)) {
-                FILE *archivoTemporal = fopen(archivoTemporalPath, "r");
-                char seekTemporal;
-                while (!feof(archivoTemporal)) {
-                    if (!lineaContinuaEnOtroBloque) {
-                        linea = string_new();
-                    }
-                    keyEncontrado = string_new();
-                    timestampEncontrado = string_new();
-                    while ((seekTemporal = getc(archivoTemporal)) != EOF && seekTemporal != '\n') {
-                        str[0] = seekTemporal;
-                        string_append(&linea, str);
-                    }
-                    if (strcmp(linea, "") != 0) {
-                        palabras = desarmarLinea(linea);
-                        if (tamanioDeArrayDeStrings(palabras) == 3 &&
-                            seekTemporal == '\n') { // Si la línea no continua en otro bloque
-                            lineaContinuaEnOtroBloque = false;
-                            string_append(&timestampEncontrado, palabras[0]);
-                            string_append(&keyEncontrado, palabras[1]);
-                            if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
-                                mayorTimestamp = atoi(timestampEncontrado);
-                                valorMayorTimestamp = string_new();
-                                valorMayorTimestamp = concat(1, palabras[2]);
-                                mayorLinea = string_new();
-                                mayorLinea = concat(1, linea);
-                            }
-                        } else {
-                            lineaContinuaEnOtroBloque = true;
-                        }
-                    }
-                }
-                nroTemporal++;
-                nombreArchivoTemporal = string_new();
-                string_append(&nombreArchivoTemporal, nombreTabla);
-                string_append(&nombreArchivoTemporal, string_itoa(nroTemporal));
-                string_append(&nombreArchivoTemporal, ".tmp");
-                archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
-
-            }
-
-
-            //4.2. Escaneo la memoria temporal de la tabla
-            if (dictionary_has_key(memTable, nombreTabla)) {
+            //7. Escaneo la memoria temporal de la tabla TODO: Revisar la memtable primero
+            /*if (dictionary_has_key(memTable, nombreTabla)) {
                 t_dictionary *tabla = dictionary_get(memTable, nombreTabla);
                 if (dictionary_has_key(tabla, key)) {
                     t_list *listaDeRegistros = (t_list *) dictionary_get(tabla, key);
@@ -938,11 +874,13 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                         }
                     }
                 }
-            }
+            }*/
 
+            char **bloques = convertirStringDeBloquesAArray(concat(5, bloquesParticion, ",", bloquesTemporales, ",", bloquesTemporalesCompactacion));
+            char *mayorLinea = string_duplicate(obtenerLineaMasReciente(bloques, key));
 
-            //5. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
-            if (strcmp(valorMayorTimestamp, "") != 0) {
+            //8. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
+            if (strcmp(mayorLinea, "") != 0) {
                 retorno->tipoRespuesta = RESPUESTA;
                 retorno->valor = concat(1, mayorLinea);
                 return retorno;
@@ -964,6 +902,66 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
     }
 }
 
+char *obtenerLineaMasReciente(char **bloques, char *key) {
+    char *blockPath = NULL;
+    bool lineaContinuaEnOtroArchivo = false;
+    char *linea = string_new();
+    char *keyEncontrado = string_new();
+    char *timestampEncontrado = string_new();
+    char seek;
+    char str[2];
+    str[1] = '\0';
+    char **palabras = NULL;
+    char *mayorLinea = string_new();
+    int mayorTimestamp = 0;
+    int tamanioArray = tamanioDeArrayDeStrings(bloques);
+
+    for (int i = 0; i < tamanioArray; i++) {
+        blockPath = obtenerPathBloque(atoi(bloques[i]));
+        sem_t *semBloque = obtenerSemaforoPath(blockPath);
+        sem_wait(semBloque);
+
+        FILE *binarioBloque = fopen(blockPath, "r");
+
+        while (!feof(binarioBloque)) {
+            if (!lineaContinuaEnOtroArchivo) {
+                vaciarString(&linea);
+            }
+            vaciarString(&keyEncontrado);
+            vaciarString(&timestampEncontrado);
+            while ((seek = getc(binarioBloque)) != EOF && seek != '\n') {
+                str[0] = seek;
+                string_append(&linea, str);
+            }
+            if (strcmp(linea, "") != 0) {
+                palabras = desarmarLinea(linea);
+                if (tamanioDeArrayDeStrings(palabras) == 3 && seek == '\n') { // Si la línea no continua en otro bloque
+                    lineaContinuaEnOtroArchivo = false;
+                    string_append(&timestampEncontrado, palabras[0]);
+                    string_append(&keyEncontrado, palabras[1]);
+                    if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
+                        mayorTimestamp = atoi(timestampEncontrado);
+                        vaciarString(&mayorLinea);
+                        string_append(&mayorLinea, linea);
+                    }
+                } else {
+                    lineaContinuaEnOtroArchivo = true;
+                }
+            }
+        }
+        if(palabras != NULL) freeArrayDeStrings(palabras);
+        vaciarString(&blockPath);
+        fclose(binarioBloque);
+        sem_post(semBloque);
+    }
+    free(linea);
+    free(keyEncontrado);
+    free(timestampEncontrado);
+    if(blockPath != NULL) free(blockPath);
+    return mayorLinea;
+}
+
+
 char *obtenerNombreArchivoParticion(int particion) {
     char *nombreArchivo = string_new();
     string_append(&nombreArchivo, string_itoa(particion));
@@ -971,7 +969,7 @@ char *obtenerNombreArchivoParticion(int particion) {
     return nombreArchivo;
 }
 
-char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo) {
+/*char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo) {
     char *path = obtenerPathArchivo(nombreTabla, nombreArchivo);
     if (existeElArchivo(path)) {
         t_config *archivoConfig = abrirArchivoConfiguracion(path, logger);
@@ -983,6 +981,82 @@ char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo) {
         free(path);
         return NULL;
     }
+}*/
+
+char *obtenerStringBloquesDeArchivo(char *nombreTabla, char *nombreArchivo) {
+    char *path = obtenerPathArchivo(nombreTabla, nombreArchivo);
+    if (existeElArchivo(path)) {
+        t_config *archivoConfig = abrirArchivoConfiguracion(path, logger);
+        char *arrayDeBloques = string_duplicate(config_get_string_value(archivoConfig, "BLOCKS"));
+        eliminarCharDeString(arrayDeBloques, '[');
+        eliminarCharDeString(arrayDeBloques, ']');
+        config_destroy(archivoConfig);
+        free(path);
+        return arrayDeBloques;
+    } else {
+        free(path);
+        return "";
+    }
+}
+
+void eliminarCharDeString(char *string, char ch) {
+    char *src, *dst;
+    for (src = dst = string; *src != '\0'; src++) {
+        *dst = *src;
+        if (*dst != ch) dst++;
+    }
+    *dst = '\0';
+}
+
+/*char *stringDeArraySinCorchetes(char *array) {
+    char *string;
+    if (string_starts_with(array, "[")) {
+        string = string_substring_from(array, 1);
+    } else {
+        string = string_duplicate(array);
+    }
+    if (string_ends_with(array, "]")) {
+        string = string_substring_until(string, strlen(string) - 1);
+    }
+    return string;
+}*/
+
+char **convertirStringDeBloquesAArray(char *bloques) {
+    char *stringArray = string_new();
+    string_append(&stringArray, "[");
+    string_append(&stringArray, bloques);
+    string_append(&stringArray, "]");
+    char **arrayDeBloques = string_get_string_as_array(stringArray);
+    free(stringArray);
+    return arrayDeBloques;
+}
+
+char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext) {
+    int nroTemporal = 0;
+    char *bloques = string_new();
+    char *archivoTemporalPath;
+    char *nombreArchivoTemporal = string_new();
+    if (strcmp(ext, ".tmp") == 0 || strcmp(ext, ".tmpc") == 0) {
+        string_append(&nombreArchivoTemporal, nombreTabla);
+    }
+    string_append(&nombreArchivoTemporal, string_itoa(nroTemporal));
+    string_append(&nombreArchivoTemporal, ext);
+    archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
+    while (existeElArchivo(archivoTemporalPath)) {
+        bloques = concat(3, bloques, obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivoTemporal), ",");
+        nroTemporal++;
+        vaciarString(&nombreArchivoTemporal);
+        if (strcmp(ext, ".tmp") == 0 || strcmp(ext, ".tmpc") == 0) {
+            string_append(&nombreArchivoTemporal, nombreTabla);
+        }
+        string_append(&nombreArchivoTemporal, string_itoa(nroTemporal));
+        string_append(&nombreArchivoTemporal, ext);
+        archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
+    }
+    if (!string_is_empty(bloques)) {
+        bloques = string_substring_until(bloques, strlen(bloques) - 1);
+    }
+    return bloques;
 }
 
 void ejecutarConsola() {
@@ -1257,7 +1331,7 @@ void cargarBloquesAsignados(char *path) {
                             particion = -1;
                         }
                         pathArchivo = concat(3, pathTabla, "/", string_duplicate(nombreArchivo));
-                        char **arrayDeBloques = bloquesEnParticion(nombreTabla, nombreArchivo);
+                        char **arrayDeBloques = convertirStringDeBloquesAArray(obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo));
                         for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
                             t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
                             bloque->tabla = concat(1, nombreTabla);
@@ -1276,7 +1350,7 @@ void cargarBloquesAsignados(char *path) {
 }
 
 
-char *obtenerBloquesSegunExtension(char *nombreTabla, char *ext) {
+/*char *obtenerBloquesSegunExtension(char *nombreTabla, char *ext) {
     int nroTemporal = 0;
     char *bloques = string_new();
     char *archivoTemporalPath = string_new();
@@ -1303,21 +1377,7 @@ char *obtenerBloquesSegunExtension(char *nombreTabla, char *ext) {
         bloques = string_substring_until(bloques, strlen(bloques) - 1);
     }
     return bloques;
-}
-
-char *stringDeArraySinCorchetes(char *array) {
-    char *string;
-    if (string_starts_with(array, "[")) {
-        string = string_substring_from(array, 1);
-    } else {
-        string = string_duplicate(array);
-    }
-    if (string_ends_with(array, "]")) {
-        string = string_substring_until(string, strlen(string) - 1);
-    }
-    return string;
-}
-
+}*/
 
 int obtenerCantidadBloques(char *puntoMontaje) {
     char *nombreArchivo = string_new();

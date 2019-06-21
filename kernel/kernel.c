@@ -22,7 +22,7 @@ int main(void) {
     log_info(logger, "Refresh Metadata: %i", configuracion.refreshMetadata);
     log_info(logger, "Retardo de Ejecución : %i", configuracion.refreshMetadata);
 
-    t_dictionary *metadataTablasConocidas = dictionary_create(); //voy a tener el nombreTabla, criterio, particiones y tpo_Compactación
+    t_dictionary *metadataTablas = dictionary_create(); //voy a tener el nombreTabla, criterio, particiones y tpo_Compactación
     t_dictionary *tablaDeMemoriasConCriterios = dictionary_create(); //voy a tener relacion de criterio con un t_list* de FDs
 
     t_queue *colaDeNew = queue_create();
@@ -35,11 +35,11 @@ int main(void) {
 
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
 
-    parametros_consola_kernel *parametros = (parametros_consola_kernel *) malloc(sizeof(parametros_consola_kernel));
+    p_consola_kernel *parametros = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
     parametros->logger = logger;
     parametros->conexiones = misConexiones;
-    parametros->metadataTablas = metadataTablasConocidas;
+    parametros->metadataTablas = metadataTablas;
     parametros->memoriasConCriterios = tablaDeMemoriasConCriterios;
 
     ejecutarConsola(gestionarRequest, parametros);
@@ -90,8 +90,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 }
 
-void ejecutarConsola(int (*gestionarRequest)(t_comando, parametros_consola_kernel *),
-                     parametros_consola_kernel *parametros) {
+void ejecutarConsola(int (*gestionarRequest)(t_comando, p_consola_kernel *), p_consola_kernel *parametros) {
     t_comando requestParseada;
 
     do {
@@ -109,7 +108,7 @@ void ejecutarConsola(int (*gestionarRequest)(t_comando, parametros_consola_kerne
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
-void *analizarRequest(t_comando requestParseada, parametros_consola_kernel *parametros) {
+void *analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
 
     t_log *logger = parametros->logger;
 
@@ -126,12 +125,12 @@ void *analizarRequest(t_comando requestParseada, parametros_consola_kernel *para
     }
 }
 
-int gestionarRequest(t_comando requestParseada, parametros_consola_kernel *parametros) {
+int gestionarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
 
     GestorConexiones *misConexiones = parametros->conexiones;
-    //char *criterioConsistencia = criterioBuscado(requestParseada);
-    int fdMemoria = 1;// misConexiones->conexiones[0];
-    //int fdMemoria = seleccionarMemoriaIndicada(parametros);
+    char *criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
+    //int fdMemoria = 1;// misConexiones->conexiones[0];
+    int fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
 
     switch (requestParseada.tipoRequest) { //Analizar si cada gestionar va a tener que encolar en NEW, en lugar de enviarPaquete
         case SELECT:
@@ -206,7 +205,7 @@ bool esComandoValidoDeKernel(t_comando comando) {
     }
 }
 
-int gestionarRun(char *pathArchivo, parametros_consola_kernel *parametros) {
+int gestionarRun(char *pathArchivo, p_consola_kernel *parametros) {
     t_archivoLQL archivoLQL;
     t_log *logger = parametros->logger;
     GestorConexiones *misConexiones = parametros->conexiones;
@@ -244,7 +243,7 @@ int gestionarRun(char *pathArchivo, parametros_consola_kernel *parametros) {
     fclose(archivo);
 }
 
-void *administrarRequestsLQL(t_archivoLQL archivoLQL, parametros_consola_kernel *parametros) {
+void *administrarRequestsLQL(t_archivoLQL archivoLQL, p_consola_kernel *parametros) {
     t_comando requestParseada;
     int contadorDeRequest = 0;
     do {
@@ -300,7 +299,7 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
     return 0;
 }
 
-int gestionarAdd(char **parametrosDeRequest, parametros_consola_kernel *parametros) {
+int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
 
     t_log *logger = parametros->logger;
     int numeroMemoria = (int) parametrosDeRequest[1];
@@ -323,13 +322,16 @@ int gestionarAdd(char **parametrosDeRequest, parametros_consola_kernel *parametr
     }
 }
 
-/*int seleccionarMemoriaIndicada (parametros_consola_kernel *parametros, ){
-    if(existenMemoriasConectadas) {
+int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio) {
+    if (existenMemoriasConectadas) {
+        t_queue *memoriasDelCriterioPedido = dictionary_get(parametros->memoriasConCriterios, criterio);
         //Que memorias tengo con el criterio X de la request solicitada?
-        //Cual de esas memorias tiene menos carga?
-        //
+        int fdMemoriaElegida = (int)queue_pop(memoriasDelCriterioPedido);
+        return fdMemoriaElegida;
     }
-}*/
+    log_warning(parametros->logger, "No existen memorias conectadas para asignar requests.\n");
+    return 0;
+}
 
 bool existenMemoriasConectadas(GestorConexiones *misConexiones) {
     bool hayMemorias = (list_size(misConexiones->conexiones) > 0);
@@ -337,7 +339,8 @@ bool existenMemoriasConectadas(GestorConexiones *misConexiones) {
     return hayMemorias;
 }
 
-char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas) { //buscaremos el criterio de cada uno de las request ingresadas
+char *criterioBuscado(t_comando requestParseada,
+                      t_dictionary *metadataTablas) { //buscaremos el criterio de cada uno de las request ingresadas
     char *criterioPedido;
     char *tabla;
     switch (requestParseada.tipoRequest) { //Cada case va a tener que buscar en el diccionario la tabla, para obtener el criterio
@@ -356,5 +359,13 @@ char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas) {
             tabla = requestParseada.parametros[0];
             criterioPedido = dictionary_get(metadataTablas, tabla);
             return criterioPedido;
+        case DESCRIBE:
+            if (requestParseada.cantidadParametros > 0) {
+                tabla = requestParseada.parametros[0];
+                criterioPedido = dictionary_get(metadataTablas, tabla);
+                return criterioPedido;
+            }
+        default:
+            return "NC";
     }
 }

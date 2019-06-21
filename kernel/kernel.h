@@ -41,7 +41,7 @@ typedef struct {
 typedef struct {
     int indice;
     int fileDescriptor;
-    char* consistencia;
+    char *consistencia;
 } memoria_conocida;
 
 typedef struct {
@@ -49,7 +49,7 @@ typedef struct {
     GestorConexiones *conexiones;
     t_dictionary *metadataTablas;
     t_dictionary *memoriasConCriterios;
-} parametros_consola_kernel;
+} p_consola_kernel;
 
 typedef struct {
     t_queue *colaDeNew;
@@ -64,15 +64,16 @@ typedef struct {
 
 t_configuracion cargarConfiguracion(char *, t_log *);
 
-int gestionarRequest(t_comando requestParseada, parametros_consola_kernel *parametros);
+int gestionarRequest(t_comando requestParseada, p_consola_kernel *parametros);
 
-void ejecutarConsola(int (*gestionarRequest)(t_comando, parametros_consola_kernel*), parametros_consola_kernel *parametros);
+void
+ejecutarConsola(int (*gestionarRequest)(t_comando, p_consola_kernel *), p_consola_kernel *parametros);
 
-void *analizarRequest(t_comando requestParseada, parametros_consola_kernel *parametros);
+void *analizarRequest(t_comando requestParseada, p_consola_kernel *parametros);
 
-void *administrarRequestsLQL(t_archivoLQL archivoLQL, parametros_consola_kernel *parametros);
+void *administrarRequestsLQL(t_archivoLQL archivoLQL, p_consola_kernel *parametros);
 
-int conectarseAMemoriaPrincipal(char* ipMemoria, int puertoMemoria, GestorConexiones* misConexiones, t_log* logger);
+int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger);
 
 // ***** GESTIÓN DE COMANDOS *****
 
@@ -82,18 +83,23 @@ bool esComandoValidoDeKernel(t_comando comando);
 
 int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria);
 
-int gestionarCreateKernel(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones, char *tiempoCompactacion, int fdMemoria);
+int
+gestionarCreateKernel(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones, char *tiempoCompactacion,
+                      int fdMemoria);
 
 int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria);
 
 int gestionarDropKernel(char *nombreTabla, int fdMemoria);
 
-int gestionarAdd(char** parametrosDeRequest, parametros_consola_kernel *parametros);
+int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros);
 
-int gestionarRun(char *pathArchivo, parametros_consola_kernel *parametros);
+int gestionarRun(char *pathArchivo, p_consola_kernel *parametros);
 
 // ***** MANEJO DE MEMORIAS *****
 bool existenMemoriasConectadas(GestorConexiones *misConexiones);
+
 char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas);
+
+int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio);
 
 #endif /* KERNEL_H_ */

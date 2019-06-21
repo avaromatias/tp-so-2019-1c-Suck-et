@@ -30,14 +30,12 @@ int main(void) {
     t_queue *colaDeExecute = queue_create();
     t_list *finalizados = list_create();
 
-
-
     GestorConexiones *misConexiones = inicializarConexion();
     conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
 
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
 
-    parametros_consola_kernel *parametros = (parametros_consola_kernel*) malloc(sizeof(parametros_consola_kernel));
+    parametros_consola_kernel *parametros = (parametros_consola_kernel *) malloc(sizeof(parametros_consola_kernel));
 
     parametros->logger = logger;
     parametros->conexiones = misConexiones;
@@ -92,7 +90,8 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 }
 
-void ejecutarConsola(int (*gestionarRequest)(t_comando, parametros_consola_kernel*), parametros_consola_kernel *parametros) {
+void ejecutarConsola(int (*gestionarRequest)(t_comando, parametros_consola_kernel *),
+                     parametros_consola_kernel *parametros) {
     t_comando requestParseada;
 
     do {
@@ -130,10 +129,11 @@ void *analizarRequest(t_comando requestParseada, parametros_consola_kernel *para
 int gestionarRequest(t_comando requestParseada, parametros_consola_kernel *parametros) {
 
     GestorConexiones *misConexiones = parametros->conexiones;
+    //char *criterioConsistencia = criterioBuscado(requestParseada);
     int fdMemoria = 1;// misConexiones->conexiones[0];
     //int fdMemoria = seleccionarMemoriaIndicada(parametros);
 
-    switch (requestParseada.tipoRequest) {
+    switch (requestParseada.tipoRequest) { //Analizar si cada gestionar va a tener que encolar en NEW, en lugar de enviarPaquete
         case SELECT:
             return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], fdMemoria);
         case INSERT:
@@ -182,91 +182,6 @@ int gestionarRequest(t_comando requestParseada, parametros_consola_kernel *param
             return printf("Comando inválido.\n");
     }
 }
-
-/*int gestionarComando(char **requestParseada) {
-    char *tipoDeRequest = request[0];
-    char *nombreTabla = request[1];
-    char *param1 = request[2];
-    char *param2 = request[3];
-    char *param3 = request[4];
-    if (validarComandosKernel(tipoDeRequest, nombreTabla, param1, param2, param3) == 1) {
-        if (strcmp(tipoDeRequest, "SELECT") == 0) {
-            printf("Tipo de Request: %s\n", tipoDeRequest);
-            printf("Tabla: %s\n", nombreTabla);
-            printf("Key: %s\n", param1);
-            //kernelSelect(nombreTabla, param1);
-            return 0;
-
-        } else if (strcmp(tipoDeRequest, "INSERT") == 0) {
-            printf("Tipo de Request: %s\n", tipoDeRequest);
-            printf("Tabla: %s\n", nombreTabla);
-            printf("Key: %s\n", param1);
-            printf("Valor: %s\n", param2);
-            time_t timestamp;
-            if (param3 != NULL) {
-                timestamp = (time_t) strtol(param3, NULL, 10);
-            } else {
-                timestamp = (time_t) time(NULL);
-            }
-            printf("Timestamp: %i\n", (int) timestamp);
-            //kernelInsert(nombreTabla, param1, param2, timestamp);
-            return 0;
-
-        } else if (strcmp(tipoDeRequest, "CREATE") == 0) {
-            printf("Tipo de Request: %s\n", tipoDeRequest);
-            printf("Tabla: %s\n", nombreTabla);
-            printf("TIpo de consistencia: %s\n", param1);
-            printf("Numero de particiones: %s\n", param2);
-            printf("Tiempo de compactacion: %s\n", param3);
-            //kernelCreate(nombreTabla, param1, param2, param3)
-            return 0;
-
-        } else if (strcmp(tipoDeRequest, "DESCRIBE") == 0) {
-            printf("Tipo de Request: %s\n", tipoDeRequest);
-            if (nombreTabla == NULL) {
-                // Hacer describe global
-            } else {
-                printf("Tabla: %s\n", nombreTabla);
-                // Hacer describe de una tabla especifica
-            }
-            return 0;
-
-        } else if (strcmp(tipoDeRequest, "DROP") == 0) {
-            printf("Tipo de Request: %s\n", tipoDeRequest);
-            printf("Tabla: %s\n", nombreTabla);
-            //kernelDrop(nombreTabla);
-            return 0;
-
-        } else if (strcmp(tipoDeRequest, "ADD") == 0) {
-            printf("Tipo de Request: %s %s %s ", tipoDeRequest, nombreTabla, param1); //nombreTabla en realidad vien
-            printf("To: %s", param3);
-            return 0;
-
-        } else if (strcmp(tipoDeRequest, "RUN") == 0) {
-            printf("Tipo de Request: %s\n", tipoDeRequest); //nombreTabla en realidad vien
-            printf("Path: %s\n", nombreTabla);
-            return 0;
-        } else if (strcmp(tipoDeRequest, "HELP") == 0) {
-            printf("************ Comandos disponibles ************\n");
-            printf("- SELECT [NOMBRE_TABLA] [KEY]\n");
-            printf("- INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp](Opcional)\n");
-            printf("- CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n");
-            printf("- DESCRIBE [NOMBRE_TABLA](Opcional)\n");
-            printf("- DROP [NOMBRE_TABLA]\n");
-            printf("- ADD MEMORY [NUMERO_MEMORIA] TO [TIPO_CONSISTENCIA]\n");
-            printf("- RUN [PATH]\n");
-            printf("- JOURNAL\n");
-            printf("- METRICS\n");
-            printf("- EXIT\n");
-            return 0;
-
-        } else {
-            printf("Ingrese un comando válido.\n");
-            return -2;
-        }
-    }
-}*/
-
 //para hacer los comandosKernel
 
 bool validarComandosKernel(t_comando comando, t_log *logger) {
@@ -355,7 +270,9 @@ int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria) {
     return 0;
 }
 
-int gestionarCreateKernel(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones, char *tiempoCompactacion, int fdMemoria) {
+int
+gestionarCreateKernel(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones, char *tiempoCompactacion,
+                      int fdMemoria) {
     //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
     char *request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones,
                                        tiempoCompactacion);
@@ -386,15 +303,16 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
 int gestionarAdd(char **parametrosDeRequest, parametros_consola_kernel *parametros) {
 
     t_log *logger = parametros->logger;
-    int numeroMemoria = (int)parametrosDeRequest[1];
-    char* criterio = parametrosDeRequest[3];
+    int numeroMemoria = (int) parametrosDeRequest[1];
+    char *criterio = parametrosDeRequest[3];
     GestorConexiones *misConexiones = parametros->conexiones;
     t_dictionary *tablaMemoriasConCriterios = parametros->memoriasConCriterios;
 
     bool memoriaEncontrada = (list_size(misConexiones->conexiones) >= numeroMemoria);
 
     if (memoriaEncontrada) {
-        int *fdMemoriaSolicitada= (int*)list_get(misConexiones->conexiones, numeroMemoria - 1); // hacemos -1 por la ubicación 0
+        int *fdMemoriaSolicitada = (int *) list_get(misConexiones->conexiones,
+                                                    numeroMemoria - 1); // hacemos -1 por la ubicación 0
         t_queue *colaFileDescriptors = dictionary_get(tablaMemoriasConCriterios, criterio);
         queue_push(colaFileDescriptors, fdMemoriaSolicitada);
         log_info(logger, "La memoria ha sido agregada a la tabla de Memorias conocidas.\n");
@@ -404,6 +322,39 @@ int gestionarAdd(char **parametrosDeRequest, parametros_consola_kernel *parametr
         return -1;
     }
 }
+
 /*int seleccionarMemoriaIndicada (parametros_consola_kernel *parametros, ){
-    //Reconocer
+    if(existenMemoriasConectadas) {
+        //Que memorias tengo con el criterio X de la request solicitada?
+        //Cual de esas memorias tiene menos carga?
+        //
+    }
 }*/
+
+bool existenMemoriasConectadas(GestorConexiones *misConexiones) {
+    bool hayMemorias = (list_size(misConexiones->conexiones) > 0);
+
+    return hayMemorias;
+}
+
+char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas) { //buscaremos el criterio de cada uno de las request ingresadas
+    char *criterioPedido;
+    char *tabla;
+    switch (requestParseada.tipoRequest) { //Cada case va a tener que buscar en el diccionario la tabla, para obtener el criterio
+        case SELECT:
+            tabla = requestParseada.parametros[0];
+            criterioPedido = dictionary_get(metadataTablas, tabla);//buscar en metadataTablasConocidas
+            return criterioPedido;
+        case INSERT:
+            tabla = requestParseada.parametros[0];
+            criterioPedido = dictionary_get(metadataTablas, tabla);
+            return criterioPedido;
+        case CREATE:
+            criterioPedido = requestParseada.parametros[1];
+            return criterioPedido;
+        case DROP:
+            tabla = requestParseada.parametros[0];
+            criterioPedido = dictionary_get(metadataTablas, tabla);
+            return criterioPedido;
+    }
+}

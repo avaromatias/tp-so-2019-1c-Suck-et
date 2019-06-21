@@ -92,5 +92,8 @@ int gestionarAdd(char** parametrosDeRequest, parametros_consola_kernel *parametr
 
 int gestionarRun(char *pathArchivo, parametros_consola_kernel *parametros);
 
+// ***** MANEJO DE MEMORIAS *****
+bool existenMemoriasConectadas(GestorConexiones *misConexiones);
+char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas);
 
 #endif /* KERNEL_H_ */

@@ -84,7 +84,8 @@ t_dictionary *metadatas;
 t_dictionary *memTable;
 t_dictionary *archivosAbiertos;
 t_dictionary *tablasEnUso;
-t_bitarray *bitmap;
+t_bitarray *bitarray;
+void *bitmap;
 pthread_mutex_t mutexAsignacionBloques;
 
 
@@ -129,7 +130,7 @@ char *obtenerStringBloquesDeArchivo(char *nombreTabla, char *nombreArchivo);
 char **convertirStringDeBloquesAArray(char *bloques);
 //void eliminarCharDeString(char *string, char ch);
 //char *stringDeArraySinCorchetes(char *array);
-char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo);
+//char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo);
 char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext);
 
 /**

@@ -168,7 +168,7 @@ int obtenerTamanioBloque(int bloque) {
 }
 
 int estaLibreElBloque(int bloque) {
-    if (bitarray_test_bit(bitmap, bloque) == 0) {
+    if (bitarray_test_bit(bitarray, bloque) == 0) {
         return 1;
     }
     return 0;
@@ -1300,27 +1300,6 @@ void crearDirBloques(char *puntoMontaje) {
     int bloques = obtenerCantidadBloques(puntoMontaje);
     if (bloques != -1) {
 
-        int tamanioBitarray = bloques / 8;
-        char *data = malloc(sizeof(char) * tamanioBitarray);
-
-        for (int i = 0; i < tamanioBitarray; i++) {
-            data[i] = 0;
-        }
-
-        char *archivoBitmap = string_new();
-        string_append(&archivoBitmap, puntoMontaje);
-        string_append(&archivoBitmap, "Metadata/Bitmap.bin");
-        //int file = open(archivoBitmap, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-
-        /*char *data = (char *) mmap(NULL, sizeof(data), PROT_WRITE | PROT_READ, MAP_SHARED, file, 0);
-        if (data == MAP_FAILED) {                                           //
-            printf("Error al mapear a memoria: %s\n", strerror(errno));     // Hay que borrar esto una vez
-            close(file);                                                    // que quede andando el bitmap
-        }                                                                   //*/
-        bitmap = bitarray_create_with_mode(data, sizeof(data), MSB_FIRST);
-
-        free(archivoBitmap);
-
         for (int i = 0; i < bloques; i++) {
             char *nroBloque = string_from_format("%i", i);
             char *unArchivoDeBloque = concat(4, nombreArchivo, "/", nroBloque, ".bin");
@@ -1337,10 +1316,10 @@ void crearDirBloques(char *puntoMontaje) {
                 sem_post(semBloque);
             } else if (!archivoVacio(unArchivoDeBloque) &&
                        obtenerTamanioBloque(i) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
-                bitarray_set_bit(bitmap, i);
+                //bitarray_set_bit(bitarray, i);
             }
             free(unArchivoDeBloque);
-            //printf("%i", bitarray_test_bit(bitmap, i));
+            //printf("%i", bitarray_test_bit(bitarray, i));
             //No hago un free del bloque porque lo necesito para el diccionario de bloques, en que momento deberia liberarlo?
         }
         free(nombreArchivo);
@@ -1399,6 +1378,19 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_lf
         enviarPaquete(header.fdRemitente, HANDSHAKE, tamanioValue);
         free(tamanioValue);
     }
+}
+
+void inicializarBitmap() {
+    char *bitmapPath = string_new();
+    string_append(&bitmapPath, configuracion.puntoMontaje);
+    string_append(&bitmapPath, "Metadata/Bitmap.bin");
+    int fd = open(bitmapPath, O_RDWR);
+    int tamanioBitarray = obtenerCantidadBloques(configuracion.puntoMontaje) / 8;
+    if(lseek(fd, 0, SEEK_END) <= 0) {
+        ftruncate(fd, tamanioBitarray);
+    }
+    bitmap = mmap(NULL, tamanioBitarray, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
+    bitarray = bitarray_create_with_mode(bitmap, tamanioBitarray, MSB_FIRST);
 }
 
 void *atenderConexiones(void *parametrosThread) {
@@ -1486,6 +1478,7 @@ int main(void) {
     tablasEnUso = dictionary_create();
     bloquesAsignados = dictionary_create();
     inicializarLFS(configuracion.puntoMontaje);
+    inicializarBitmap();
 
     log_info(logger, "Puerto Escucha: %i", configuracion.puertoEscucha);
     log_info(logger, "Punto Montaje: %s", configuracion.puntoMontaje);

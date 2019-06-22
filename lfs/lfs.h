@@ -29,7 +29,6 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <stdarg.h>
-
 #include "../libs/config.h"
 #include "../libs/sockets.h"
 #include "../libs/consola.h"
@@ -69,7 +68,6 @@ typedef struct {
 typedef struct {
     char* tabla;
     char *tiempoCompactacion;
-    pthread_mutex_t* sem;
 } parametros_thread_compactacion;
 
 typedef struct {
@@ -97,6 +95,8 @@ void atenderMensajes(void* parametrosRequest);
 char** obtenerTablas();
 t_response *lfsDescribe(char *nombreTabla);
 
+void *obtenerSemaforoPath(char *path);
+
 char *obtenerBloquesSegunExtension(char*nombreTabla,char* ext);
 
 char **filtrarKeyMax(char **listaLineas);
@@ -121,15 +121,13 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 
 char *generarContenidoParaParticion(char *tamanio, char *bloques);
 
-pthread_t* crearHiloCompactacion(char *nombreTabla, char *tiempoCompactacion, pthread_mutex_t *sem);
+pthread_t* crearHiloCompactacion(char *nombreTabla, char *tiempoCompactacion);
 
 char *obtenerNombreArchivoParticion(int particion);
 
 int obtenerTamanioBloque(int bloque);
 
 int obtenerTamanioBloques(char *puntoMontaje);
-
-sem_t* obtenerSemaforoPath(char* path);
 
 int obtenerCantidadBloques(char *puntoMontaje);
 char *obtenerLineaMasReciente(char **bloques, char *key);

@@ -46,8 +46,7 @@ void imprimirErrorParametros() {
 
 
 char *obtenerPathTabla(char *nombreTabla, char* puntoMontaje) {
-    char *basePath = string_new();
-    string_append(&basePath, puntoMontaje);
+    char *basePath = string_duplicate(puntoMontaje);
     if(!string_ends_with(puntoMontaje,"/")){
         string_append(&basePath, "/");
     }

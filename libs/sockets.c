@@ -186,7 +186,7 @@ void enviarPaquete(int fdDestinatario, TipoMensaje tipoMensaje, char* mensaje)  
     void* headerSerializado = serializarHeader(header);
     int pesoPaquete = sizeof(Header) + pesoMensaje;
     void* paquete = empaquetar(headerSerializado, mensaje);
-    send(fdDestinatario, paquete, pesoPaquete, MSG_DONTWAIT);
+    send(fdDestinatario, paquete, pesoPaquete, MSG_WAITALL);
     free(headerSerializado);
     free(paquete);
 }
@@ -245,7 +245,7 @@ Header armarHeader(int fdDestinatario, int tamanioDelMensaje, TipoMensaje tipoMe
 GestorConexiones* inicializarConexion() {
     GestorConexiones* nuevaConexion = (GestorConexiones*) malloc(sizeof(GestorConexiones));
 
-    nuevaConexion->descriptorMaximo = 0;
+    nuevaConexion->descriptorMaximo = -1;
     nuevaConexion->servidor = -1;
     nuevaConexion->conexiones = list_create();
 

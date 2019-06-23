@@ -218,20 +218,7 @@ void* gestionarJournal(t_control_conexion* conexionConLissandra, t_memoria* memo
 
     vaciarMemoria(memoria, logger);
 }
-char* concatenarMemoriasConocidas(t_list* memoriasConocidas){
-    char* respuesta = NULL;
 
-    t_nodoMemoria* nodoMemoriaAuxiliar = malloc(sizeof(t_nodoMemoria));
-
-    int cantidadMemorias = list_size(memoriasConocidas);
-    for (int i = 0; i < cantidadMemorias; ++i) {
-        nodoMemoriaAuxiliar = (t_nodoMemoria*)list_get(memoriasConocidas, i);
-        string_append(&respuesta, nodoMemoriaAuxiliar->direccionMemoriaConocida);
-        string_append(&respuesta, ";");
-    }
-
-    return respuesta;
-}
 char* gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger) {
     switch(comando.tipoRequest) {
         case SELECT:
@@ -388,7 +375,7 @@ void gestionarGossiping(char** ipSeeds, char** puertoSeeds, t_log* logger, t_mem
                t_control_conexion conexionNodoMemoria = {.fd = unNodoMemoria->fdMemoriaConocida};
                 enviarPaquete(fdNodoMemoria, GOSSIPING, "DAME_LISTA_GOSSIPING");
 
-                t_paquete respuesta = recibirMensaje(&conexionNodoMemoria);
+                /*t_paquete respuesta = recibirMensaje(&conexionNodoMemoria);
 
                 if(respuesta.tipoMensaje == RESPUESTA_GOSSIPING){
                     char* memoriasConocidas = (char*)respuesta.mensaje;
@@ -400,7 +387,7 @@ void gestionarGossiping(char** ipSeeds, char** puertoSeeds, t_log* logger, t_mem
                 }
 
                 //free(logger);
-                free(respuesta.mensaje);
+                free(respuesta.mensaje); */
             }
 
             i++;

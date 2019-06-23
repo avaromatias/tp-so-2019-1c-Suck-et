@@ -77,6 +77,9 @@ void* atenderConexiones(void* parametrosThread)    {
                                     case GOSSIPING: ;
                                         atenderPedidoMemoria(header, mensaje, parametros);
                                         break;
+                                    case RESPUESTA_GOSSIPING: ;
+                                        //atenderRespuestaGossiping(header, mensaje, parametros);
+                                        break;
                                 }
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
@@ -124,6 +127,20 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
     }
 }*/
 
+char* concatenarMemoriasConocidas(t_list* memoriasConocidas){
+    char* respuesta = NULL;
+
+    t_nodoMemoria* nodoMemoriaAuxiliar = malloc(sizeof(t_nodoMemoria));
+
+    int cantidadMemorias = list_size(memoriasConocidas);
+    for (int i = 0; i < cantidadMemorias; ++i) {
+        nodoMemoriaAuxiliar = (t_nodoMemoria*)list_get(memoriasConocidas, i);
+        string_append(&respuesta, nodoMemoriaAuxiliar->direccionMemoriaConocida);
+        string_append(&respuesta, ";");
+    }
+
+    return respuesta;
+}
 void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros){
 
     //mutex

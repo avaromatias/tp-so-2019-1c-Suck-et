@@ -112,8 +112,8 @@ int validarComillasValor(char *valor) {
 }
 
 void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion) {
-    pthread_mutex_t* *semMetadata =(pthread_mutex_t*) obtenerSemaforoPath(obtenerPathArchivo(nombreTabla, "Metadata"));
-    pthread_mutex_lock(&semMetadata);
+    pthread_mutex_t *semMetadata = (pthread_mutex_t *) obtenerSemaforoPath(obtenerPathArchivo(nombreTabla, "Metadata"));
+    pthread_mutex_lock(semMetadata);
     FILE *f = fopen(obtenerPathArchivo(nombreTabla, "Metadata"), "w");
     char *linea = concat(9, "CONSISTENCY=", tipoConsistencia, "\n", "PARTITIONS=", particiones, "\n",
                          "COMPACTION_TIME=",
@@ -138,8 +138,8 @@ void crearBinarios(char *nombreTabla, int particiones) {
             string_append(&nombreArchivo, ".bin");
             FILE *file = fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "w");
             int tamanio = obtenerTamanioBloque(bloque);
-            char* arrayComoString=concat(3, "[", string_from_format("%i", bloque), "]");
-            char *contenido = generarContenidoParaParticion(string_from_format("%i", tamanio),arrayComoString);
+            char *arrayComoString = concat(3, "[", string_from_format("%i", bloque), "]");
+            char *contenido = generarContenidoParaParticion(string_from_format("%i", tamanio), arrayComoString);
             fwrite(contenido, sizeof(char) * strlen(contenido), 1, file);
             free(contenido);
             free(arrayComoString);
@@ -228,15 +228,15 @@ void lfsDump() {
                 nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
                 nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
             }
-            pthread_mutex_t* semArchivo=obtenerSemaforoPath(nombreArchivo);
+            pthread_mutex_t *semArchivo = obtenerSemaforoPath(nombreArchivo);
             void _dumpKey(char *key, t_list *listaDeRegistros) {
                 int index = 0;
                 void _dumpRegistro(char *linea) {
-                    pthread_mutex_lock(&nombreArchivo);
+                    pthread_mutex_lock(semArchivo);
                     FILE *archivoDump = fopen(nombreArchivo, "a");
                     fclose(archivoDump);
                     escribirEnBloque(linea, nombreDump, -1, nombreArchivo);
-                    pthread_mutex_unlock(&nombreArchivo);
+                    pthread_mutex_unlock(semArchivo);
                     list_remove(listaDeRegistros, index);
                 }
                 list_iterate(listaDeRegistros, _dumpRegistro);
@@ -282,8 +282,8 @@ t_response *lfsDescribe(char *nombreTabla) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     if (existeTabla(nombreTabla) == 0) {
         char *pathMetadata = obtenerPathArchivo(nombreTabla, "Metadata");
-        pthread_mutex_t* *semMetadata =(pthread_mutex_t*) obtenerSemaforoPath(pathMetadata);
-        pthread_mutex_lock(&semMetadata);
+        pthread_mutex_t *semMetadata = (pthread_mutex_t *) obtenerSemaforoPath(pathMetadata);
+        pthread_mutex_lock(semMetadata);
         FILE *metadataTabla = fopen(pathMetadata, "r");
         if (metadataTabla != NULL) {
             fseek(metadataTabla, 0, SEEK_END);
@@ -303,7 +303,7 @@ t_response *lfsDescribe(char *nombreTabla) {
             retorno->valor = concat(3, "No se encontro la Metadata de la tabla ", nombreTabla, ".");
         }
 
-        pthread_mutex_unlock(&semMetadata);
+        pthread_mutex_unlock(semMetadata);
     } else {
         retorno->tipoRespuesta = ERR;
         retorno->valor = concat(3, "La tabla ", nombreTabla, " no existe.");
@@ -378,11 +378,11 @@ int borrarContenidoDeDirectorio(char *dirPath) {
 }
 
 void vaciarArchivo(char *path) {
-    pthread_mutex_t* *semArchivo =(pthread_mutex_t*) obtenerSemaforoPath(path);
-    pthread_mutex_lock(&semArchivo);
+    pthread_mutex_t *semArchivo = (pthread_mutex_t *) obtenerSemaforoPath(path);
+    pthread_mutex_lock(semArchivo);
     FILE *archivo = fopen(path, "w");
     fclose(archivo);
-    pthread_mutex_unlock(&semArchivo);
+    pthread_mutex_unlock(semArchivo);
 }
 
 static void liberarTabla(t_dictionary *tablaDeKeys) {
@@ -395,22 +395,22 @@ t_response *lfsDrop(char *nombreTabla) {
     if (existeTabla(nombreTabla) == 0) {
 
         if (dictionary_has_key(tablasEnUso, nombreTabla)) {
-            pthread_mutex_t* semaforoTabla = dictionary_get(tablasEnUso, nombreTabla);
-            pthread_mutex_lock(&semaforoTabla);
-            pthread_mutex_unlock(&semaforoTabla);
+            pthread_mutex_t *semaforoTabla = dictionary_get(tablasEnUso, nombreTabla);
+            pthread_mutex_lock(semaforoTabla);
+            pthread_mutex_unlock(semaforoTabla);
         } else {
-            pthread_mutex_t semaforoTabla;
-            int init=pthread_mutex_init(&semaforoTabla,NULL);
-            pthread_mutex_unlock(&semaforoTabla);
-            dictionary_put(tablasEnUso, nombreTabla, &semaforoTabla);
-            pthread_mutex_lock(&semaforoTabla);
-            pthread_mutex_unlock(&semaforoTabla);
+            pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
+            int init = pthread_mutex_init(semaforoTabla, NULL);
+            pthread_mutex_unlock(semaforoTabla);
+            dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
+            pthread_mutex_lock(semaforoTabla);
+            pthread_mutex_unlock(semaforoTabla);
         }
 
-        pthread_t* hiloTabla=dictionary_get(hilosTablas,nombreTabla);
+        pthread_t *hiloTabla = dictionary_get(hilosTablas, nombreTabla);
         pthread_cancel(*hiloTabla);
-        if(dictionary_has_key(hiloTabla,nombreTabla)){
-            dictionary_remove(hiloTabla,nombreTabla);
+        if (dictionary_has_key(hiloTabla, nombreTabla)) {
+            dictionary_remove(hiloTabla, nombreTabla);
         }
         borrarContenidoDeDirectorio(pathTabla);
         if (rmdir(pathTabla) != 0) {
@@ -455,10 +455,10 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
         } else {
             t_dictionary *keysEnTabla = dictionary_create();
             dictionary_put(memTable, nombreTabla, keysEnTabla);
-            pthread_mutex_t semaforoTabla;
-            int init=pthread_mutex_init(&semaforoTabla,NULL);
-            pthread_mutex_unlock(&semaforoTabla);
-            dictionary_put(tablasEnUso, nombreTabla, &semaforoTabla);
+            pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
+            int init = pthread_mutex_init(semaforoTabla, NULL);
+            pthread_mutex_unlock(semaforoTabla);
+            dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
             // Crear el directorio para dicha tabla.
             mkdir(tablePath, 0777);
 
@@ -468,9 +468,9 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
             // Crear los archivos binarios asociados a cada partición de la tabla y
             // asignar a cada uno un bloque
             crearBinarios(nombreTabla, atoi(particiones));
-            pthread_t* hilo=crearHiloCompactacion(nombreTabla, tiempoCompactacion);
-            pthread_detach(&hilo);
-            dictionary_put(hilosTablas,nombreTabla,hilo);
+            pthread_t *hilo = crearHiloCompactacion(nombreTabla, tiempoCompactacion);
+            pthread_detach(*hilo);
+            dictionary_put(hilosTablas, nombreTabla, hilo);
             retorno->tipoRespuesta = RESPUESTA;
             retorno->valor = concat(3, "La tabla ", nombreTabla, " fue creada con exito.\n");
         }
@@ -518,14 +518,13 @@ char **obtenerLineasDeBloques(char **bloques) {
         vaciarString(&blockPath);
         fclose(binarioBloque);
     }
-    if(!string_is_empty(stringDeLineas)){
+    if (!string_is_empty(stringDeLineas)) {
         stringDeLineas = string_substring_until(stringDeLineas, strlen(stringDeLineas) - 1);
 
-        if(blockPath != NULL) free(blockPath);
-    }
-    else{
-        char** bloquesVacios;
-        bloquesVacios[0]=NULL;
+        if (blockPath != NULL) free(blockPath);
+    } else {
+        char **bloquesVacios;
+        bloquesVacios[0] = NULL;
         return bloquesVacios;
     }
     free(linea);
@@ -538,22 +537,22 @@ void compactacion(void *parametrosThread) {
     int tiempoCompactacion = atoi(parametros->tiempoCompactacion) / 1000;
     while (1) {
         sleep(tiempoCompactacion);
-        pthread_mutex_t *sem = dictionary_get(tablasEnUso,nombreTabla);
+        pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
         pthread_mutex_lock(sem);
         nombreTabla = string_duplicate(parametros->tabla);
-        int existenTemporales=renombrarTemporales(nombreTabla);
+        int existenTemporales = renombrarTemporales(nombreTabla);
         pthread_mutex_unlock(sem);
-        if(existenTemporales==1) {
+        if (existenTemporales == 1) {
             nombreTabla = string_duplicate(parametros->tabla);
-            char *bloquesTemp = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
             char *bloquesBin = obtenerStringBloquesSegunExtension(nombreTabla, ".bin");
+            char *bloquesTemp = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
             eliminarArchivosTmpc(nombreTabla);
             char *bloquesTotales = string_new();
-            if (!string_is_empty(bloquesTemp)) {
-                bloquesTotales = concat(1, bloquesTemp);
-            }
             if (!string_is_empty(bloquesBin)) {
-                bloquesTotales = concat(3, bloquesTotales, ",", bloquesBin);
+                bloquesTotales = concat(1, bloquesBin);
+            }
+            if (!string_is_empty(bloquesTemp)) {
+                bloquesTotales = concat(3, bloquesTotales, ",", bloquesTemp);
             }
             char **bloques = string_split(bloquesTotales, ",");
             char **lineas = obtenerLineasDeBloques(bloques);
@@ -563,7 +562,8 @@ void compactacion(void *parametrosThread) {
                 liberarBloques(bloques);
                 for (int j = 0; j < tamanioDeArrayDeStrings(lineasMaximas); j++) {
                     char **linea = desarmarLinea(lineasMaximas[j]);
-                    lfsInsertCompactacion(nombreTabla, string_duplicate(linea[1]), string_duplicate(linea[2]), (time_t) strtol(string_duplicate(linea[0]),NULL,10));
+                    lfsInsertCompactacion(nombreTabla, string_duplicate(linea[1]), string_duplicate(linea[2]),
+                                          (time_t) strtol(string_duplicate(linea[0]), NULL, 10));
                 }
                 pthread_mutex_unlock(sem);
             }
@@ -571,10 +571,10 @@ void compactacion(void *parametrosThread) {
     }
 }
 
-void eliminarArchivosTmpc(char * nombreTabla) {
+void eliminarArchivosTmpc(char *nombreTabla) {
     DIR *d;
     struct dirent *dir;
-    char** dirPath=obtenerPathTabla(nombreTabla,configuracion.puntoMontaje);
+    char **dirPath = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
     d = opendir(dirPath);
     if (d) {
         int puntoEncontrado = 0;
@@ -616,8 +616,8 @@ void liberarBloque(char *nroBloque) {
     vaciarArchivo(obtenerPathBloque(atoi(nroBloque)));
     t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
     bloque->tabla = concat(1, "");
-    bloque->particion = NULL;
-    dictionary_put(bloquesAsignados, string_duplicate(nroBloque), bloque);
+    bloque->particion = -1;
+    dictionary_put(bloquesAsignados, nroBloque, bloque);
 }
 
 char **filtrarKeyMax(char **listaLineas) {
@@ -628,13 +628,13 @@ char **filtrarKeyMax(char **listaLineas) {
             dictionary_put(keys, key, key);
         }
     }
-    char **lineasSinRepetir=calloc(dictionary_size(keys),sizeof(char*));
+    char **lineasSinRepetir = calloc(dictionary_size(keys), sizeof(char *));
     void obtenerMaxTimestamp(char *keyD, char *valorD) {
         char *mayorLinea = string_new();
         int mayorTimestamp = -1;
         for (int i = 0; i < tamanioDeArrayDeStrings(listaLineas); i++) {
             char **linea = desarmarLinea(string_duplicate(listaLineas[i]));
-            char* key=linea[1];
+            char *key = linea[1];
             int timestamp = atoi(linea[0]);
             if (strcmp(keyD, key) == 0 && timestamp > mayorTimestamp) {
                 mayorTimestamp = timestamp;
@@ -648,13 +648,13 @@ char **filtrarKeyMax(char **listaLineas) {
     return lineasSinRepetir;
 }
 
-pthread_t* crearHiloCompactacion(char *nombreTabla, char *tiempoCompactacion) {
+pthread_t *crearHiloCompactacion(char *nombreTabla, char *tiempoCompactacion) {
     pthread_t *hiloCompactacion = (pthread_t *) malloc(sizeof(pthread_t));
 
     parametros_thread_compactacion *parametros = (parametros_thread_compactacion *) malloc(
             sizeof(parametros_thread_compactacion));
 
-    parametros->tabla = malloc(sizeof(char)*(strlen(nombreTabla)+1));
+    parametros->tabla = malloc(sizeof(char) * (strlen(nombreTabla) + 1));
     parametros->tabla = nombreTabla;
     parametros->tiempoCompactacion = tiempoCompactacion;
 
@@ -688,16 +688,16 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
         // Verificar que la tabla exista en el file system. En caso que no exista, informa el error y continúa su ejecución.
         if (existeTabla(nombreTabla) == 0) {
             if (dictionary_has_key(tablasEnUso, nombreTabla)) {
-                pthread_mutex_t* semaforoTabla = dictionary_get(tablasEnUso, nombreTabla);
+                pthread_mutex_t *semaforoTabla = dictionary_get(tablasEnUso, nombreTabla);
                 pthread_mutex_lock(semaforoTabla);
                 pthread_mutex_unlock(semaforoTabla);
             } else {
-                pthread_mutex_t semaforoTabla;
-                int init=pthread_mutex_init(&semaforoTabla,NULL);
-                pthread_mutex_unlock(&semaforoTabla);
-                dictionary_put(tablasEnUso, nombreTabla, &semaforoTabla);
-                pthread_mutex_lock(&semaforoTabla);
-                pthread_mutex_unlock(&semaforoTabla);
+                pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
+                int init = pthread_mutex_init(semaforoTabla, NULL);
+                pthread_mutex_unlock(semaforoTabla);
+                dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
+                pthread_mutex_lock(semaforoTabla);
+                pthread_mutex_unlock(semaforoTabla);
             }
             // Obtener la metadata asociada a dicha tabla.
             char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
@@ -741,10 +741,11 @@ void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, time_t tim
         obtenerMetadata(nombreTabla);
         t_metadata *meta = dictionary_get(metadatas, nombreTabla);
         int particion = calcularParticion(key, meta);
-        char *nombreArchivo = string_new();
+        char *nombreArchivo;
         char *p = string_itoa(particion);
         nombreArchivo = concat(4, obtenerPathTabla(nombreTabla, configuracion.puntoMontaje), "/", p, ".bin");
-        escribirEnBloque(linea, nombreTabla, p, nombreArchivo);
+        escribirEnBloque(linea, nombreTabla, particion,
+                         nombreArchivo); // Le estabamos pasando p y llegaba un char* en vez de un int en escribirEnBloque
         free(path);
     }
 }
@@ -757,16 +758,15 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
     int indice = 0;
     int bloque;
     while (linea[indice] != '\0' && indice < string_length(linea)) {
-        bloque = obtenerBloqueDisponible(nombreTabla, particion);
+        bloque = obtenerBloqueDisponible(nombreTabla,
+                                         particion); // Aca creo que esta obteniendo un bloque disponible distinto al que la particion ya tiene asignado
         char *pathBloque = obtenerPathBloque(bloque);
-        pthread_mutex_t* *semBloque =(pthread_mutex_t*) obtenerSemaforoPath(pathBloque);
-        pthread_mutex_lock(&semBloque);
+        pthread_mutex_t *semBloque = (pthread_mutex_t *) obtenerSemaforoPath(pathBloque);
+        pthread_mutex_lock(semBloque);
         FILE *f = fopen(pathBloque, "a");
-        dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
+        dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque),
+                       bloqueA); //Tengo mis dudas con respecto a esto: porque el bloque podria ya estar asignado a esa tabla y particion
         int longitudArchivo = obtenerTamanioBloque(bloque);
-        while (getc(f) != EOF) {
-            longitudArchivo++;
-        }
         while (longitudArchivo < obtenerTamanioBloques(configuracion.puntoMontaje) &&
                indice < string_length(linea)) {
             fputc(linea[indice], f);
@@ -774,7 +774,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             indice++;
         }
         fclose(f);
-        pthread_mutex_unlock(&semBloque);
+        pthread_mutex_unlock(semBloque);
         free(pathBloque);
         if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
             bitarray_set_bit(bitmap, bloque);
@@ -787,7 +787,8 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
         bloques = concat(3, "[", string_from_format("%i", bloque), "]");
     } else {
         t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
-        char **blocks = string_get_string_as_array(config_get_string_value(archivoConfig, "BLOCKS"));
+        char **blocks = string_get_string_as_array(
+                config_get_string_value(archivoConfig, "BLOCKS")); //Aca puede obtenerlo directamente como un string
         if (!arrayIncluye(blocks, string_from_format("%i", bloque))) {
             int tam = tamanioDeArrayDeStrings(blocks);
             blocks[tam] = string_from_format("%i", bloque);
@@ -797,18 +798,18 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
         size = config_get_int_value(archivoConfig, "SIZE") + strlen(linea);
         config_destroy(archivoConfig);
     }
-    pthread_mutex_t* *semParticion =(pthread_mutex_t*) obtenerSemaforoPath(nombreArchivo);
-    pthread_mutex_lock(&semParticion);
+    pthread_mutex_t *semParticion = (pthread_mutex_t *) obtenerSemaforoPath(nombreArchivo);
+    pthread_mutex_lock(semParticion);
     FILE *fParticion = fopen(nombreArchivo, "w");
     char *contenido = generarContenidoParaParticion(string_from_format("%i", size), bloques);
     fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
     fclose(fParticion);
-    pthread_mutex_unlock(&semParticion);
+    pthread_mutex_unlock(semParticion);
     free(contenido);
 }
 
 int renombrarTemporales(char *nombreTabla) {
-    int seRenombraron=0;
+    int seRenombraron = 0;
     DIR *d;
     struct dirent *dir;
     obtenerMetadata(nombreTabla);
@@ -824,8 +825,8 @@ int renombrarTemporales(char *nombreTabla) {
                 pathArchivo = obtenerPathArchivo(nombreTabla, nombreArchivo);
                 char *newPathArchivo = string_duplicate(pathArchivo);
                 string_append(&newPathArchivo, "c");
-                if(rename(pathArchivo, newPathArchivo)==0 && seRenombraron==0){
-                    seRenombraron=1;
+                if (rename(pathArchivo, newPathArchivo) == 0 && seRenombraron == 0) {
+                    seRenombraron = 1;
                 }
                 free(nombreArchivo);
             }
@@ -858,16 +859,16 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
     //1. Verificar que la tabla exista en el File System
     if (existeTabla(nombreTabla) == 0) {
         if (dictionary_has_key(tablasEnUso, nombreTabla)) {
-            pthread_mutex_t* semaforoTabla = dictionary_get(tablasEnUso, nombreTabla);
-            pthread_mutex_lock(&semaforoTabla);
-            pthread_mutex_unlock(&semaforoTabla);
+            pthread_mutex_t *semaforoTabla = dictionary_get(tablasEnUso, nombreTabla);
+            pthread_mutex_lock(semaforoTabla);
+            pthread_mutex_unlock(semaforoTabla);
         } else {
-            pthread_mutex_t semaforoTabla;
-            int init=pthread_mutex_init(&semaforoTabla,NULL);
-            pthread_mutex_unlock(&semaforoTabla);
-            dictionary_put(tablasEnUso, nombreTabla, &semaforoTabla);
-            pthread_mutex_lock(&semaforoTabla);
-            pthread_mutex_unlock(&semaforoTabla);
+            pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
+            int init = pthread_mutex_init(semaforoTabla, NULL);
+            pthread_mutex_unlock(semaforoTabla);
+            dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
+            pthread_mutex_lock(semaforoTabla);
+            pthread_mutex_unlock(semaforoTabla);
         }
         char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
         if (existeElArchivo(path)) {
@@ -912,7 +913,8 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                 }
             }*/
 
-            char **bloques = convertirStringDeBloquesAArray(concat(5, bloquesParticion, ",", bloquesTemporales, ",", bloquesTemporalesCompactacion));
+            char **bloques = convertirStringDeBloquesAArray(
+                    concat(5, bloquesParticion, ",", bloquesTemporales, ",", bloquesTemporalesCompactacion));
             char *mayorLinea = string_duplicate(obtenerLineaMasReciente(bloques, key));
 
             //8. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
@@ -954,8 +956,8 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
 
     for (int i = 0; i < tamanioArray; i++) {
         blockPath = obtenerPathBloque(atoi(bloques[i]));
-        pthread_mutex_t* *semBloque =(pthread_mutex_t*) obtenerSemaforoPath(blockPath);
-        pthread_mutex_lock(&semBloque);
+        pthread_mutex_t *semBloque = (pthread_mutex_t *) obtenerSemaforoPath(blockPath);
+        pthread_mutex_lock(semBloque);
 
         FILE *binarioBloque = fopen(blockPath, "r");
 
@@ -985,15 +987,15 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
                 }
             }
         }
-        if(palabras != NULL) freeArrayDeStrings(palabras);
+        if (palabras != NULL) freeArrayDeStrings(palabras);
         vaciarString(&blockPath);
         fclose(binarioBloque);
-        pthread_mutex_unlock(&semBloque);
+        pthread_mutex_unlock(semBloque);
     }
     free(linea);
     free(keyEncontrado);
     free(timestampEncontrado);
-    if(blockPath != NULL) free(blockPath);
+    if (blockPath != NULL) free(blockPath);
     return mayorLinea;
 }
 
@@ -1022,10 +1024,10 @@ char *obtenerNombreArchivoParticion(int particion) {
 char *obtenerStringBloquesDeArchivo(char *nombreTabla, char *nombreArchivo) {
     char *path = obtenerPathArchivo(nombreTabla, nombreArchivo);
     if (existeElArchivo(path)) {
-        pthread_mutex_t* semArchivo=(pthread_mutex_t*)obtenerSemaforoPath(path);
-        pthread_mutex_lock(&semArchivo);
+        pthread_mutex_t *semArchivo = (pthread_mutex_t *) obtenerSemaforoPath(path);
+        pthread_mutex_lock(semArchivo);
         t_config *archivoConfig = abrirArchivoConfiguracion(path, logger);
-        pthread_mutex_unlock(&semArchivo);
+        pthread_mutex_unlock(semArchivo);
         char *arrayDeBloques = string_duplicate(config_get_string_value(archivoConfig, "BLOCKS"));
         eliminarCharDeString(arrayDeBloques, '[');
         eliminarCharDeString(arrayDeBloques, ']');
@@ -1214,7 +1216,7 @@ int existeTabla(char *tabla) {
 
 void obtenerMetadata(char *tabla) {
     char *metadataPath = obtenerPathMetadata(tabla, configuracion.puntoMontaje);
-    t_config *config = abrirArchivoConfiguracion(metadataPath,logger);
+    t_config *config = abrirArchivoConfiguracion(metadataPath, logger);
     t_metadata *metadata = (t_metadata *) malloc(sizeof(t_metadata));
 
     if (config == NULL) {
@@ -1341,51 +1343,46 @@ char **obtenerTablas() {
 }
 
 void cargarBloquesAsignados(char *path) {
-        char **tablas = obtenerTablas();
-        for (int i = 0; i < tamanioDeArrayDeStrings(tablas); i++) {
-            char *nombreTabla = string_duplicate(tablas[i]);
-            obtenerMetadata(nombreTabla);
-            t_metadata *meta = dictionary_get(metadatas, nombreTabla);
-            pthread_mutex_t semaforoTabla;
-            int init=pthread_mutex_init(&semaforoTabla,NULL);
-            pthread_mutex_unlock(&semaforoTabla);
-            dictionary_put(tablasEnUso, nombreTabla, &semaforoTabla);
-            pthread_t* hilo=crearHiloCompactacion(nombreTabla, string_from_format("%i", meta->compaction_time));
-            pthread_detach(&hilo);
-            dictionary_put(hilosTablas,nombreTabla,hilo);
-            char *pathTabla = string_new();
-            pathTabla = concat(3, path, "/", nombreTabla);
-            DIR *d;
-            struct dirent *dir;
-            d = opendir(pathTabla);
-            if (d) {
-                while ((dir = readdir(d)) != NULL) {
-                    if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0 &&
-                        strcmp(dir->d_name, "Metadata") != 0) {
-                        char *nombreArchivo = string_duplicate(dir->d_name);
-                        char *pathArchivo = string_new();
-                        int particion = -1;
-                        if (string_contains(nombreArchivo, ".bin")) {
-                            particion = atoi(string_split(nombreArchivo, ".bin")[0]);
-                        } else {
-                            particion = -1;
-                        }
-                        pathArchivo = obtenerPathArchivo(nombreTabla,string_duplicate(nombreArchivo));
-                        char **arrayDeBloques = convertirStringDeBloquesAArray(obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo));
-                        for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
-                            t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-                            bloque->tabla = concat(1, nombreTabla);
-                            bloque->particion = particion;
-                            dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
-                        }
-                        for (int k = 0; k < tamanioDeArrayDeStrings(arrayDeBloques); k++) {
-                            free(arrayDeBloques[k]);
-                        }
-                        free(arrayDeBloques);
-                        free(nombreArchivo);
+    char **tablas = obtenerTablas();
+    for (int i = 0; i < tamanioDeArrayDeStrings(tablas); i++) {
+        char *nombreTabla = string_duplicate(tablas[i]);
+        obtenerMetadata(nombreTabla);
+        t_metadata *meta = dictionary_get(metadatas, nombreTabla);
+        pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
+        int init = pthread_mutex_init(semaforoTabla, NULL);
+        pthread_mutex_unlock(semaforoTabla);
+        dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
+        pthread_t *hilo = crearHiloCompactacion(nombreTabla, string_from_format("%i", meta->compaction_time));
+        pthread_detach(*hilo);
+        dictionary_put(hilosTablas, nombreTabla, hilo);
+        char *pathTabla;
+        pathTabla = concat(3, path, "/", nombreTabla);
+        DIR *d;
+        struct dirent *dir;
+        d = opendir(pathTabla);
+        if (d) {
+            while ((dir = readdir(d)) != NULL) {
+                if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0 &&
+                    strcmp(dir->d_name, "Metadata") != 0) {
+                    char *nombreArchivo = string_duplicate(dir->d_name);
+                    int particion = -1;
+                    if (string_ends_with(nombreArchivo, ".bin")) {
+                        particion = atoi(string_split(nombreArchivo, ".")[0]);
+                    } else {
+                        particion = -1;
                     }
+                    char **arrayDeBloques = convertirStringDeBloquesAArray(obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo));
+                    for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
+                        t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+                        bloque->tabla = concat(1, nombreTabla);
+                        bloque->particion = particion;
+                        dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
+                    }
+                    freeArrayDeStrings(arrayDeBloques);
+                    free(nombreArchivo);
                 }
             }
+        }
     }
 }
 
@@ -1494,11 +1491,11 @@ void crearDirBloques(char *puntoMontaje) {
             dictionary_put(bloquesAsignados, nroBloque, bloque);
             free(nroBloque);
             if (!existeElArchivo(unArchivoDeBloque)) {
-                pthread_mutex_t* *semBloque =(pthread_mutex_t*) obtenerSemaforoPath(unArchivoDeBloque);
-                pthread_mutex_lock(&semBloque);
+                pthread_mutex_t *semBloque = (pthread_mutex_t *) obtenerSemaforoPath(unArchivoDeBloque);
+                pthread_mutex_lock(semBloque);
                 FILE *file = fopen(unArchivoDeBloque, "w");
                 fclose(file);
-                pthread_mutex_unlock(&semBloque);
+                pthread_mutex_unlock(semBloque);
             } else if (!archivoVacio(unArchivoDeBloque) &&
                        obtenerTamanioBloque(i) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
                 bitarray_set_bit(bitmap, i);
@@ -1516,33 +1513,33 @@ void crearDirMetadata(char *puntoMontaje) {
     char *pathArchivoMetadata = concat(2, nombreArchivo, "/Metadata.bin");
     char *pathArchivoBitmap = concat(2, nombreArchivo, "/Bitmap.bin");
     if (!existeElArchivo(pathArchivoMetadata)) {
-        pthread_mutex_t* *semMetadata =(pthread_mutex_t*) obtenerSemaforoPath(pathArchivoMetadata);
-        pthread_mutex_lock(&semMetadata);
+        pthread_mutex_t *semMetadata = (pthread_mutex_t *) obtenerSemaforoPath(pathArchivoMetadata);
+        pthread_mutex_lock(semMetadata);
         FILE *fm = fopen(pathArchivoMetadata, "w");
         fclose(fm);
-        pthread_mutex_unlock(&semMetadata);
+        pthread_mutex_unlock(semMetadata);
     }
     if (!existeElArchivo(pathArchivoBitmap)) {
-        pthread_mutex_t* *semBitmap =(pthread_mutex_t*) obtenerSemaforoPath(pathArchivoBitmap);
-        pthread_mutex_lock(&semBitmap);
+        pthread_mutex_t *semBitmap = (pthread_mutex_t *) obtenerSemaforoPath(pathArchivoBitmap);
+        pthread_mutex_lock(semBitmap);
         FILE *fb = fopen(pathArchivoBitmap, "w");
         fclose(fb);
-        pthread_mutex_unlock(&semBitmap);
+        pthread_mutex_unlock(semBitmap);
     }
     free(nombreArchivo);
     free(pathArchivoMetadata);
     free(pathArchivoBitmap);
 }
 
-void * obtenerSemaforoPath(char *path) {
+void *obtenerSemaforoPath(char *path) {
     if (dictionary_has_key(tablasEnUso, path)) {
-        pthread_mutex_t* semaforoArchivo = dictionary_get(archivosAbiertos, path);
+        pthread_mutex_t *semaforoArchivo = dictionary_get(archivosAbiertos, path);
         return semaforoArchivo;
     } else {
-        pthread_mutex_t semaforoArchivo;
-        int init=pthread_mutex_init(&semaforoArchivo,NULL);
-        dictionary_put(archivosAbiertos, path, &semaforoArchivo);
-        return &semaforoArchivo;
+        pthread_mutex_t *semaforoArchivo = malloc(sizeof(pthread_mutex_t));
+        int init = pthread_mutex_init(semaforoArchivo, NULL);
+        dictionary_put(archivosAbiertos, path, semaforoArchivo);
+        return semaforoArchivo;
     }
 }
 
@@ -1667,7 +1664,7 @@ int main(void) {
 
     ejecutarConsola();
 
-    pthread_join(&hiloConexiones, NULL);
+    pthread_join(*hiloConexiones, NULL);
 
     free(misConexiones);
     free(bloquesAsignados);

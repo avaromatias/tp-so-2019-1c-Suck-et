@@ -66,7 +66,7 @@ typedef struct {
 } parametros_thread_request;
 
 typedef struct {
-    char* tabla;
+    char *tabla;
     char *tiempoCompactacion;
 } parametros_thread_compactacion;
 
@@ -90,24 +90,25 @@ pthread_mutex_t mutexAsignacionBloques;
 //Header de funciones
 t_configuracion cargarConfiguracion(char *path, t_log *logger);
 
-void atenderMensajes(void* parametrosRequest);
+void atenderMensajes(void *parametrosRequest);
 
-char** obtenerTablas();
+char **obtenerTablas();
+
 t_response *lfsDescribe(char *nombreTabla);
 
 void *obtenerSemaforoPath(char *path);
 
-char *obtenerBloquesSegunExtension(char*nombreTabla,char* ext);
+char *obtenerBloquesSegunExtension(char *nombreTabla, char *ext);
 
 char **filtrarKeyMax(char **listaLineas);
 
-char* stringDeArraySinCorchetes(char* array);
+//char* stringDeArraySinCorchetes(char* array);
 
-t_response* lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
+t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
 
-t_response* lfsSelect(char *nombreTabla, char *key);
+t_response *lfsSelect(char *nombreTabla, char *key);
 
-t_response* lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
+t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
 int obtenerBloqueDisponible(char *nombreTabla, int particion);
 
@@ -121,7 +122,7 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 
 char *generarContenidoParaParticion(char *tamanio, char *bloques);
 
-pthread_t* crearHiloCompactacion(char *nombreTabla, char *tiempoCompactacion);
+pthread_t *crearHiloCompactacion(char *nombreTabla, char *tiempoCompactacion);
 
 char *obtenerNombreArchivoParticion(int particion);
 
@@ -130,13 +131,19 @@ int obtenerTamanioBloque(int bloque);
 int obtenerTamanioBloques(char *puntoMontaje);
 
 int obtenerCantidadBloques(char *puntoMontaje);
+
 char *obtenerLineaMasReciente(char **bloques, char *key);
+
 char *obtenerStringBloquesDeArchivo(char *nombreTabla, char *nombreArchivo);
+
 char **convertirStringDeBloquesAArray(char *bloques);
-//void eliminarCharDeString(char *string, char ch);
+
+void eliminarCharDeString(char *string, char ch);
+
 //char *stringDeArraySinCorchetes(char *array);
 //char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo);
 char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext);
+
 char **obtenerLineasDeBloques(char **bloques);
 
 /**
@@ -144,7 +151,7 @@ char **obtenerLineasDeBloques(char **bloques);
 * @DESC: Gestiona los comandos recibidos por consola y decide como proceder
 *
 */
-t_response* gestionarRequest(t_comando comando);
+t_response *gestionarRequest(t_comando comando);
 
 /**
 * @NAME: existeTabla

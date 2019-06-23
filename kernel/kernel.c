@@ -23,7 +23,14 @@ int main(void) {
     log_info(logger, "Retardo de Ejecución : %i", configuracion.refreshMetadata);
 
     t_dictionary *metadataTablas = dictionary_create(); //voy a tener el nombreTabla, criterio, particiones y tpo_Compactación
-    t_dictionary *tablaDeMemoriasConCriterios = dictionary_create(); //voy a tener relacion de criterio con un t_list* de FDs
+
+    t_dictionary *tablaDeMemoriasConCriterios = dictionary_create();
+    t_queue *colaDeCriteriosSC = queue_create();
+    t_queue *colaDeCriteriosSHC = queue_create();
+    t_queue *colaDeCriteriosEC = queue_create();
+    dictionary_put(tablaDeMemoriasConCriterios, "SC", colaDeCriteriosSC);//voy a tener relacion de criterio con un t_list* de FDs
+    dictionary_put(tablaDeMemoriasConCriterios, "SHC", colaDeCriteriosSHC);
+    dictionary_put(tablaDeMemoriasConCriterios, "EC", colaDeCriteriosEC);
 
     t_queue *colaDeNew = queue_create();
     t_queue *colaDeReady = queue_create();
@@ -146,9 +153,11 @@ int gestionarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
         case CREATE:
             criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
             fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
-            return gestionarCreateKernel(requestParseada.parametros[0], requestParseada.parametros[1],
+            dictionary_put(parametros->metadataTablas, requestParseada.parametros[0], requestParseada.parametros[1]);
+            gestionarCreateKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                          requestParseada.parametros[2],
                                          requestParseada.parametros[3], fdMemoria);
+            return 0;
         case DROP:
             criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
             fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
@@ -308,7 +317,7 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
 int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
 
     t_log *logger = parametros->logger;
-    int numeroMemoria = (int) parametrosDeRequest[1];
+    int numeroMemoria = atoi(parametrosDeRequest[1]);
     char *criterio = parametrosDeRequest[3];
     GestorConexiones *misConexiones = parametros->conexiones;
     t_dictionary *tablaMemoriasConCriterios = parametros->memoriasConCriterios;
@@ -336,7 +345,8 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio) {
         //Que memorias tengo con el criterio X de la request solicitada?
         //Cual
         int *fdMemoriaElegida = (int *) queue_pop(memoriasDelCriterioPedido);
-        return fdMemoriaElegida;
+        queue_push(memoriasDelCriterioPedido,fdMemoriaElegida);
+        return *fdMemoriaElegida;
     }
     log_warning(parametros->logger, "No existen memorias conectadas para asignar requests.\n");
     return 0;

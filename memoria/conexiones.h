@@ -9,6 +9,7 @@
 #include "../libs/sockets.h"
 
 typedef struct t_control_conexion_d t_control_conexion;
+typedef struct parametros_thread_requests_d parametros_thread_request;
 
 #include "memoria.h"
 
@@ -21,6 +22,7 @@ typedef struct {
     GestorConexiones* conexion;
     t_log* logger;
     t_control_conexion* conexionKernel;
+    t_control_conexion* conexionLissandra;
     t_memoria* memoria;
 } parametros_thread_memoria;
 
@@ -29,14 +31,22 @@ typedef struct  {
     char* mensaje;
 } t_paquete;
 
+struct parametros_thread_requests_d {
+    t_comando comando;
+    t_control_conexion* conexionKernel;
+    t_log* logger;
+    t_memoria* memoria;
+    t_control_conexion* conexionLissandra;
+};
+
 void* atenderConexiones(void* parametrosThread);
 
-pthread_t* crearHiloConexiones(GestorConexiones* conexion, t_control_conexion* conexionKernel, t_log* logger);
+pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger);
 
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros);
 void atenderHandshake(Header header, Componente componente, parametros_thread_memoria* parametros);
 
-t_paquete recibirMensaje(t_control_conexion* conexion);
+t_paquete recibirMensajeDeLissandra(t_control_conexion *conexion);
 
 void conectarseALissandra(t_control_conexion* conexionLissandra, char* ipLissandra, int puertoLissandra, t_log* logger);
 void conectarseANodoMemoria(char* unaIp, int unPuerto, t_log* logger);

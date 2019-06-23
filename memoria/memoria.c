@@ -112,7 +112,7 @@ char* gestionarSelect(char* nombreTabla, char* key, t_control_conexion* conexion
     log_info(logger, "Valor no encontrado en memoria. Se enviará la siguiente request a Lissandra: %s", request);
     enviarPaquete(conexionLissandra->fd, REQUEST, request);
     free(request);
-    t_paquete respuesta = recibirMensaje(conexionLissandra);
+    t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
     if(respuesta.tipoMensaje == RESPUESTA)   {
         char** componentesSelect = string_split(respuesta.mensaje, ";");
         insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger, conexionLissandra);
@@ -126,16 +126,19 @@ char* gestionarCreate(char* nombreTabla, char* tipoConsistencia, char* cantidadP
     char* request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones, tiempoCompactacion);
     enviarPaquete(conexionLissandra->fd, REQUEST, request);
     free(request);
-    t_paquete respuesta = recibirMensaje(conexionLissandra);
+    t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
     return respuesta.mensaje;
 }
 
-char* gestionarDrop(char* nombreTabla, int fdLissandra, t_memoria* memoria, t_log* logger)   {
+char* gestionarDrop(char* nombreTabla, t_control_conexion* conexionLissandra, t_memoria* memoria, t_log* logger)   {
     char* resultado = drop(nombreTabla, memoria);
     log_info(logger, resultado);
     char* request = string_from_format("DROP %s", nombreTabla);
-    enviarPaquete(fdLissandra, REQUEST, request);
-    return resultado;
+    enviarPaquete(conexionLissandra->fd, REQUEST, request);
+    free(request);
+    t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
+    if(respuesta.tipoMensaje == ERROR)
+        return resultado;
 }
 
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*, char*,void*)) {
@@ -162,7 +165,7 @@ void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, cha
     enviarPaquete(parametrosJournal->conexionLissandra->fd, REQUEST, request);
     free(request);
 
-    t_paquete respuesta = recibirMensaje(parametrosJournal->conexionLissandra);
+    t_paquete respuesta = recibirMensajeDeLissandra(parametrosJournal->conexionLissandra);
     if(respuesta.tipoMensaje == RESPUESTA)   {
         log_info(logger, respuesta.mensaje);
     } else{
@@ -225,7 +228,7 @@ char* gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion
         case INSERT:
             return gestionarInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], memoria, logger, conexionLissandra);
         case DROP:
-            return gestionarDrop(comando.parametros[0], conexionLissandra->fd, memoria, logger);
+            return gestionarDrop(comando.parametros[0], conexionLissandra, memoria, logger);
         case CREATE:
             return gestionarCreate(comando.parametros[0], comando.parametros[1], comando.parametros[2], comando.parametros[3], conexionLissandra, logger);
         case JOURNAL:
@@ -412,27 +415,6 @@ t_pagina* lru(t_dictionary* tablaDePaginas) {
     }
 }
 
-/*bool puedoReemplazarPagina(t_dictionary* tablaDePaginas){
-    t_pagina* paginaActual = malloc(sizeof(t_pagina));
-    int table_index;
-    for (table_index = 0; table_index < tablaDePaginas->table_max_size; table_index++) {
-        t_hash_element *element = tablaDePaginas->elements[table_index];
-
-        while (element != NULL) {
-            paginaActual = (t_pagina*)element->data;
-            //si no fue modificada entonces es una candidata a reemplazar
-            if((bool) (paginaActual->modificada) == false){
-                return true;
-            }
-            element = element->next;
-
-        }
-    }
-
-    return false;
-}*/
-
-
 t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger,  t_control_conexion* conexionLissandra){
     char* contenidoPagina = formatearPagina(key, value, timestamp);
     bool recibiTimestamp = timestamp != NULL;
@@ -564,7 +546,7 @@ int calcularTamanioDePagina(int tamanioValue){
 int getTamanioValue(t_control_conexion* conexionLissandra, t_log* logger){
     if(conexionLissandra->fd > 0) {
         hacerHandshake(conexionLissandra->fd, MEMORIA);
-        t_paquete respuesta = recibirMensaje(conexionLissandra);
+        t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
         if (respuesta.mensaje != NULL)  {
             int tamanioValue = atoi(respuesta.mensaje);
             log_info(logger, "Tamaño del value obtenido de Lissandra: %i", tamanioValue);
@@ -598,29 +580,6 @@ int getCantidadCaracteresByPeso(int pesoString) {
     return (pesoString / sizeof(char)) - 1;
 }
 
-
-/*void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString){
-    int value;
-   if (sem_getvalue(unSemaforo, &value) == 0){
-       if (strcmp("kernel", unString) == 0){
-            log_info(logger, "Se está ejecutando una request por CONSOLA, espero para la ejecucion");
-       }
-       if (strcmp("consola", unString) == 0){
-           log_info(logger, "Se está ejecutando una request de KERNEL, espero para la ejecucion");
-       }
-   }else{
-       if (strcmp("kernel", unString) == 0){
-           log_info(logger, "Puedo ejecutar request de KERNEL");
-       }
-       if (strcmp("consola", unString) == 0){
-           log_info(logger, "Puedo ejecutar request por CONSOLA");
-       }
-   }
-
-
-
-}*/
-
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
 	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
@@ -637,38 +596,11 @@ int main(void) {
 	GestorConexiones* misConexiones = inicializarConexion();
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
-
-    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &conexionKernel, logger);
+    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger);
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra);
     pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal);
     pthread_t* hiloGossiping = crearHiloGossiping(memoriaPrincipal, logger, configuracion);
-    t_comando comando;
 
-    while(1)    {
-		sem_wait(conexionKernel.semaforo);
-		if(conexionKernel.fd > 0)	{
-			t_paquete request = recibirMensaje(&conexionKernel);
-//			logearValorDeSemaforo(&lissandraConectada, logger, "kernel");
-			if(request.mensaje == NULL)
-				continue;
-			else    {
-                char** comandoParseado = parser(request.mensaje);
-                free(request.mensaje);
-                if (comandoParseado == NULL)
-                    continue;
-                comando = instanciarComando(comandoParseado);
-                free(comandoParseado);
-                char* respuesta = gestionarRequest(comando, memoriaPrincipal, &conexionLissandra, logger);
-                if(respuesta == NULL)   {
-                    log_error(logger, "Se desconectó Lissandra. Finalizando el proceso.");
-                    exit(-1);
-                }
-                if(conexionKernel.fd > 0)
-                    enviarPaquete(conexionKernel.fd, REQUEST, respuesta);
-                sem_post(conexionKernel.semaforo);
-			}
-		}
-    }
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
     pthread_join(*hiloJournal, NULL);

@@ -105,7 +105,7 @@ t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria);
 //void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString);
 
 // drop
-char* gestionarDrop(char* nombreTabla, int fdLissandra, t_memoria* memoria, t_log* logger);
+char* gestionarDrop(char* nombreTabla, t_control_conexion* conexionLissandra, t_memoria* memoria, t_log* logger);
 char* drop(char* nombreTabla, t_memoria* memoria);
 void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria);
 void eliminarPagina(void* pagina);
@@ -122,6 +122,7 @@ void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary 
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
 void vaciarMemoria(t_memoria* memoria, t_log* logger);
 pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal);
+int getCantidadCaracteresByPeso(int pesoString);
 
 //gossiping
 typedef struct {

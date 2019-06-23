@@ -114,7 +114,7 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
         }
     }
     else if(componente == MEMORIA)  {
-        enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, NULL);
+        //enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, NULL);
     }
 }
 
@@ -123,6 +123,21 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
 
     }
 }*/
+
+void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros){
+
+    //mutex
+    t_list* memoriasConocidas = (t_list*)parametros->memoria->memoriasConocidas;
+
+
+    if (strcmp(mensaje, "DAME_LISTA_GOSSIPING")){
+        char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
+
+        printf("Todas las memorias conocidas concatenadas: %s\n", memoriasConocidasConcatenadas);
+        enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, memoriasConocidasConcatenadas);
+    }
+
+}
 
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros)    {
 
@@ -164,7 +179,7 @@ void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* pa
 
 t_paquete recibirMensaje(t_control_conexion* conexion)    {
     Header header;
-    sem_wait(conexion->semaforo);
+    //sem_wait(conexion->semaforo);
     t_paquete paquete;
     int bytesRecibidos = recv(conexion->fd, &header, sizeof(Header), MSG_WAITALL);
     if(bytesRecibidos == 0)
@@ -179,7 +194,7 @@ t_paquete recibirMensaje(t_control_conexion* conexion)    {
             paquete.mensaje = NULL;
         }
         else    {
-            sem_post(conexion->semaforo);
+            //sem_post(conexion->semaforo);
             paquete.mensaje = respuesta;
         }
     }
@@ -199,16 +214,16 @@ void conectarseALissandra(t_control_conexion* conexionLissandra, char* ipLissand
     }
 }
 
-bool conectarseANodoMemoria(char* unaIp, int unPuerto, t_log* logger){
+bool conectarseANodoMemoria(char* unaIp, char* unPuerto, t_log* logger){
     log_info(logger, "Intentando conectarse a una memoria seed...");
-    int fdNodoMemoria = crearSocketCliente(unaIp, unPuerto, logger);
+    int fdNodoMemoria = crearSocketCliente(unaIp, atoi(unPuerto), logger);
     if(fdNodoMemoria< 0) {
-        char* mensajeError = string_from_format("Hubo un error al intentar conectarse a la memoria con ip %s y puerto %i . Cerrando el proceso...", unaIp, unPuerto);
+        char* mensajeError = string_from_format("Hubo un error al intentar conectarse a la memoria con ip %s y puerto %s . Cerrando el proceso...", unaIp, unPuerto);
         log_error(logger, mensajeError);
         return NULL;
     }
     else{
-        char* mensajeInfo = string_from_format("Conexion establecida con memoria con ip %s y puerto %i", unaIp, unPuerto);
+        char* mensajeInfo = string_from_format("Conexion establecida con memoria con ip %s y puerto %s", unaIp, unPuerto);
         log_info(logger, mensajeInfo);
         return fdNodoMemoria;
     }

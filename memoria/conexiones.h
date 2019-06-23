@@ -39,6 +39,6 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
 t_paquete recibirMensaje(t_control_conexion* conexion);
 
 void conectarseALissandra(t_control_conexion* conexionLissandra, char* ipLissandra, int puertoLissandra, t_log* logger);
-bool conectarseANodoMemoria(char* unaIp, int unPuerto, t_log* logger);
+bool conectarseANodoMemoria(char* unaIp, char* unPuerto, t_log* logger);
 
 #endif //MEMORIA_CONEXIONES_H

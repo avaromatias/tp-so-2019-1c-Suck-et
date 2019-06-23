@@ -71,6 +71,7 @@ struct t_memoria_d {
     int marcosOcupados;
     t_dictionary* tablaDeSegmentos;
     t_marco* tablaDeMarcos;
+    t_list* memoriasConocidas;
 };
 
 typedef struct {
@@ -118,15 +119,18 @@ typedef  struct {
     t_log* logger;
 
 }parametros_journal;
+
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
 void vaciarMemoria(t_memoria* memoria, t_log* logger);
 pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal);
 
 //gossiping
-typedef struct{
-    char* direccionIpSeed;
-} nodoMemoria;
 
-//void atenderPedidoMemoria(Header header,char* mensaje,parametros_thread_memoria* parametros);
+typedef struct {
+    char* direccionMemoriaConocida;
+    int fdMemoriaConocida;
+}t_nodoMemoria;
+
+//void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros);
 #endif /* MEMORIA_H_ */

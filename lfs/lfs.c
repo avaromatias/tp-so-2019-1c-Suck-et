@@ -1440,7 +1440,7 @@ void *atenderConexiones(void *parametrosThread) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
                                 if (header.tipoMensaje == HANDSHAKE) {
-                                    Componente componente = *((Componente *) mensaje);
+                                    Componente componente = (Componente) atoi(mensaje);
                                     atenderHandshake(header, componente, parametros);
                                 } else {
                                     pthread_t *hiloRequest = crearHiloRequest(header, mensaje);

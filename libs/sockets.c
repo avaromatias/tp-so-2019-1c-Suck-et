@@ -192,7 +192,9 @@ void enviarPaquete(int fdDestinatario, TipoMensaje tipoMensaje, char* mensaje)  
 }
 
 void hacerHandshake(int fdDestinatario, Componente componente)  {
-    enviarPaquete(fdDestinatario, HANDSHAKE, (char*) &componente);
+    char* componenteStr = string_itoa(componente);
+    enviarPaquete(fdDestinatario, HANDSHAKE, componenteStr);
+    free(componenteStr);
 }
 
 void* empaquetar(void* headerSerializado, char* mensaje)   {

@@ -381,7 +381,7 @@ void gestionarGossiping(char** ipSeeds, char** puertoSeeds, t_log* logger, t_mem
 }
 pthread_t * crearHiloGossiping(t_memoria* memoria, t_log* logger, t_configuracion configuracion){
     while (1){
-        sleep(15);
+        sleep(configuracion.retardoGossiping);
         gestionarGossiping(configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria);
         //conocer mis memorias
         //intercambiar listaGossiping con ellas

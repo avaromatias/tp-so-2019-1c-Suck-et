@@ -285,9 +285,6 @@ pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexio
 }
 bool existeConexionConMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas){
     char* ipNuevaMemoria = string_new();
-    t_nodoMemoria* nodoMemoriaAuxiliar;
-
-
     //Agregar direccion ip:puerto de memoria conocida a la lista
     string_append(&ipNuevaMemoria, ipMemoriaSeed);
     string_append(&ipNuevaMemoria, ":");
@@ -295,8 +292,8 @@ bool existeConexionConMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_li
     //Si el valor que voy a agregar ya pertenece a la lista
 
     for (int i = 0; i < list_size(memoriasConocidas); ++i) {
-        nodoMemoriaAuxiliar = (t_nodoMemoria*) list_get(memoriasConocidas, i);
-        char* unaIp = nodoMemoriaAuxiliar->direccionMemoriaConocida;
+
+        char* unaIp = (char*) list_get(memoriasConocidas, i);
 
         if (strcmp(ipNuevaMemoria , unaIp) == 0){
             return true;
@@ -305,8 +302,8 @@ bool existeConexionConMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_li
 
     return false;
 }
-void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_nodoMemoria* unNodoMemoria){
 
+void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas){
     char* ipNuevaMemoria = string_new();
     //Agregar direccion ip:puerto de memoria conocida a la lista
     string_append(&ipNuevaMemoria, ipMemoriaSeed);
@@ -334,20 +331,8 @@ void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memo
         printf("Ip ya existente\n");
     }*/
 
-    unNodoMemoria->direccionMemoriaConocida = ipNuevaMemoria;
-    list_add(memoriasConocidas, unNodoMemoria);
-
-
-}
-
-void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas, t_nodoMemoria* unNodoMemoria){
-    char** memorias = string_split(memoriasRecibidas, ";");
-    int i = 0;
-    while (memorias[i] != NULL){
-        char** unaIpSpliteada = string_split(memorias[i], ":");
-
-        agregarIpMemoria(unaIpSpliteada[0], unaIpSpliteada[1], memoriasConocidas, unNodoMemoria);
-    }
+    //unNodoMemoria->direccionMemoriaConocida = ipNuevaMemoria;
+    list_add(memoriasConocidas, ipNuevaMemoria);
 
 
 }
@@ -369,7 +354,7 @@ void gestionarGossiping(char** ipSeeds, char** puertoSeeds, t_log* logger, t_mem
 
                 t_nodoMemoria* unNodoMemoria = malloc(sizeof(t_nodoMemoria));
                 unNodoMemoria->fdMemoriaConocida = fdNodoMemoria;
-                agregarIpMemoria(ipSeeds[i], puertoSeeds[i], memoriasConocidas, unNodoMemoria);
+                agregarIpMemoria(ipSeeds[i], puertoSeeds[i], memoriasConocidas);
 
 
                t_control_conexion conexionNodoMemoria = {.fd = unNodoMemoria->fdMemoriaConocida};
@@ -389,9 +374,8 @@ void gestionarGossiping(char** ipSeeds, char** puertoSeeds, t_log* logger, t_mem
                 //free(logger);
                 free(respuesta.mensaje); */
             }
-
-            i++;
         }
+        i++;
     }
 
 }
@@ -727,7 +711,7 @@ int getCantidadCaracteresByPeso(int pesoString) {
 
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
-	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
+	t_configuracion configuracion = cargarConfiguracion("memoria2.cfg", logger);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
     t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};

@@ -78,7 +78,7 @@ void* atenderConexiones(void* parametrosThread)    {
                                         atenderPedidoMemoria(header, mensaje, parametros);
                                         break;
                                     case RESPUESTA_GOSSIPING: ;
-                                        //atenderRespuestaGossiping(header, mensaje, parametros);
+                                        atenderPedidoMemoria(header, mensaje, parametros);
                                         break;
                                 }
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
@@ -141,6 +141,20 @@ char* concatenarMemoriasConocidas(t_list* memoriasConocidas){
 
     return respuesta;
 }
+
+void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas){
+    char** memorias = string_split(memoriasRecibidas, ";");
+    int i = 0;
+    while (memorias[i] != NULL){
+        char** unaIpSpliteada = string_split(memorias[i], ":");
+
+        agregarIpMemoria(unaIpSpliteada[0], unaIpSpliteada[1], memoriasConocidas);
+        i++;
+    }
+
+
+}
+
 void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros){
 
     //mutex
@@ -152,6 +166,10 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
 
         printf("Todas las memorias conocidas concatenadas: %s\n", memoriasConocidasConcatenadas);
         enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, memoriasConocidasConcatenadas);
+    }else{
+        //Es la respuesta al pedido
+        agregarMemoriasRecibidas(mensaje, parametros->memoria->memoriasConocidas);
+
     }
 
 }

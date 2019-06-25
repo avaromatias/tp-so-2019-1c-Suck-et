@@ -547,17 +547,18 @@ void compactacion(void *parametrosThread) {
             char *bloquesTemp = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
             char *bloquesTotales = string_new();
             if (!string_is_empty(bloquesBin)) {
-                bloquesTotales = concat(2, "[", bloquesBin);
+                bloquesTotales = concat(1, bloquesBin);
             }
             if (!string_is_empty(bloquesTemp)) {
-                bloquesTotales = concat(4, bloquesTotales, ",", bloquesTemp, "]");
+                bloquesTotales = concat(3, bloquesTotales, ",", bloquesTemp);
             }
             char **bloques = string_split(bloquesTotales, ",");
             char **lineas = obtenerLineasDeBloques(bloques);
+            char **bloquesTempALiberar = string_split(bloquesTemp, ",");
             if (tamanioDeArrayDeStrings(lineas) > 0) {
                 char **lineasMaximas = filtrarKeyMax(lineas);
                 pthread_mutex_lock(sem);
-                liberarBloques(bloques);
+                liberarBloques(bloquesTempALiberar);
                 for (int j = 0; j < tamanioDeArrayDeStrings(lineasMaximas); j++) {
                     char **linea = desarmarLinea(lineasMaximas[j]);
                     lfsInsertCompactacion(nombreTabla, string_duplicate(linea[1]), string_duplicate(linea[2]),
@@ -653,8 +654,7 @@ pthread_t *crearHiloCompactacion(char *nombreTabla, char *tiempoCompactacion) {
     parametros_thread_compactacion *parametros = (parametros_thread_compactacion *) malloc(
             sizeof(parametros_thread_compactacion));
 
-    parametros->tabla = malloc(sizeof(char) * (strlen(nombreTabla) + 1));
-    parametros->tabla = nombreTabla;
+    parametros->tabla = string_duplicate(nombreTabla);
     parametros->tiempoCompactacion = tiempoCompactacion;
 
     pthread_create(hiloCompactacion, NULL, &compactacion, parametros);
@@ -757,8 +757,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
     int indice = 0;
     int bloque;
     while (linea[indice] != '\0' && indice < string_length(linea)) {
-        bloque = obtenerBloqueDisponible(nombreTabla,
-                                         particion); // Aca creo que esta obteniendo un bloque disponible distinto al que la particion ya tiene asignado
+        bloque = obtenerBloqueDisponible(nombreTabla, particion); // Aca creo que esta obteniendo un bloque disponible distinto al que la particion ya tiene asignado
         char *pathBloque = obtenerPathBloque(bloque);
         pthread_mutex_t *semBloque = (pthread_mutex_t *) obtenerSemaforoPath(pathBloque);
         pthread_mutex_lock(semBloque);
@@ -1487,7 +1486,7 @@ void crearDirBloques(char *puntoMontaje) {
             char *unArchivoDeBloque = concat(4, nombreArchivo, "/", nroBloque, ".bin");
             t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
             bloque->tabla = concat(1, "");
-            bloque->particion = NULL;
+            bloque->particion = -1;
             dictionary_put(bloquesAsignados, nroBloque, bloque);
             free(nroBloque);
             if (!existeElArchivo(unArchivoDeBloque)) {

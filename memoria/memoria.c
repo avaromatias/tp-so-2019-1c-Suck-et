@@ -91,54 +91,59 @@ void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
     }
 }
 
-char* gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra)    {
+t_paquete gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra)    {
     char* value = string_substring(valueConComillas, 1, strlen(valueConComillas) - 2);
     free(valueConComillas);
     t_pagina* nuevaPagina = insert(nombreTabla, key, value, memoria, NULL, logger, conexionLissandra);
     free(value);
-    if (nuevaPagina == NULL){
-        return "Memoria FULL";
-    } else{
-        return string_from_format("Valor insertado: %s", nuevaPagina->marco->base);
-    }
-
+    t_paquete respuesta = {.tipoMensaje = RESPUESTA, .mensaje = string_from_format("Valor insertado: %s", nuevaPagina->marco->base) };
+    return respuesta;
 }
 
-char* gestionarSelect(char* nombreTabla, char* key, t_control_conexion* conexionLissandra, t_memoria* memoria, t_log* logger) {
+t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *conexionLissandra, t_memoria *memoria, t_log *logger) {
+    t_paquete respuesta;
     t_pagina* paginaEncontrada = cmdSelect(nombreTabla, key, memoria);
-    if(paginaEncontrada != NULL)
-        return paginaEncontrada->marco->base;
+    if(paginaEncontrada != NULL)    {
+        respuesta.tipoMensaje = RESPUESTA;
+        respuesta.mensaje = paginaEncontrada->marco->base;
+        return respuesta;
+    }
     char* request = string_from_format("SELECT %s %s", nombreTabla, key);
     log_info(logger, "Valor no encontrado en memoria. Se enviará la siguiente request a Lissandra: %s", request);
-    enviarPaquete(conexionLissandra->fd, REQUEST, request);
+    enviarPaquete(conexionLissandra->fd, REQUEST, SELECT, request);
     free(request);
-    t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
+    respuesta = recibirMensajeDeLissandra(conexionLissandra);
     if(respuesta.tipoMensaje == RESPUESTA)   {
         char** componentesSelect = string_split(respuesta.mensaje, ";");
         insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger, conexionLissandra);
         free(respuesta.mensaje);
-        return string_from_format("%s%s%s", componentesSelect[0], key, componentesSelect[2]);
-    } else
-        return respuesta.mensaje;
+        respuesta.mensaje = string_from_format("%s%s%s", componentesSelect[0], key, componentesSelect[2]);
+    }
+
+    return respuesta;
 }
 
-char* gestionarCreate(char* nombreTabla, char* tipoConsistencia, char* cantidadParticiones, char* tiempoCompactacion, t_control_conexion* conexionLissandra, t_log* logger)   {
+t_paquete gestionarCreate(char* nombreTabla, char* tipoConsistencia, char* cantidadParticiones, char* tiempoCompactacion, t_control_conexion* conexionLissandra, t_log* logger)   {
     char* request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones, tiempoCompactacion);
-    enviarPaquete(conexionLissandra->fd, REQUEST, request);
+    enviarPaquete(conexionLissandra->fd, REQUEST, CREATE, request);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
-    return respuesta.mensaje;
+    return respuesta;
 }
 
-char* gestionarDrop(char* nombreTabla, t_control_conexion* conexionLissandra, t_memoria* memoria, t_log* logger)   {
+t_paquete gestionarDrop(char* nombreTabla, t_control_conexion* conexionLissandra, t_memoria* memoria, t_log* logger)   {
     char* resultado = drop(nombreTabla, memoria);
     log_info(logger, resultado);
     char* request = string_from_format("DROP %s", nombreTabla);
-    enviarPaquete(conexionLissandra->fd, REQUEST, request);
+    enviarPaquete(conexionLissandra->fd, REQUEST, DROP, request);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
-    if(respuesta.tipoMensaje == ERROR)
-        return resultado;
+    if(respuesta.tipoMensaje == ERR)  {
+        free(respuesta.mensaje);
+        respuesta.mensaje = resultado;
+    } else
+        free(resultado);
+    return respuesta;
 }
 
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*, char*,void*)) {
@@ -162,7 +167,7 @@ void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, cha
 
 
     log_info(logger, "Se procede a enviar a lissandra la request: ", request);
-    enviarPaquete(parametrosJournal->conexionLissandra->fd, REQUEST, request);
+    enviarPaquete(parametrosJournal->conexionLissandra->fd, REQUEST, INSERT, request);
     free(request);
 
     t_paquete respuesta = recibirMensajeDeLissandra(parametrosJournal->conexionLissandra);
@@ -211,17 +216,30 @@ void iterarSegmentos(parametros_journal* parametrosJournal, char* key, void* val
 }
 
 
-void* gestionarJournal(t_control_conexion* conexionConLissandra, t_memoria* memoria, t_log* logger){
-
+t_paquete gestionarJournal(t_control_conexion *conexionConLissandra, t_memoria *memoria, t_log *logger){
     parametros_journal* parametrosJournal = (parametros_journal*)malloc(sizeof(parametros_journal));
     parametrosJournal->logger = logger;
     parametrosJournal->conexionLissandra = conexionConLissandra;
     mi_dictionary_iterator(parametrosJournal, memoria->tablaDeSegmentos, &iterarSegmentos);
 
     vaciarMemoria(memoria, logger);
+
+    t_paquete resultado = {.mensaje = "Se gestionó el journal", .tipoMensaje = RESPUESTA };
+
+    return resultado;
 }
 
-char* gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger) {
+t_paquete gestionarDescribe(char *nombreTabla, t_control_conexion *conexionLissandra)  {
+    char* request = string_from_format("DESCRIBE");
+    if(nombreTabla == NULL) {
+        request = string_from_format("DESCRIBE %s");
+    }
+    enviarPaquete(conexionLissandra->fd, REQUEST, DESCRIBE, request);
+    free(request);
+    return recibirMensajeDeLissandra(conexionLissandra);
+}
+
+t_paquete gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger) {
     switch(comando.tipoRequest) {
         case SELECT:
             return gestionarSelect(comando.parametros[0], comando.parametros[1], conexionLissandra, memoria, logger);
@@ -231,11 +249,13 @@ char* gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion
             return gestionarDrop(comando.parametros[0], conexionLissandra, memoria, logger);
         case CREATE:
             return gestionarCreate(comando.parametros[0], comando.parametros[1], comando.parametros[2], comando.parametros[3], conexionLissandra, logger);
+        case DESCRIBE:
+            return comando.cantidadParametros == 0? gestionarDescribe(NULL, conexionLissandra) : gestionarDescribe(comando.parametros[0], conexionLissandra);
         case JOURNAL:
-            gestionarJournal(conexionLissandra, memoria, logger);
-            return "se gestionó el journal";
-        default:
-            return "Comando inválido.";
+            return gestionarJournal(conexionLissandra, memoria, logger);
+        default:;
+            t_paquete respuesta = {.tipoMensaje = ERR, .mensaje = "Comando inválido"};
+            return respuesta;
     }
 }
 
@@ -244,7 +264,7 @@ void* ejecutarConsola(void* parametrosConsola){
 
     t_memoria* memoria = parametros->memoria;
     t_log* logger = parametros->logger;
-    t_control_conexion* conexionLissandra = parametros->conexionLissandra;
+    t_control_conexion* conexionLissandra = (t_control_conexion*) parametros->conexionLissandra;
     t_comando comando;
 
 
@@ -258,7 +278,7 @@ void* ejecutarConsola(void* parametrosConsola){
         comando = instanciarComando(comandoParseado);
         free(comandoParseado);
         if(validarComandosComunes(comando, logger))
-            printf("%s", gestionarRequest(comando, memoria, conexionLissandra, logger));
+            printf("%s", gestionarRequest(comando, memoria, conexionLissandra, logger).mensaje);
     } while(comando.tipoRequest != EXIT);
     printf("Ya analizamos todo lo solicitado.\n");
 }

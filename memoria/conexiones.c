@@ -105,10 +105,10 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
     if(componente == KERNEL) {
         if (parametros->conexionKernel->fd == 0) {
             parametros->conexionKernel->fd = header.fdRemitente;
-            enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, NULL);
+            enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, INVALIDO, NULL);
             sem_post(parametros->conexionKernel->semaforo);
         } else {
-            enviarPaquete(header.fdRemitente, CONEXION_RECHAZADA, NULL);
+            enviarPaquete(header.fdRemitente, CONEXION_RECHAZADA, INVALIDO, NULL);
             cerrarSocket(header.fdRemitente, parametros->logger);
         }
     }
@@ -120,10 +120,11 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
 void* atenderRequestKernel(void* parametrosRequest)    {
     parametros_thread_request* parametros = (parametros_thread_request*) parametrosRequest;
 
-    char* resultado = gestionarRequest(parametros->comando, parametros->memoria, parametros->conexionLissandra, parametros->logger);
+    t_paquete resultado = gestionarRequest(parametros->comando, parametros->memoria, parametros->conexionLissandra, parametros->logger);
 
-    if(parametros->conexionKernel->fd > 0)
-        enviarPaquete(parametros->conexionKernel->fd, RESPUESTA, resultado);
+    if(parametros->conexionKernel->fd > 0)  {
+        enviarPaquete(parametros->conexionKernel->fd, resultado.tipoMensaje, parametros->comando.tipoRequest, resultado.mensaje);
+    }
 }
 
 pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger)   {

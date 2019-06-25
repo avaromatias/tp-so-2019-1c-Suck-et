@@ -10,6 +10,7 @@
 
 typedef struct t_control_conexion_d t_control_conexion;
 typedef struct parametros_thread_requests_d parametros_thread_request;
+typedef struct t_paquete_d t_paquete;
 
 #include "memoria.h"
 
@@ -26,10 +27,10 @@ typedef struct {
     t_memoria* memoria;
 } parametros_thread_memoria;
 
-typedef struct  {
+struct  t_paquete_d {
     TipoMensaje tipoMensaje;
     char* mensaje;
-} t_paquete;
+};
 
 struct parametros_thread_requests_d {
     t_comando comando;

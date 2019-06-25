@@ -61,6 +61,11 @@ typedef struct {
     t_dictionary* tablaDePaginas; // viene a ser la base del segmento
 } t_segmento;
 
+typedef struct {
+    bool enUso;
+    pthread_mutex_t semaforo;
+} t_control_memoria;
+
 //Tipo de la Memoria Principal que aloja las paginas
 struct t_memoria_d {
     char* direcciones;
@@ -71,6 +76,7 @@ struct t_memoria_d {
     int marcosOcupados;
     t_dictionary* tablaDeSegmentos;
     t_marco* tablaDeMarcos;
+    t_control_memoria control;
 };
 
 typedef struct {
@@ -82,7 +88,7 @@ pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexio
 
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
-char* gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger);
+t_paquete gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger);
 
 t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamanioPagina, t_log* logger);
 
@@ -104,8 +110,12 @@ t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria);
 
 //void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString);
 
+t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *conexionLissandra, t_memoria *memoria, t_log *logger);
+t_paquete gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra);
+t_paquete gestionarCreate(char* nombreTabla, char* tipoConsistencia, char* cantidadParticiones, char* tiempoCompactacion, t_control_conexion* conexionLissandra, t_log* logger);
+
 // drop
-char* gestionarDrop(char* nombreTabla, t_control_conexion* conexionLissandra, t_memoria* memoria, t_log* logger);
+t_paquete gestionarDrop(char* nombreTabla, t_control_conexion* conexionLissandra, t_memoria* memoria, t_log* logger);
 char* drop(char* nombreTabla, t_memoria* memoria);
 void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria);
 void eliminarPagina(void* pagina);
@@ -116,8 +126,7 @@ typedef  struct {
     char* nombreTabla;
     t_control_conexion* conexionLissandra;
     t_log* logger;
-
-}parametros_journal;
+} parametros_journal;
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
 void vaciarMemoria(t_memoria* memoria, t_log* logger);

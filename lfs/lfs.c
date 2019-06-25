@@ -58,7 +58,7 @@ void atenderMensajes(void *parametrosRequest) {
     t_response *retorno;
     t_comando comando = instanciarComando(comandoParseado);
     retorno = gestionarRequest(comando);
-    enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, retorno->valor);
+    enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, comando.tipoRequest, retorno->valor);
     free(retorno);
     free(comandoParseado);
 
@@ -1375,7 +1375,7 @@ void inicializarLFS(char *puntoMontaje) {
 void atenderHandshake(Header header, Componente componente, parametros_thread_lfs *parametros) {
     if (componente == MEMORIA) {
         char *tamanioValue = string_itoa(parametros->tamanioValue);
-        enviarPaquete(header.fdRemitente, HANDSHAKE, tamanioValue);
+        enviarPaquete(header.fdRemitente, HANDSHAKE, INVALIDO, tamanioValue);
         free(tamanioValue);
     }
 }

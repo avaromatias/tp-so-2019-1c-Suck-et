@@ -281,7 +281,7 @@ void *administrarRequestsLQL(t_archivoLQL archivoLQL, p_consola_kernel *parametr
 int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria) {
     //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
     char *request = string_from_format("SELECT %s %s", nombreTabla, key);
-    enviarPaquete(fdMemoria, REQUEST, request);
+    enviarPaquete(fdMemoria, REQUEST, SELECT, request);
     free(request);
     return 0;
 }
@@ -290,7 +290,7 @@ int
 gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion, int fdMemoria) {
     //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
     char *request = string_from_format("CREATE %s %s %s %s", tabla, consistencia, cantParticiones, tiempoCompactacion);
-    enviarPaquete(fdMemoria, REQUEST, request);
+    enviarPaquete(fdMemoria, REQUEST, CREATE, request);
     free(request);
     //recibo mensaje de Memoria o directamente fallo yo?
     return 0;
@@ -299,7 +299,7 @@ gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, ch
 int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria) {
     //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
     char *request = string_from_format("INSERT %s %s %s", nombreTabla, key, valor);
-    enviarPaquete(fdMemoria, REQUEST, request);
+    enviarPaquete(fdMemoria, REQUEST, INSERT, request);
     free(request);
     //recibo mensaje de Memoria o directamente fallo yo?
     return 0;
@@ -308,7 +308,7 @@ int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemor
 int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
     //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
     char *request = string_from_format("DROP %s %s", nombreTabla);
-    enviarPaquete(fdMemoria, REQUEST, request);
+    enviarPaquete(fdMemoria, REQUEST, DROP, request);
     free(request);
     //recibo mensaje de Memoria o directamente fallo yo?
     return 0;

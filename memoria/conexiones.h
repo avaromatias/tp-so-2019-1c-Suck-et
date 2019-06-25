@@ -31,7 +31,7 @@ typedef struct  {
 
 void* atenderConexiones(void* parametrosThread);
 
-pthread_t* crearHiloConexiones(GestorConexiones* conexion, t_control_conexion* conexionKernel, t_log* logger);
+pthread_t* crearHiloConexiones(GestorConexiones* conexion, t_control_conexion* conexionKernel, t_log* logger, t_memoria* memoriaPrincipal);
 
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros);
 void atenderHandshake(Header header, Componente componente, parametros_thread_memoria* parametros);

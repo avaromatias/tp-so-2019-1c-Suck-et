@@ -4,7 +4,7 @@
 
 #include "conexiones.h"
 
-pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_control_conexion* conexionKernel, t_log* logger)    {
+pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_control_conexion* conexionKernel, t_log* logger, t_memoria* memoriaPrincipal)    {
 
     /*int value;
     sem_getvalue(kernelConectado, &value);
@@ -17,6 +17,7 @@ pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_control_conexion
     parametros->conexion = unaConexion;
     parametros->logger = logger;
     parametros->conexionKernel = conexionKernel;
+    parametros->memoria = memoriaPrincipal;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -156,21 +157,22 @@ void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas
 }
 
 void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros){
+    t_memoria* memoria = (t_memoria*)parametros->memoria;
 
-    //mutex
-    t_list* memoriasConocidas = (t_list*)parametros->memoria->memoriasConocidas;
+        t_list* memoriasConocidas = (t_list*)memoria->memoriasConocidas;
 
+        if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
+            printf("Recibi un pedido de mi lista de gossiping\n");
+            char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
 
-    if (strcmp(mensaje, "DAME_LISTA_GOSSIPING")){
-        char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
-
-        printf("Todas las memorias conocidas concatenadas: %s\n", memoriasConocidasConcatenadas);
-        enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, memoriasConocidasConcatenadas);
-    }else{
-        //Es la respuesta al pedido
-        agregarMemoriasRecibidas(mensaje, parametros->memoria->memoriasConocidas);
-
-    }
+            printf("Todas las memorias conocidas concatenadas: %s\n", memoriasConocidasConcatenadas);
+            enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, memoriasConocidasConcatenadas);
+        }else{
+            //Es la respuesta al pedido
+            printf("Recibi %s como respuesta al gossiping\n", mensaje);
+            agregarMemoriasRecibidas(mensaje, memoriasConocidas);
+        }
+    free(memoria);
 
 }
 

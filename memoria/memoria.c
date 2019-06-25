@@ -283,6 +283,9 @@ pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexio
         fflush(stdout);
     }*/
 }
+bool sonMismoString(char* ipNuevaMemoria, void* elemento){
+    return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
+}
 bool existeConexionConMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas){
     char* ipNuevaMemoria = string_new();
     //Agregar direccion ip:puerto de memoria conocida a la lista
@@ -291,19 +294,17 @@ bool existeConexionConMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_li
     string_append(&ipNuevaMemoria, puertoMemoriaSeed);
     //Si el valor que voy a agregar ya pertenece a la lista
 
-    for (int i = 0; i < list_size(memoriasConocidas); ++i) {
-
-        char* unaIp = (char*) list_get(memoriasConocidas, i);
-
-        if (strcmp(ipNuevaMemoria , unaIp) == 0){
-            return true;
-        }
+    //Inner function JAPISHH
+    bool _sonMismoString(void* elemento){
+        printf("Voy a comparar al elemento %s con la ip %s\n",elemento, ipNuevaMemoria);
+        return sonMismoString(ipNuevaMemoria, elemento);
     }
 
-    return false;
+
+    return list_any_satisfy(memoriasConocidas, _sonMismoString);
 }
 
-void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas){
+void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_log* logger){
     char* ipNuevaMemoria = string_new();
     //Agregar direccion ip:puerto de memoria conocida a la lista
     string_append(&ipNuevaMemoria, ipMemoriaSeed);
@@ -334,10 +335,12 @@ void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memo
     //unNodoMemoria->direccionMemoriaConocida = ipNuevaMemoria;
     list_add(memoriasConocidas, ipNuevaMemoria);
 
+    log_info(logger, "Memoria agregada a lista de memorias conocidas");
+
 
 }
 
-void gestionarGossiping(char** ipSeeds, char** puertoSeeds, t_log* logger, t_memoria* memoria){
+void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** puertoSeeds, t_log* logger, t_memoria* memoria){
     int i = 0;
     int fdNodoMemoria;
     t_list* memoriasConocidas = (t_list*) memoria->memoriasConocidas;
@@ -346,45 +349,30 @@ void gestionarGossiping(char** ipSeeds, char** puertoSeeds, t_log* logger, t_mem
 
         if(!existeConexionConMemoria(ipSeeds[i], puertoSeeds[i], memoriasConocidas)){
 
-            fdNodoMemoria = conectarseANodoMemoria(ipSeeds[i], puertoSeeds[i], logger);
+            fdNodoMemoria = conectarseAServidor(ipSeeds[i], atoi(puertoSeeds[i]), misConexiones, logger );
+            //fdNodoMemoria = conectarseANodoMemoria(ipSeeds[i], puertoSeeds[i], logger);
 
             if (fdNodoMemoria != NULL){
 
-                printf("Me conecte a %s : %s \n", ipSeeds[i], puertoSeeds[i]);
+                log_info(logger, "Nueva conexion establecida con la memoria %s:%s", ipSeeds[i], puertoSeeds[i]);
 
                 t_nodoMemoria* unNodoMemoria = malloc(sizeof(t_nodoMemoria));
                 unNodoMemoria->fdMemoriaConocida = fdNodoMemoria;
-                agregarIpMemoria(ipSeeds[i], puertoSeeds[i], memoriasConocidas);
-
-
-               t_control_conexion conexionNodoMemoria = {.fd = unNodoMemoria->fdMemoriaConocida};
+                agregarIpMemoria(ipSeeds[i], puertoSeeds[i], memoriasConocidas, logger);
                 enviarPaquete(fdNodoMemoria, GOSSIPING, "DAME_LISTA_GOSSIPING");
-
-                /*t_paquete respuesta = recibirMensaje(&conexionNodoMemoria);
-
-                if(respuesta.tipoMensaje == RESPUESTA_GOSSIPING){
-                    char* memoriasConocidas = (char*)respuesta.mensaje;
-
-                    printf("Memorias conocidas recibidas: %s\n", memoriasConocidas);
-                    agregarMemoriasRecibidas(memoriasConocidas, memoriasConocidas, unNodoMemoria);
-                } else{
-                    log_error(logger, respuesta.mensaje);
-                }
-
-                //free(logger);
-                free(respuesta.mensaje); */
             }
         }
         i++;
     }
 
 }
-pthread_t * crearHiloGossiping(t_memoria* memoria, t_log* logger, t_configuracion configuracion){
+pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion){
     while (1){
-        sleep(configuracion.retardoGossiping);
-        gestionarGossiping(configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria);
-        //conocer mis memorias
-        //intercambiar listaGossiping con ellas
+        sleep(15);
+        //sleep(configuracion.retardoGossiping);
+        gestionarGossiping(misConexiones, configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria);
+
+        //Avisar a Kernel sobre las memorias que conozco
 
 
     }
@@ -711,7 +699,7 @@ int getCantidadCaracteresByPeso(int pesoString) {
 
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
-	t_configuracion configuracion = cargarConfiguracion("memoria2.cfg", logger);
+	t_configuracion configuracion = cargarConfiguracion("memoria1.cfg", logger);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
     t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};
@@ -726,10 +714,10 @@ int main(void) {
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
 
-    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &conexionKernel, logger);
+    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &conexionKernel, logger, memoriaPrincipal);
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra);
     pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal);
-    pthread_t* hiloGossiping = crearHiloGossiping(memoriaPrincipal, logger, configuracion);
+    pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion);
     t_comando comando;
 
     while(1)    {

@@ -283,11 +283,13 @@ pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexio
         fflush(stdout);
     }*/
 }
-bool sonMismoString(char* ipNuevaMemoria, void* elemento){
+/*bool sonMismoString(char* ipNuevaMemoria, void* elemento){
     return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
-}
+}*/
 bool existeConexionConMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas){
     char* ipNuevaMemoria = string_new();
+
+    bool existe = false;
     //Agregar direccion ip:puerto de memoria conocida a la lista
     string_append(&ipNuevaMemoria, ipMemoriaSeed);
     string_append(&ipNuevaMemoria, ":");
@@ -297,7 +299,7 @@ bool existeConexionConMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_li
     //Inner function JAPISHH
     bool _sonMismoString(void* elemento){
         printf("Voy a comparar al elemento %s con la ip %s\n",elemento, ipNuevaMemoria);
-        return sonMismoString(ipNuevaMemoria, elemento);
+        return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
     }
 
 

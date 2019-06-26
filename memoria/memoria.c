@@ -262,7 +262,6 @@ void* ejecutarConsola(void* parametrosConsola){
 }
 
 pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra){
-    //sem_wait(lissandraConectada);
 
     pthread_t* hiloConsola = malloc(sizeof(pthread_t));
     parametros_consola_memoria* parametros = (parametros_consola_memoria*) malloc(sizeof(parametros_consola_memoria));
@@ -275,13 +274,32 @@ pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexio
     return hiloConsola;
 }
 
-pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal){
+void journaling(parametros_hilo_journal* parametros){
+
+    t_memoria* memoria = parametros->memoria;
+    t_log* logger = parametros->logger;
+    t_control_conexion* conexionLissandra = parametros->conexionLissandra;
+    int retardoJournal = parametros->retardo;
     while (1){
         sleep(retardoJournal);
-        gestionarJournal(conexixonLissandra, memoria, logger);
-        printf("Se gestionó el journal\n");
+        gestionarJournal(conexionLissandra , memoria, logger);
+        log_info(logger, "Ha finalizado el Journal\n");
         fflush(stdout);
     }
+}
+pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, int retardoJournal){
+    pthread_t* hiloJournal = malloc(sizeof(pthread_t));
+
+    parametros_hilo_journal* parametros = (parametros_hilo_journal*) malloc(sizeof(parametros_hilo_journal));
+
+    parametros->logger = logger;
+    parametros->memoria = memoria;
+    parametros->conexionLissandra = conexionLissandra;
+    //retardo Journal
+    parametros->retardo = retardoJournal;
+
+    pthread_create(hiloJournal, NULL, &journaling, parametros);
+    return hiloJournal;
 }
 void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_log* logger){
     char* ipNuevaMemoria = string_new();
@@ -332,8 +350,6 @@ void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** 
             if (fdNodoMemoria != NULL){
                 log_info(logger, "Nueva conexion establecida con la memoria %s:%s", ipSeeds[i], puertoSeeds[i]);
 
-                t_nodoMemoria* unNodoMemoria = malloc(sizeof(t_nodoMemoria));
-                unNodoMemoria->fdMemoriaConocida = fdNodoMemoria;
                 agregarIpMemoria(ipSeeds[i], puertoSeeds[i], memoriasConocidas, logger);
                 enviarPaquete(fdNodoMemoria, GOSSIPING, "DAME_LISTA_GOSSIPING");
             }
@@ -342,7 +358,12 @@ void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** 
     }
 
 }
-pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion){
+void gossiping(parametros_gossiping* parametros){
+
+    t_memoria* memoria = parametros->memoria;
+    t_log* logger = parametros->logger;
+    t_configuracion configuracion = parametros->archivoDeConfiguracion;
+    GestorConexiones* misConexiones = parametros->misConexiones;
     while (1){
         sleep(15);
         //sleep(configuracion.retardoGossiping);
@@ -353,6 +374,18 @@ pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memo
 
 
     }
+}
+pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion){
+    pthread_t* hiloGossiping = malloc(sizeof(pthread_t));
+    parametros_gossiping* parametros = (parametros_gossiping*) malloc(sizeof(parametros_gossiping));
+
+    parametros->logger = logger;
+    parametros->memoria = memoria;
+    parametros->misConexiones = misConexiones;
+    parametros->archivoDeConfiguracion = configuracion;
+
+    pthread_create(hiloGossiping, NULL, &gossiping, parametros);
+    return hiloGossiping;
 
 }
 char* formatearPagina(char* key, char* value, char* timestamp)   {
@@ -676,7 +709,7 @@ int getCantidadCaracteresByPeso(int pesoString) {
 
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
-	t_configuracion configuracion = cargarConfiguracion("memoria1.cfg", logger);
+	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
     t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};

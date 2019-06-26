@@ -119,6 +119,12 @@ typedef  struct {
     t_log* logger;
 
 }parametros_journal;
+typedef struct {
+    t_memoria* memoria;
+    struct t_control_conexion* conexionLissandra;
+    t_log* logger;
+    int retardo;
+} parametros_hilo_journal;
 
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
@@ -128,9 +134,11 @@ pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexio
 //gossiping
 
 typedef struct {
-    char* direccionMemoriaConocida;
-    int fdMemoriaConocida;
-}t_nodoMemoria;
+    t_log* logger;
+    t_memoria* memoria;
+    GestorConexiones* misConexiones;
+    t_configuracion archivoDeConfiguracion;
+}parametros_gossiping;
 
 //void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros);
 #endif /* MEMORIA_H_ */

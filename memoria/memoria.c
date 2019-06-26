@@ -276,70 +276,31 @@ pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexio
 }
 
 pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal){
-    /*while (1){
+    while (1){
         sleep(retardoJournal);
         gestionarJournal(conexixonLissandra, memoria, logger);
         printf("Se gestionó el journal\n");
         fflush(stdout);
-    }*/
-}
-/*bool sonMismoString(char* ipNuevaMemoria, void* elemento){
-    return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
-}*/
-bool existeConexionConMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas){
-    char* ipNuevaMemoria = string_new();
-
-    bool existe = false;
-    //Agregar direccion ip:puerto de memoria conocida a la lista
-    string_append(&ipNuevaMemoria, ipMemoriaSeed);
-    string_append(&ipNuevaMemoria, ":");
-    string_append(&ipNuevaMemoria, puertoMemoriaSeed);
-    //Si el valor que voy a agregar ya pertenece a la lista
-
-    //Inner function JAPISHH
-    bool _sonMismoString(void* elemento){
-        printf("Voy a comparar al elemento %s con la ip %s\n",elemento, ipNuevaMemoria);
-        return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
     }
-
-
-    return list_any_satisfy(memoriasConocidas, _sonMismoString);
 }
-
 void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_log* logger){
     char* ipNuevaMemoria = string_new();
     //Agregar direccion ip:puerto de memoria conocida a la lista
     string_append(&ipNuevaMemoria, ipMemoriaSeed);
     string_append(&ipNuevaMemoria, ":");
     string_append(&ipNuevaMemoria, puertoMemoriaSeed);
-     /*
-    t_nodoMemoria* nodoMemoriaAuxiliar;
-
-    bool yaExiste = false;
-    //Si el valor que voy a agregar ya pertenece a la lista
-
-    for (int i = 0; i < list_size(memoriasConocidas); ++i) {
-        nodoMemoriaAuxiliar = (t_nodoMemoria*) list_get(memoriasConocidas, i);
-        char* unaIp = nodoMemoriaAuxiliar->direccionMemoriaConocida;
-
-        if (strcmp(ipNuevaMemoria , unaIp) == 0){
-            yaExiste = true;
-        }
-    }
-
-    if (!yaExiste){
-        unNodoMemoria->direccionMemoriaConocida = ipNuevaMemoria;
-        list_add(memoriasConocidas, unNodoMemoria);
-    }else{
-        printf("Ip ya existente\n");
-    }*/
-
-    //unNodoMemoria->direccionMemoriaConocida = ipNuevaMemoria;
     list_add(memoriasConocidas, ipNuevaMemoria);
+    log_info(logger, "Nueva memoria agregada a lista de memorias conocidas");
+}
 
-    log_info(logger, "Memoria agregada a lista de memorias conocidas");
+void mostrarMemoriasConocidasAlMomento(t_list* memoriasConocidas){
+    void mostrarPorPantalla(void* elemento){
+        if (elemento != NULL){
+            printf("Conozco a la memoria: %s\n", (char*) elemento);
+        }
 
-
+    }
+    list_iterate(memoriasConocidas, mostrarPorPantalla);
 }
 
 void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** puertoSeeds, t_log* logger, t_memoria* memoria){
@@ -349,13 +310,26 @@ void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** 
 
     while (ipSeeds[i] != NULL && puertoSeeds[i] != NULL){
 
-        if(!existeConexionConMemoria(ipSeeds[i], puertoSeeds[i], memoriasConocidas)){
+        char* ipNuevaMemoria = string_new();
 
+
+        //Agregar direccion ip:puerto de memoria conocida a la lista
+        string_append(&ipNuevaMemoria, ipSeeds[i]);
+        string_append(&ipNuevaMemoria, ":");
+        string_append(&ipNuevaMemoria, puertoSeeds[i]);
+        //Si el valor que voy a agregar ya pertenece a la lista
+
+        //Inner function JAPISHH
+        bool _sonMismoString(void* elemento){
+            //printf("Voy a comparar al elemento %s con la ip %s\n",elemento, ipNuevaMemoria);
+            return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
+        }
+
+
+        if(!list_any_satisfy(memoriasConocidas, _sonMismoString)){
+            printf("No se conocia a la memoria, intento establecer conexion\n");
             fdNodoMemoria = conectarseAServidor(ipSeeds[i], atoi(puertoSeeds[i]), misConexiones, logger );
-            //fdNodoMemoria = conectarseANodoMemoria(ipSeeds[i], puertoSeeds[i], logger);
-
             if (fdNodoMemoria != NULL){
-
                 log_info(logger, "Nueva conexion establecida con la memoria %s:%s", ipSeeds[i], puertoSeeds[i]);
 
                 t_nodoMemoria* unNodoMemoria = malloc(sizeof(t_nodoMemoria));
@@ -374,6 +348,7 @@ pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memo
         //sleep(configuracion.retardoGossiping);
         gestionarGossiping(misConexiones, configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria);
 
+        mostrarMemoriasConocidasAlMomento(memoria->memoriasConocidas);
         //Avisar a Kernel sobre las memorias que conozco
 
 

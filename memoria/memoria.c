@@ -280,6 +280,7 @@ void journaling(parametros_hilo_journal* parametros){
     t_log* logger = parametros->logger;
     t_control_conexion* conexionLissandra = parametros->conexionLissandra;
     int retardoJournal = parametros->retardo;
+
     while (1){
         sleep(retardoJournal);
         gestionarJournal(conexionLissandra , memoria, logger);
@@ -312,13 +313,13 @@ void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memo
 }
 
 void mostrarMemoriasConocidasAlMomento(t_list* memoriasConocidas){
-    void mostrarPorPantalla(void* elemento){
+    void _mostrarPorPantalla(void* elemento){
         if (elemento != NULL){
             printf("Conozco a la memoria: %s\n", (char*) elemento);
         }
 
     }
-    list_iterate(memoriasConocidas, mostrarPorPantalla);
+    list_iterate(memoriasConocidas, _mostrarPorPantalla);
 }
 
 void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** puertoSeeds, t_log* logger, t_memoria* memoria){
@@ -340,7 +341,12 @@ void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** 
         //Inner function JAPISHH
         bool _sonMismoString(void* elemento){
             //printf("Voy a comparar al elemento %s con la ip %s\n",elemento, ipNuevaMemoria);
-            return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
+            if (elemento != NULL){
+                return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
+            }else{
+                return false;
+            }
+
         }
 
 
@@ -709,7 +715,7 @@ int getCantidadCaracteresByPeso(int pesoString) {
 
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
-	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
+	t_configuracion configuracion = cargarConfiguracion("memoria1.cfg", logger);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
     t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};

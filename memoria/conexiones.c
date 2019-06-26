@@ -122,23 +122,18 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
     }
 }
 
-/*void atenderGossiping(Header header, char* mensaje, t_log* logger){
-    if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
-
-    }
-}*/
-
 char* concatenarMemoriasConocidas(t_list* memoriasConocidas){
     char* respuesta = NULL;
 
-    t_nodoMemoria* nodoMemoriaAuxiliar = malloc(sizeof(t_nodoMemoria));
+    //t_nodoMemoria* nodoMemoriaAuxiliar = malloc(sizeof(t_nodoMemoria));
 
-    int cantidadMemorias = list_size(memoriasConocidas);
-    for (int i = 0; i < cantidadMemorias; ++i) {
-        nodoMemoriaAuxiliar = (t_nodoMemoria*)list_get(memoriasConocidas, i);
-        string_append(&respuesta, nodoMemoriaAuxiliar->direccionMemoriaConocida);
-        string_append(&respuesta, ";");
+    void _concatenarString(void* elemento){
+        if (elemento != NULL){
+            string_append(&respuesta, (char*) elemento);
+            string_append(&respuesta, ";");
+        }
     }
+    list_iterate(memoriasConocidas, _concatenarString);
 
     return respuesta;
 }

@@ -323,26 +323,34 @@ pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexio
     return hiloJournal;
 }
 void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_log* logger){
-    char* ipNuevaMemoria = string_new();
+    char* ipAAgregar= string_new();
     //Agregar direccion ip:puerto de memoria conocida a la lista
-    string_append(&ipNuevaMemoria, ipMemoriaSeed);
-    string_append(&ipNuevaMemoria, ":");
-    string_append(&ipNuevaMemoria, puertoMemoriaSeed);
+    string_append(&ipAAgregar, ipMemoriaSeed);
+    string_append(&ipAAgregar, ":");
+    string_append(&ipAAgregar, puertoMemoriaSeed);
+    char* ipNuevaMemoria = string_duplicate(ipAAgregar);
     list_add(memoriasConocidas, ipNuevaMemoria);
     log_info(logger, "Nueva memoria agregada a lista de memorias conocidas");
 }
 
-void mostrarMemoriasConocidasAlMomento(t_list* memoriasConocidas){
+void mostrarMemoriasConocidasAlMomento(t_list* memoriasConocidas, pthread_mutex_t semaforoMemoriasConocidas){
+    pthread_mutex_lock(&semaforoMemoriasConocidas);
     void _mostrarPorPantalla(void* elemento){
         if (elemento != NULL){
             printf("Conozco a la memoria: %s\n", (char*) elemento);
         }
-
     }
-    list_iterate(memoriasConocidas, _mostrarPorPantalla);
+    if (!list_is_empty(memoriasConocidas)){
+        list_iterate(memoriasConocidas, _mostrarPorPantalla);
+    }
+    pthread_mutex_unlock(&semaforoMemoriasConocidas);
+
 }
 
-void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** puertoSeeds, t_log* logger, t_memoria* memoria){
+void pedirListaDeGossiping(t_list* memoriasConocidas, pthread_mutex_t semaforoMemoriasConocidas){
+
+}
+void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** puertoSeeds, t_log* logger, t_memoria* memoria, pthread_mutex_t semaforoMemoriasConocidas){
     int i = 0;
     int fdNodoMemoria;
     t_list* memoriasConocidas = (t_list*) memoria->memoriasConocidas;
@@ -368,16 +376,17 @@ void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** 
 
         }
 
-
+        pthread_mutex_lock(&semaforoMemoriasConocidas);
         if(!list_any_satisfy(memoriasConocidas, _sonMismoString)){
             fdNodoMemoria = conectarseAServidor(ipSeeds[i], atoi(puertoSeeds[i]), misConexiones, logger );
             if (fdNodoMemoria != NULL && fdNodoMemoria >0){
                 log_info(logger, "Nueva conexion establecida con la memoria %s:%s", ipSeeds[i], puertoSeeds[i]);
 
                 agregarIpMemoria(ipSeeds[i], puertoSeeds[i], memoriasConocidas, logger);
-                enviarPaquete(fdNodoMemoria, GOSSIPING, "DAME_LISTA_GOSSIPING");
+                enviarPaquete(fdNodoMemoria, GOSSIPING,REQUEST ,"DAME_LISTA_GOSSIPING");
             }
         }
+        pthread_mutex_unlock(&semaforoMemoriasConocidas);
         i++;
     }
 
@@ -388,18 +397,19 @@ void gossiping(parametros_gossiping* parametros){
     t_log* logger = (t_log*)parametros->logger;
     t_configuracion configuracion = (t_configuracion) parametros->archivoDeConfiguracion;
     GestorConexiones* misConexiones = (GestorConexiones*) parametros->misConexiones;
+    pthread_mutex_t semaforoMemoriasConocidas = parametros->semaforoMemoriasConocidas;
     while (1){
         sleep(15);
         //sleep(configuracion.retardoGossiping);
-        gestionarGossiping(misConexiones, configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria);
-
-        mostrarMemoriasConocidasAlMomento(memoria->memoriasConocidas);
+        gestionarGossiping(misConexiones, configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria, semaforoMemoriasConocidas);
+        //pedirListaDeGossiping(memoria->memoriasConocidas, semaforoMemoriasConocidas);
+        mostrarMemoriasConocidasAlMomento(memoria->memoriasConocidas, semaforoMemoriasConocidas);
         //Avisar a Kernel sobre las memorias que conozco
 
 
     }
 }
-pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion){
+pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t semaforoMemoriasConocidas){
     pthread_t* hiloGossiping = malloc(sizeof(pthread_t));
     parametros_gossiping* parametros = (parametros_gossiping*) malloc(sizeof(parametros_gossiping));
 
@@ -407,6 +417,7 @@ pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memo
     parametros->memoria = memoria;
     parametros->misConexiones = misConexiones;
     parametros->archivoDeConfiguracion = configuracion;
+    parametros->semaforoMemoriasConocidas = semaforoMemoriasConocidas;
 
     pthread_create(hiloGossiping, NULL, &gossiping, parametros);
     return hiloGossiping;
@@ -696,26 +707,32 @@ int main(void) {
     sem_init(conexionKernel.semaforo, 0, 0);
     sem_init(conexionLissandra.semaforo, 0, 0);
 
+    pthread_mutex_t semaforoMemoriasConocidas;
+
+    pthread_mutex_init(&semaforoMemoriasConocidas, NULL);
+
+    pthread_mutex_lock(&semaforoMemoriasConocidas);
+
+    pthread_mutex_unlock(&semaforoMemoriasConocidas);
+
 	conectarseALissandra(&conexionLissandra, configuracion.ipFileSystem, configuracion.puertoFileSystem, logger);
 	int tamanioValue = getTamanioValue(&conexionLissandra, logger);
     t_memoria* memoriaPrincipal = inicializarMemoriaPrincipal(configuracion, tamanioValue, logger);
 	GestorConexiones* misConexiones = inicializarConexion();
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
+    printf("%i",list_is_empty(memoriaPrincipal->memoriasConocidas));
 
-    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, &conexionKernel, logger, memoriaPrincipal);
-    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger);
+    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas);
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra);
     //pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal);
-    pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion);
+    pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas);
     t_comando comando;
-    pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal);
-    pthread_t* hiloGossiping = crearHiloGossiping(memoriaPrincipal, logger, configuracion);
 
     while(1){
 		sem_wait(conexionKernel.semaforo);
-		if(conexionKernel.fd > 0)	{
-			t_paquete request = recibirMensaje(&conexionKernel);
+		/*if(conexionKernel.fd > 0)	{
+			//t_paquete request = recibirMensaje(&conexionKernel);
 //			logearValorDeSemaforo(&lissandraConectada, logger, "kernel");
 			if(request.mensaje == NULL)
 				continue;
@@ -726,7 +743,7 @@ int main(void) {
                     continue;
                 comando = instanciarComando(comandoParseado);
                 free(comandoParseado);
-                char* respuesta = gestionarRequest(comando, memoriaPrincipal, &conexionLissandra, logger);
+                t_paquete respuesta = gestionarRequest(comando, memoriaPrincipal, &conexionLissandra, logger);
                 if(respuesta == NULL)   {
                     log_error(logger, "Se desconectó Lissandra. Finalizando el proceso.");
                     exit(-1);
@@ -735,7 +752,7 @@ int main(void) {
                     enviarPaquete(conexionKernel.fd, REQUEST, respuesta);
                     sem_post(conexionKernel.semaforo);
 			}
-		}
+		}*/
     }
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);

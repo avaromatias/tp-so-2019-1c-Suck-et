@@ -4,7 +4,7 @@
 
 #include "conexiones.h"
 
-pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger)    {
+pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t semaforoMemoriasConocidas)    {
 
     /*int value;
     sem_getvalue(kernelConectado, &value);
@@ -19,6 +19,7 @@ pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria
     parametros->conexionKernel = conexionKernel;
     parametros->conexionLissandra = conexionLissandra;
     parametros->memoria = memoria;
+    parametros->semaforoMemoriasConocidas = semaforoMemoriasConocidas;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -124,17 +125,20 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
 }
 
 char* concatenarMemoriasConocidas(t_list* memoriasConocidas){
-    char* respuesta = NULL;
+    char* respuesta = string_new();
 
     //t_nodoMemoria* nodoMemoriaAuxiliar = malloc(sizeof(t_nodoMemoria));
 
     void _concatenarString(void* elemento){
         if (elemento != NULL){
-            string_append(&respuesta, (char*) elemento);
+            string_append(&respuesta, string_duplicate((char*) elemento));
             string_append(&respuesta, ";");
         }
     }
-    list_iterate(memoriasConocidas, _concatenarString);
+    if (!list_is_empty(memoriasConocidas)){
+        list_iterate(memoriasConocidas, _concatenarString);
+    }
+
 
     return respuesta;
 }
@@ -154,21 +158,41 @@ void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas
 
 void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros){
     t_memoria* memoria = (t_memoria*)parametros->memoria;
+    pthread_mutex_t semaforoMemoriasConocidas = (pthread_mutex_t)parametros->semaforoMemoriasConocidas;
 
-        t_list* memoriasConocidas = (t_list*)memoria->memoriasConocidas;
+    t_list* memoriasConocidas = (t_list*)memoria->memoriasConocidas;
 
+    pthread_mutex_lock(&semaforoMemoriasConocidas);
+    if (header.tipoMensaje == GOSSIPING){
         if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
             printf("Recibi un pedido de mi lista de gossiping\n");
+
             char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
 
-            printf("Todas las memorias conocidas concatenadas: %s\n", memoriasConocidasConcatenadas);
-            enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, memoriasConocidasConcatenadas);
-        }else{
-            //Es la respuesta al pedido
-            printf("Recibi %s como respuesta al gossiping\n", mensaje);
-            agregarMemoriasRecibidas(mensaje, memoriasConocidas);
+            if (memoriasConocidasConcatenadas != NULL){
+                printf("Todas las memorias conocidas concatenadas: %s\n", memoriasConocidasConcatenadas);
+                enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING,RESPUESTA, memoriasConocidasConcatenadas);
+            } else{
+                enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING,RESPUESTA, "LISTA_VACIA");
+            }
+
         }
-    free(memoria);
+    }else{
+        //Es la respuesta al pedido
+        if (header.tipoMensaje == RESPUESTA_GOSSIPING){
+            if (strcmp(mensaje, "LISTA_VACIA") != 0){
+                printf("Recibi %s como respuesta al gossiping\n", mensaje);
+                agregarMemoriasRecibidas(mensaje, memoriasConocidas);
+            } else{
+                //loggeo que estaba vacia
+            }
+        }
+
+
+    }
+    pthread_mutex_unlock(&semaforoMemoriasConocidas);
+    //free(memoriasConocidas);
+    //free(memoria);
 
 }
 

@@ -25,6 +25,7 @@ typedef struct {
     t_control_conexion* conexionKernel;
     t_control_conexion* conexionLissandra;
     t_memoria* memoria;
+    pthread_mutex_t semaforoMemoriasConocidas;
 } parametros_thread_memoria;
 
 struct  t_paquete_d {
@@ -42,7 +43,7 @@ struct parametros_thread_requests_d {
 
 void* atenderConexiones(void* parametrosThread);
 
-pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger);
+pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t semaforoMemoriasConocidas);
 
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros);
 void atenderHandshake(Header header, Componente componente, parametros_thread_memoria* parametros);

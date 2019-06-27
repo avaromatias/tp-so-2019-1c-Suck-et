@@ -136,7 +136,6 @@ typedef struct {
     int retardo;
 } parametros_hilo_journal;
 
-} parametros_journal;
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
 void vaciarMemoria(t_memoria* memoria, t_log* logger);
@@ -150,6 +149,7 @@ typedef struct {
     t_memoria* memoria;
     GestorConexiones* misConexiones;
     t_configuracion archivoDeConfiguracion;
+    pthread_mutex_t semaforoMemoriasConocidas;
 }parametros_gossiping;
 
 //void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros);

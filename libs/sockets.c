@@ -180,19 +180,21 @@ void eliminarFdDeListaDeConexiones(int fdCliente, GestorConexiones* unaConexion)
     unaConexion->descriptorMaximo = getFdMaximo(unaConexion);
 }
 
-void enviarPaquete(int fdDestinatario, TipoMensaje tipoMensaje, char* mensaje)  {
+void enviarPaquete(int fdDestinatario, TipoMensaje tipoMensaje, TipoRequest tipoRequest, char* mensaje)  {
     int pesoMensaje = pesoString(mensaje);
-    Header header = armarHeader(fdDestinatario, pesoMensaje, tipoMensaje);
+    Header header = armarHeader(fdDestinatario, pesoMensaje, tipoMensaje, tipoRequest);
     void* headerSerializado = serializarHeader(header);
     int pesoPaquete = sizeof(Header) + pesoMensaje;
     void* paquete = empaquetar(headerSerializado, mensaje);
-    send(fdDestinatario, paquete, pesoPaquete, MSG_DONTWAIT);
+    send(fdDestinatario, paquete, pesoPaquete, MSG_WAITALL);
     free(headerSerializado);
     free(paquete);
 }
 
 void hacerHandshake(int fdDestinatario, Componente componente)  {
-    enviarPaquete(fdDestinatario, HANDSHAKE, (char*) &componente);
+    char* componenteStr = string_itoa(componente);
+    enviarPaquete(fdDestinatario, HANDSHAKE, INVALIDO, componenteStr);
+    free(componenteStr);
 }
 
 void* empaquetar(void* headerSerializado, char* mensaje)   {
@@ -210,12 +212,16 @@ void* serializarHeader(Header header)    {
     void* puntero = headerSerializado;
     int tamanioSize = sizeof(typeof(header.tamanioMensaje));
     int pesoTipoRemitente = sizeof(typeof(header.fdRemitente));
+    int pesoTipoMensaje = sizeof(typeof(header.tipoMensaje));
+    int pesoTipoRequest = sizeof(typeof(header.tipoRequest));
 
     memcpy(puntero, &(header.tamanioMensaje), tamanioSize);
     puntero += tamanioSize;
     memcpy(puntero, &(header.fdRemitente), pesoTipoRemitente);
     puntero += pesoTipoRemitente;
-    memcpy(puntero, &(header.tipoMensaje), sizeof(typeof(header.tipoMensaje)));
+    memcpy(puntero, &(header.tipoMensaje), pesoTipoMensaje);
+    puntero += pesoTipoMensaje;
+    memcpy(puntero, &(header.tipoRequest), pesoTipoRequest);
 
     return headerSerializado;
 }
@@ -225,6 +231,8 @@ Header deserializarHeader(void* headerSerializado)	{
     void* puntero = headerSerializado;
     int tamanioSize = sizeof(typeof(header.tamanioMensaje));
     int pesoTipoRemitente = sizeof(typeof(header.fdRemitente));
+    int pesoTipoMensaje = sizeof(typeof(header.tipoMensaje));
+    int pesoTipoRequest = sizeof(typeof(header.tipoRequest));
 
     memcpy(&(header.tamanioMensaje), puntero, tamanioSize);
     puntero += tamanioSize;
@@ -232,20 +240,23 @@ Header deserializarHeader(void* headerSerializado)	{
     memcpy(&(header.fdRemitente), puntero, pesoTipoRemitente);
     puntero += pesoTipoRemitente;
 
-    memcpy(&(header.tipoMensaje), puntero, sizeof(typeof(header.tipoMensaje)));
+    memcpy(&(header.tipoMensaje), puntero, pesoTipoMensaje);
+    puntero += pesoTipoMensaje;
+
+    memcpy(&(header.tipoRequest), puntero, pesoTipoRequest);
 
     return header;
 }
 
-Header armarHeader(int fdDestinatario, int tamanioDelMensaje, TipoMensaje tipoMensaje)    {
-    Header header = {.tamanioMensaje = tamanioDelMensaje, .fdRemitente = fdDestinatario, .tipoMensaje = tipoMensaje};
+Header armarHeader(int fdDestinatario, int tamanioDelMensaje, TipoMensaje tipoMensaje, TipoRequest tipoRequest)    {
+    Header header = {.tamanioMensaje = tamanioDelMensaje, .fdRemitente = fdDestinatario, .tipoMensaje = tipoMensaje, .tipoRequest = tipoRequest};
     return header;
 }
 
 GestorConexiones* inicializarConexion() {
     GestorConexiones* nuevaConexion = (GestorConexiones*) malloc(sizeof(GestorConexiones));
 
-    nuevaConexion->descriptorMaximo = 0;
+    nuevaConexion->descriptorMaximo = -1;
     nuevaConexion->servidor = -1;
     nuevaConexion->conexiones = list_create();
 

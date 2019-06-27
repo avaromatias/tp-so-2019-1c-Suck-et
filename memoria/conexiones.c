@@ -4,7 +4,7 @@
 
 #include "conexiones.h"
 
-pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_control_conexion* conexionKernel, t_log* logger, t_memoria* memoriaPrincipal)    {
+pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger)    {
 
     /*int value;
     sem_getvalue(kernelConectado, &value);
@@ -17,7 +17,8 @@ pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_control_conexion
     parametros->conexion = unaConexion;
     parametros->logger = logger;
     parametros->conexionKernel = conexionKernel;
-    parametros->memoria = memoriaPrincipal;
+    parametros->conexionLissandra = conexionLissandra;
+    parametros->memoria = memoria;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -110,10 +111,10 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
     if(componente == KERNEL) {
         if (parametros->conexionKernel->fd == 0) {
             parametros->conexionKernel->fd = header.fdRemitente;
-            enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, NULL);
+            enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, INVALIDO, NULL);
             sem_post(parametros->conexionKernel->semaforo);
         } else {
-            enviarPaquete(header.fdRemitente, CONEXION_RECHAZADA, NULL);
+            enviarPaquete(header.fdRemitente, CONEXION_RECHAZADA, INVALIDO, NULL);
             cerrarSocket(header.fdRemitente, parametros->logger);
         }
     }
@@ -171,7 +172,36 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
 
 }
 
+void* atenderRequestKernel(void* parametrosRequest)    {
+    parametros_thread_request* parametros = (parametros_thread_request*) parametrosRequest;
+
+    t_paquete resultado = gestionarRequest(parametros->comando, parametros->memoria, parametros->conexionLissandra, parametros->logger);
+
+    if(parametros->conexionKernel->fd > 0)  {
+        enviarPaquete(parametros->conexionKernel->fd, resultado.tipoMensaje, parametros->comando.tipoRequest, resultado.mensaje);
+    }
+}
+
+pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger)   {
+    pthread_t* hiloRequest = (pthread_t*) malloc(sizeof(pthread_t));
+
+    parametros_thread_request* parametros = (parametros_thread_request*) malloc(sizeof(parametros_thread_request));
+
+    parametros->comando = comando;
+    parametros->logger = logger;
+    parametros->conexionKernel = conexionKernel;
+    parametros->memoria = memoria;
+    parametros->conexionLissandra = conexionLissandra;
+
+    pthread_create(hiloRequest, NULL, &atenderRequestKernel, parametros);
+
+    return hiloRequest;
+}
+
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros)    {
+    char** comandoParseado = parser(mensaje);
+    t_comando comando = instanciarComando(comandoParseado);
+    crearHiloRequest(comando, parametros->memoria, parametros->conexionKernel, parametros->conexionLissandra, parametros->logger);
 
 //    char** arrayMensaje = parser(mensaje);
 //
@@ -209,19 +239,22 @@ void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* pa
 //    fflush(stdout);
 }
 
-t_paquete recibirMensaje(t_control_conexion* conexion)    {
+t_paquete recibirMensajeDeLissandra(t_control_conexion *conexion)    {
     Header header;
     //sem_wait(conexion->semaforo);
     t_paquete paquete;
     int bytesRecibidos = recv(conexion->fd, &header, sizeof(Header), MSG_WAITALL);
-    if(bytesRecibidos == 0)
+    if(bytesRecibidos == 0) {
+        exit(-1);
         conexion->fd = 0;
+    }
     else    {
         header = deserializarHeader(&header);
         paquete.tipoMensaje = header.tipoMensaje;
         char* respuesta = (char*) malloc(header.tamanioMensaje);
         bytesRecibidos = recv(conexion->fd, respuesta, header.tamanioMensaje, MSG_WAITALL);
         if(bytesRecibidos == 0) {
+            exit(-1);
             conexion->fd = 0;
             paquete.mensaje = NULL;
         }

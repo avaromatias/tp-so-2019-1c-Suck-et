@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <semaphore.h>
 #include <commons/config.h>
 #include <commons/log.h>
 #include <commons/collections/list.h>
@@ -54,6 +55,14 @@ typedef struct {
 typedef struct {
     t_queue *colaDeNew;
     t_queue *colaDeReady;
+    int multiprocesamiento;
+    sem_t  mutex;
+    t_log *logger;
+} parametros_plp;
+
+typedef struct {
+    t_queue *colaDeNew;
+    t_queue *colaDeReady;
     t_queue *colaDeExecute;
     t_list *finalizados;
 } colasPlanificacion;
@@ -66,10 +75,9 @@ t_configuracion cargarConfiguracion(char *, t_log *);
 
 int gestionarRequest(t_comando requestParseada, p_consola_kernel *parametros);
 
-void
-ejecutarConsola(int (*gestionarRequest)(t_comando, p_consola_kernel *), p_consola_kernel *parametros);
+void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion);
 
-void *analizarRequest(t_comando requestParseada, p_consola_kernel *parametros);
+bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros);
 
 void *administrarRequestsLQL(t_archivoLQL archivoLQL, p_consola_kernel *parametros);
 
@@ -83,9 +91,7 @@ bool esComandoValidoDeKernel(t_comando comando);
 
 int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria);
 
-int
-gestionarCreateKernel(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones, char *tiempoCompactacion,
-                      int fdMemoria);
+int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tpoCompactacion, int fdMemoria);
 
 int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria);
 
@@ -101,5 +107,7 @@ bool existenMemoriasConectadas(GestorConexiones *misConexiones);
 char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas);
 
 int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio);
+
+char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
 
 #endif /* KERNEL_H_ */

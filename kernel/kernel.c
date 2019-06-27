@@ -28,7 +28,8 @@ int main(void) {
     t_queue *colaDeCriteriosSC = queue_create();
     t_queue *colaDeCriteriosSHC = queue_create();
     t_queue *colaDeCriteriosEC = queue_create();
-    dictionary_put(tablaDeMemoriasConCriterios, "SC", colaDeCriteriosSC);//voy a tener relacion de criterio con un t_list* de FDs
+    dictionary_put(tablaDeMemoriasConCriterios, "SC", colaDeCriteriosSC);
+    //voy a tener relacion de criterio con un t_list* de FDs
     dictionary_put(tablaDeMemoriasConCriterios, "SHC", colaDeCriteriosSHC);
     dictionary_put(tablaDeMemoriasConCriterios, "EC", colaDeCriteriosEC);
 
@@ -49,7 +50,7 @@ int main(void) {
     parametros->metadataTablas = metadataTablas;
     parametros->memoriasConCriterios = tablaDeMemoriasConCriterios;
 
-    ejecutarConsola(gestionarRequest, parametros);
+    ejecutarConsola(parametros, configuracion);
 
     //pthread_join(&hiloRespuestas, NULL);
     free(parametros);
@@ -97,8 +98,9 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 }
 
-void ejecutarConsola(int (*gestionarRequest)(t_comando, p_consola_kernel *), p_consola_kernel *parametros) {
+void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion) {
     t_comando requestParseada;
+    bool requestEsValida;
 
     do {
         char *leido = readline("Kernel@suck-ets:~$ ");
@@ -108,14 +110,21 @@ void ejecutarConsola(int (*gestionarRequest)(t_comando, p_consola_kernel *), p_c
             continue;
         }
         requestParseada = instanciarComando(comandoParseado);
-        analizarRequest(requestParseada, parametros);
+        requestEsValida = analizarRequest(requestParseada, parametros);
+        if (requestEsValida) {//Al ser valida, comenzamos a
+            log_info(parametros->logger, "La request es válida, ¡felicitaciones!\n"); //por el momento
+           //Comenzamos la gestión de las colas
+        } else {
+            log_info(parametros->logger, "No se pudo procesar la request solicitada.\n");
+        }
+
         //free(leido);
         //free(comandoParseado);
     } while (requestParseada.tipoRequest != EXIT);
     printf("Ya analizamos todo lo solicitado.\n");
 }
 
-void *analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
+bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
 
     t_log *logger = parametros->logger;
 
@@ -123,11 +132,9 @@ void *analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
         printf("Comando inválido.\n");
     } else {
         if (validarComandosComunes(requestParseada, logger) || validarComandosKernel(requestParseada, logger)) {
-            if (gestionarRequest(requestParseada, parametros) == 0) {
-                log_info(logger, "Request procesada correctamente.");
-            } else {
-                log_error(logger, "No se pudo procesar la request solicitada.");
-            }
+            return true;
+        } else {
+            return false;
         }
     }
 }
@@ -137,7 +144,6 @@ int gestionarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
     GestorConexiones *misConexiones = parametros->conexiones;
     char *criterioConsistencia;
     int fdMemoria;
-//    int fdMemoria = 1;// misConexiones->conexiones[0];
 
     switch (requestParseada.tipoRequest) { //Analizar si cada gestionar va a tener que encolar en NEW, en lugar de enviarPaquete
         case SELECT:
@@ -155,8 +161,8 @@ int gestionarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
             fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
             dictionary_put(parametros->metadataTablas, requestParseada.parametros[0], requestParseada.parametros[1]);
             gestionarCreateKernel(requestParseada.parametros[0], requestParseada.parametros[1],
-                                         requestParseada.parametros[2],
-                                         requestParseada.parametros[3], fdMemoria);
+                                  requestParseada.parametros[2],
+                                  requestParseada.parametros[3], fdMemoria);
             return 0;
         case DROP:
             criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
@@ -167,9 +173,7 @@ int gestionarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
         case JOURNAL:
             return 0;//gestionarJournalKernel();
         case ADD:
-            printf("Tipo de Request: %s %s %s \n", "ADD",
-                   requestParseada.parametros[0], // no pongo requestParseada.tipoRequest porque va a romper
-                   requestParseada.parametros[1]); //nombreTabla en realidad vien
+            printf("Tipo de Request: %s %s %s \n", "ADD", requestParseada.parametros[0], requestParseada.parametros[1]);
             printf("To: %s \n", requestParseada.parametros[3]);
             gestionarAdd(requestParseada.parametros, parametros);
             return 0;
@@ -226,7 +230,6 @@ int gestionarRun(char *pathArchivo, p_consola_kernel *parametros) {
     t_archivoLQL archivoLQL;
     t_log *logger = parametros->logger;
     GestorConexiones *misConexiones = parametros->conexiones;
-    //t_list *tablaMemoriasConocidas = parametros->memoriasConocidas;
 
     char *linea = NULL;
     int lineaLeida = 0;
@@ -255,8 +258,6 @@ int gestionarRun(char *pathArchivo, p_consola_kernel *parametros) {
         archivoLQL.cantidadDeLineas++;
     }
     administrarRequestsLQL(archivoLQL, parametros);
-    //ver si no conviene dejar aparte cuando conviene enviar a una determinada memoria
-    //asignarAMemoriaCorrecta(request, tablaDeMemorias);
     fclose(archivo);
 }
 
@@ -338,20 +339,21 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
 }
 
 int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio) {
-    if(criterio != NULL) {
-    if (existenMemoriasConectadas) {
-        //Obtenemos memorias que responden al criterio pedido
-        t_queue *memoriasDelCriterioPedido = dictionary_get(parametros->memoriasConCriterios, criterio);
-        //Que memorias tengo con el criterio X de la request solicitada?
-        //Cual
-        int *fdMemoriaElegida = (int *) queue_pop(memoriasDelCriterioPedido);
-        queue_push(memoriasDelCriterioPedido,fdMemoriaElegida);
-        return *fdMemoriaElegida;
-    }
-    log_warning(parametros->logger, "No existen memorias conectadas para asignar requests.\n");
-    return 0;
-} else {
-    log_warning(parametros->logger, "Debe abastecer la metadata de Kernel con un Describe general, o de la tabla solicitada.\n");
+    if (criterio != NULL) {
+        if (existenMemoriasConectadas) {
+            //Obtenemos memorias que responden al criterio pedido
+            t_queue *memoriasDelCriterioPedido = dictionary_get(parametros->memoriasConCriterios, criterio);
+            //Que memorias tengo con el criterio X de la request solicitada?
+            //Cual
+            int *fdMemoriaElegida = (int *) queue_pop(memoriasDelCriterioPedido);
+            queue_push(memoriasDelCriterioPedido, fdMemoriaElegida);
+            return *fdMemoriaElegida;
+        }
+        log_warning(parametros->logger, "No existen memorias conectadas para asignar requests.\n");
+        return 0;
+    } else {
+        log_warning(parametros->logger,
+                    "Debe abastecer la metadata de Kernel con un Describe general, o de la tabla solicitada.\n");
     }
 }
 
@@ -368,30 +370,48 @@ char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas) {
     switch (requestParseada.tipoRequest) { //Cada case va a tener que buscar en el diccionario la tabla, para obtener el criterio
         case SELECT:
             tabla = requestParseada.parametros[0];
-            criterioPedido = (char*) dictionary_get(metadataTablas, tabla);//buscar en metadataTablasConocidas
+            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);//buscar en metadataTablasConocidas
             return criterioPedido;
         case INSERT:
             tabla = requestParseada.parametros[0];
-            criterioPedido = (char*) dictionary_get(metadataTablas, tabla);
+            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
             return criterioPedido;
         case CREATE:
             criterioPedido = requestParseada.parametros[1];
             return criterioPedido;
         case DROP:
             tabla = requestParseada.parametros[0];
-            criterioPedido = (char*) dictionary_get(metadataTablas, tabla);
+            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
             return criterioPedido;
         case DESCRIBE:
             if (requestParseada.cantidadParametros > 0) {
                 tabla = requestParseada.parametros[0];
-                criterioPedido = (char*) dictionary_get(metadataTablas, tabla);
+                criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
                 return criterioPedido;
             }
         case ADD:
             tabla = requestParseada.parametros[3];
-            criterioPedido = (char*) dictionary_get(metadataTablas, tabla);
+            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
             return criterioPedido;
         default:
             return "NC";
     }
+}
+
+char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping
+    datosConexionMemoria = "192.168.0.52:8001;192.168.0.45:8003;192.168.0.99:13002;";
+    string_trim(&datosConexionMemoria);
+    if (string_is_empty(datosConexionMemoria))
+        return NULL;
+    char **direcciones = string_split(datosConexionMemoria, ";");
+    //"192.168.0.52:8001""192.168.0.45:8003""192.168.0.99:13002"
+    int cantidadDireccionesRecibidas = tamanioDeArrayDeStrings(direcciones);//3
+    char **direccionesDeMemorias = (char **) malloc(sizeof(char *) * cantidadDireccionesRecibidas);
+    int memoria = 0;
+
+    while (memoria < cantidadDireccionesRecibidas) {
+        direccionesDeMemorias[memoria] = direcciones[memoria];
+        memoria++;
+    }
+    return direccionesDeMemorias;
 }

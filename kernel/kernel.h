@@ -34,8 +34,9 @@ typedef struct {
     int retardoEjecucion;
 } t_configuracion;
 
+//Estructura necesaria para el manejo de archivosLQL
 typedef struct {
-    char **listaDeRequests;
+    t_queue *listaDeRequests;
     int cantidadDeLineas;
 } t_archivoLQL;
 
@@ -45,6 +46,7 @@ typedef struct {
     char *consistencia;
 } memoria_conocida;
 
+//Estructura necesaria para manejar las consistencias y la metadata
 typedef struct {
     t_log *logger;
     GestorConexiones *conexiones;
@@ -52,20 +54,14 @@ typedef struct {
     t_dictionary *memoriasConCriterios;
 } p_consola_kernel;
 
+//Estructura necesaria para el PLP
 typedef struct {
     t_queue *colaDeNew;
     t_queue *colaDeReady;
     int multiprocesamiento;
-    sem_t  mutex;
+    sem_t *mutex;
     t_log *logger;
 } parametros_plp;
-
-typedef struct {
-    t_queue *colaDeNew;
-    t_queue *colaDeReady;
-    t_queue *colaDeExecute;
-    t_list *finalizados;
-} colasPlanificacion;
 
 //Para Planificador
 
@@ -109,5 +105,12 @@ char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas);
 int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio);
 
 char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
+
+// ***** PLANIFICADORES *****
+pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros);
+
+void *sincronizacionPLP(void* parametrosPLP);
+
+
 
 #endif /* KERNEL_H_ */

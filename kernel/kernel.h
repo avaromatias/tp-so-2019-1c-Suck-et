@@ -36,8 +36,8 @@ typedef struct {
 
 //Estructura necesaria para el manejo de archivosLQL
 typedef struct {
-    t_queue *listaDeRequests;
-    int cantidadDeLineas;
+    t_queue *colaDeRequests;
+    int cantidadDeLineas;//chau, modificar para hacer un queue_size
 } t_archivoLQL;
 
 typedef struct {
@@ -58,8 +58,8 @@ typedef struct {
 typedef struct {
     t_queue *colaDeNew;
     t_queue *colaDeReady;
-    int multiprocesamiento;
-    sem_t *mutex;
+    sem_t *mutexColaDeNew;
+    sem_t *mutexColaDeReady;
     t_log *logger;
 } parametros_plp;
 
@@ -110,7 +110,5 @@ char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
 pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros);
 
 void *sincronizacionPLP(void* parametrosPLP);
-
-
 
 #endif /* KERNEL_H_ */

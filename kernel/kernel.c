@@ -13,8 +13,10 @@ int main(void) {
     t_log *logger = log_create("../kernel.log", "kernel", true, LOG_LEVEL_INFO);
     log_info(logger, "Iniciando el proceso Kernel");
 
-    sem_t *mutex;
-    sem_init(mutex, 0, 1);
+    sem_t *mutexColaDeNew = (sem_t*) malloc(sizeof(sem_t));
+    sem_t *mutexColaDeReady = (sem_t*) malloc(sizeof(sem_t));
+    sem_init(mutexColaDeNew, 0, 1);
+    sem_init(mutexColaDeReady, 0, 1);
 
     t_configuracion configuracion = cargarConfiguracion("kernel.cfg", logger);
 
@@ -46,22 +48,23 @@ int main(void) {
 
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
 
-    p_consola_kernel *parametros = (p_consola_kernel*) malloc(sizeof(p_consola_kernel));
+    p_consola_kernel *parametros = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
     parametros->logger = logger;
     parametros->conexiones = misConexiones;
     parametros->metadataTablas = metadataTablas;
     parametros->memoriasConCriterios = tablaDeMemoriasConCriterios;
 
-    parametros_plp *parametrosPLP = (parametros_plp*) malloc(sizeof(parametros_plp));
+    parametros_plp *parametrosPLP = (parametros_plp *) malloc(sizeof(parametros_plp));
 
     parametrosPLP->colaDeNew = colaDeNew;
     parametrosPLP->colaDeReady = colaDeReady;
     parametrosPLP->multiprocesamiento = configuracion.multiprocesamiento;
-    parametrosPLP->mutex = mutex;
+    parametrosPLP->mutexColaDeNew = mutexColaDeNew;
+    parametrosPLP->mutexColaDeReady = mutexColaDeReady;
     parametrosPLP->logger = logger;
 
-    pthread_t *hiloPlanificadorLargoPlazo= crearHiloPlanificadorLargoPlazo(parametrosPLP);
+    pthread_t *hiloPlanificadorLargoPlazo = crearHiloPlanificadorLargoPlazo(parametrosPLP);
 
     ejecutarConsola(parametros, configuracion);
 
@@ -125,8 +128,7 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
         requestParseada = instanciarComando(comandoParseado);
         requestEsValida = analizarRequest(requestParseada, parametros);
         if (requestEsValida) {//Al ser valida, comenzamos a
-            log_info(parametros->logger, "La request es válida, ¡felicitaciones!\n"); //por el momento
-           //Comenzamos la gestión de las colas
+            //Comenzamos la gestión de las colas -
         } else {
             log_info(parametros->logger, "No se pudo procesar la request solicitada.\n");
         }
@@ -221,7 +223,7 @@ bool validarComandosKernel(t_comando comando, t_log *logger) {
     bool esValido = esComandoValidoDeKernel(comando);
 
     if (!esValido)
-        log_warning(logger, "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.");
+        //log_warning(logger, "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.");
 
     return esValido;
 }
@@ -266,7 +268,7 @@ int gestionarRun(char *pathArchivo, p_consola_kernel *parametros) {
         linea = (char *) realloc(linea, (contador + 2) * sizeof(char)); //agrego el \n por las dudas
         linea[contador] = caracter;
         //Asignamos la linea al primer elemento de la cola de request
-        queue_push(archivoLQL.listaDeRequests,linea);
+        queue_push(archivoLQL.colaDeRequests, linea);
         lineaLeida++;
         archivoLQL.cantidadDeLineas++;
     }
@@ -278,7 +280,7 @@ void *administrarRequestsLQL(t_archivoLQL archivoLQL, p_consola_kernel *parametr
     t_comando requestParseada;
     int contadorDeRequest = 0;
     do {
-        char *unaRequest = queue_pop(archivoLQL.listaDeRequests); //primer elemento de la lista de request, es una request
+        char *unaRequest = queue_pop(archivoLQL.colaDeRequests); //primer elemento de la lista de request, es una request
         if (strcmp(unaRequest, " ") != 0) {
             char **comandoParseado = parser(unaRequest); //cada request, es un conjunto de palabras
             requestParseada = instanciarComando(comandoParseado);
@@ -429,27 +431,30 @@ char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping
     return direccionesDeMemorias;
 }
 
-pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros){
-    pthread_t *hiloPLP = (pthread_t*) malloc(sizeof(pthread_t));
+pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros) {
+    pthread_t *hiloPLP = (pthread_t *) malloc(sizeof(pthread_t));
 
     pthread_create(hiloPLP, NULL, &sincronizacionPLP, parametros);
 
     return hiloPLP;
 }
 
-void *sincronizacionPLP(void* parametrosPLP) {
-    /*parametros_plp *parametros_PLP = (parametros_plp*) parametrosPLP;
-    sem_t *semaforo_colaDeNew = parametros_PLP->mutex;
-    sem_t *semaforo_colaDeReady = parametros_PLP->mutex;
-    sem_t *gradoMultiprocesamiento = (sem_t*)parametros_PLP->multiprocesamiento;
+void *sincronizacionPLP(void *parametrosPLP) {
+    //Haciendo como ahora, estaría modificando las cosas dentro de la funcion, deberia ser asi?
+    parametros_plp *parametros_PLP = (parametros_plp*) parametrosPLP;
+    sem_t *semaforo_colaDeNew = parametros_PLP->mutexColaDeNew;
+    sem_t *semaforo_colaDeReady = parametros_PLP->mutexColaDeReady;
+    //sem_t *gradoMultiprocesamiento = (sem_t *) parametros_PLP->multiprocesamiento;//preguntar a Dami multiprg
 
-    while(1) {
-        sem_wait(gradoMultiprocesamiento);
-        sem_wait(semaforo_colaDeNew);
-        t_archivoLQL unLQL = {.listaDeRequests = queue_pop(parametros_PLP.colaDeNew)};
-        sem_post(semaforo_colaDeNew);
-        sem_wait(semaforo_colaDeReady);
-        queue_push(parametros_PLP.colaDeReady, unLQL.listaDeRequests);
-        sem_post(semaforo_colaDeReady);
-    }*/
+    while (1) {
+        if (queue_is_empty(parametros_PLP->colaDeNew)) {
+            //sem_wait(gradoMultiprocesamiento);
+            sem_wait(semaforo_colaDeNew);
+            t_archivoLQL *unLQL = queue_pop(parametros_PLP->colaDeNew);
+            sem_post(semaforo_colaDeNew);
+            sem_wait(semaforo_colaDeReady);
+            queue_push(parametros_PLP->colaDeReady, unLQL);
+            sem_post(semaforo_colaDeReady);
+        }
+    }
 }

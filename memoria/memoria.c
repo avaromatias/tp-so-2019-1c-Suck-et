@@ -75,6 +75,7 @@ t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamani
     memoriaPrincipal->cantidadTotalMarcos = cantidadTotalMarcosMemoria(*memoriaPrincipal);
     log_info(logger, "Cantidad total de marcos: %i", memoriaPrincipal->cantidadTotalMarcos);
     memoriaPrincipal->memoriasConocidas = list_create();
+    memoriaPrincipal->nodosMemoria = list_create();
 
     inicializarTablaDeMarcos(memoriaPrincipal);
     return memoriaPrincipal;
@@ -329,8 +330,20 @@ void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memo
     string_append(&ipAAgregar, ":");
     string_append(&ipAAgregar, puertoMemoriaSeed);
     char* ipNuevaMemoria = string_duplicate(ipAAgregar);
-    list_add(memoriasConocidas, ipNuevaMemoria);
-    log_info(logger, "Nueva memoria agregada a lista de memorias conocidas");
+
+    bool _sonMismoString(void* elemento){
+        if (elemento != NULL){
+            return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
+        }else{
+            return false;
+        }
+    }
+    if (!list_any_satisfy(memoriasConocidas, _sonMismoString)){
+        list_add(memoriasConocidas, ipNuevaMemoria);
+        log_info(logger, "Nueva memoria agregada a lista de memorias conocidas");
+    }else{
+        log_info(logger, "Memoria ya conocida");
+    }
 }
 
 void mostrarMemoriasConocidasAlMomento(t_list* memoriasConocidas, pthread_mutex_t semaforoMemoriasConocidas){
@@ -347,8 +360,14 @@ void mostrarMemoriasConocidasAlMomento(t_list* memoriasConocidas, pthread_mutex_
 
 }
 
-void pedirListaDeGossiping(t_list* memoriasConocidas, pthread_mutex_t semaforoMemoriasConocidas){
-
+void pedirListaDeGossiping(t_list* nodosMemoria){
+    void enviarPedidoListaGossiping(void* elemento){
+        if (elemento != NULL){
+            nodoMemoria* unNodo = (nodoMemoria*)elemento;
+            enviarPaquete(unNodo->fdNodoMemoria, GOSSIPING,REQUEST ,"DAME_LISTA_GOSSIPING");
+        }
+    }
+    list_iterate(nodosMemoria, enviarPedidoListaGossiping);
 }
 void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** puertoSeeds, t_log* logger, t_memoria* memoria, pthread_mutex_t semaforoMemoriasConocidas){
     int i = 0;
@@ -382,8 +401,13 @@ void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** 
             if (fdNodoMemoria != NULL && fdNodoMemoria >0){
                 log_info(logger, "Nueva conexion establecida con la memoria %s:%s", ipSeeds[i], puertoSeeds[i]);
 
+                nodoMemoria* unNodoMemoria = (nodoMemoria*)malloc(sizeof(nodoMemoria));
+                unNodoMemoria->fdNodoMemoria = fdNodoMemoria;
+                unNodoMemoria->ipNodoMemoria = ipSeeds[i];
+                unNodoMemoria->puertoNodoMemoria = atoi(puertoSeeds[i]);
+                list_add(memoria->nodosMemoria, unNodoMemoria);
                 agregarIpMemoria(ipSeeds[i], puertoSeeds[i], memoriasConocidas, logger);
-                enviarPaquete(fdNodoMemoria, GOSSIPING,REQUEST ,"DAME_LISTA_GOSSIPING");
+                enviarPaquete(fdNodoMemoria, GOSSIPING, REQUEST,"DAME_LISTA_GOSSIPING");
             }
         }
         pthread_mutex_unlock(&semaforoMemoriasConocidas);
@@ -402,7 +426,9 @@ void gossiping(parametros_gossiping* parametros){
         sleep(15);
         //sleep(configuracion.retardoGossiping);
         gestionarGossiping(misConexiones, configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria, semaforoMemoriasConocidas);
-        //pedirListaDeGossiping(memoria->memoriasConocidas, semaforoMemoriasConocidas);
+
+        sleep(5);
+        pedirListaDeGossiping(memoria->nodosMemoria);
         mostrarMemoriasConocidasAlMomento(memoria->memoriasConocidas, semaforoMemoriasConocidas);
         //Avisar a Kernel sobre las memorias que conozco
 
@@ -699,7 +725,7 @@ int getCantidadCaracteresByPeso(int pesoString) {
 
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
-	t_configuracion configuracion = cargarConfiguracion("memoria4.cfg", logger);
+	t_configuracion configuracion = cargarConfiguracion("memoria3.cfg", logger);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
     t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};

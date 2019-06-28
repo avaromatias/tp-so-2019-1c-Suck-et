@@ -77,6 +77,7 @@ struct t_memoria_d {
     t_dictionary* tablaDeSegmentos;
     t_marco* tablaDeMarcos;
     t_list* memoriasConocidas;
+    t_list* nodosMemoria;
     t_control_memoria control;
 };
 
@@ -151,6 +152,12 @@ typedef struct {
     t_configuracion archivoDeConfiguracion;
     pthread_mutex_t semaforoMemoriasConocidas;
 }parametros_gossiping;
+
+typedef struct {
+    char* ipNodoMemoria;
+    int puertoNodoMemoria;
+    int fdNodoMemoria;
+}nodoMemoria;
 
 //void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros);
 #endif /* MEMORIA_H_ */

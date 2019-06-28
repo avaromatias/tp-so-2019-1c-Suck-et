@@ -131,7 +131,7 @@ char* concatenarMemoriasConocidas(t_list* memoriasConocidas){
 
     void _concatenarString(void* elemento){
         if (elemento != NULL){
-            string_append(&respuesta, string_duplicate((char*) elemento));
+            string_append(&respuesta, (char*) elemento);
             string_append(&respuesta, ";");
         }
     }
@@ -159,7 +159,7 @@ void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas
 void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros){
     t_memoria* memoria = (t_memoria*)parametros->memoria;
     pthread_mutex_t semaforoMemoriasConocidas = (pthread_mutex_t)parametros->semaforoMemoriasConocidas;
-
+    char* memoriasConocidasConcatenadas = string_new();
     t_list* memoriasConocidas = (t_list*)memoria->memoriasConocidas;
 
     pthread_mutex_lock(&semaforoMemoriasConocidas);
@@ -167,13 +167,13 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
         if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
             printf("Recibi un pedido de mi lista de gossiping\n");
 
-            char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
+            memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
 
             if (memoriasConocidasConcatenadas != NULL){
                 printf("Todas las memorias conocidas concatenadas: %s\n", memoriasConocidasConcatenadas);
-                enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING,RESPUESTA, memoriasConocidasConcatenadas);
+                enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA, memoriasConocidasConcatenadas);
             } else{
-                enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING,RESPUESTA, "LISTA_VACIA");
+                enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA, "LISTA_VACIA");
             }
 
         }
@@ -184,13 +184,15 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
                 printf("Recibi %s como respuesta al gossiping\n", mensaje);
                 agregarMemoriasRecibidas(mensaje, memoriasConocidas);
             } else{
-                //loggeo que estaba vacia
+                printf("Recibi lista vacia\n");
             }
         }
 
 
     }
+    memoriasConocidasConcatenadas = "";
     pthread_mutex_unlock(&semaforoMemoriasConocidas);
+
     //free(memoriasConocidas);
     //free(memoria);
 

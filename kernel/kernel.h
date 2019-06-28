@@ -71,7 +71,7 @@ t_configuracion cargarConfiguracion(char *, t_log *);
 
 int gestionarRequest(t_comando requestParseada, p_consola_kernel *parametros);
 
-void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion);
+void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion, parametros_plp *parametrosPLP);
 
 bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros);
 
@@ -107,6 +107,8 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio);
 char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
 
 // ***** PLANIFICADORES *****
+bool encolarDirectoNuevoPedido(t_comando requestParseada);
+
 pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros);
 
 void *sincronizacionPLP(void* parametrosPLP);

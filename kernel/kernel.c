@@ -13,8 +13,8 @@ int main(void) {
     t_log *logger = log_create("../kernel.log", "kernel", true, LOG_LEVEL_INFO);
     log_info(logger, "Iniciando el proceso Kernel");
 
-    sem_t *mutexColaDeNew = (sem_t*) malloc(sizeof(sem_t));
-    sem_t *mutexColaDeReady = (sem_t*) malloc(sizeof(sem_t));
+    sem_t *mutexColaDeNew = (sem_t *) malloc(sizeof(sem_t));
+    sem_t *mutexColaDeReady = (sem_t *) malloc(sizeof(sem_t));
     sem_init(mutexColaDeNew, 0, 1);
     sem_init(mutexColaDeReady, 0, 1);
 
@@ -59,14 +59,13 @@ int main(void) {
 
     parametrosPLP->colaDeNew = colaDeNew;
     parametrosPLP->colaDeReady = colaDeReady;
-    parametrosPLP->multiprocesamiento = configuracion.multiprocesamiento;
     parametrosPLP->mutexColaDeNew = mutexColaDeNew;
     parametrosPLP->mutexColaDeReady = mutexColaDeReady;
     parametrosPLP->logger = logger;
 
     pthread_t *hiloPlanificadorLargoPlazo = crearHiloPlanificadorLargoPlazo(parametrosPLP);
 
-    ejecutarConsola(parametros, configuracion);
+    ejecutarConsola(parametros, configuracion, parametrosPLP);
 
     //pthread_join(&hiloRespuestas, NULL);
     free(parametros);
@@ -114,9 +113,10 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 }
 
-void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion) {
+void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion, parametros_plp *parametrosPLP) {
     t_comando requestParseada;
-    bool requestEsValida;
+    bool requestEsValida, seEncola;
+    sem_t *semaforo_colaDeNew = parametrosPLP->mutexColaDeNew;
 
     do {
         char *leido = readline("Kernel@suck-ets:~$ ");
@@ -127,12 +127,18 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
         }
         requestParseada = instanciarComando(comandoParseado);
         requestEsValida = analizarRequest(requestParseada, parametros);
-        if (requestEsValida) {//Al ser valida, comenzamos a
-            //Comenzamos la gestión de las colas -
+        if (requestEsValida) {
+            seEncola = encolarDirectoNuevoPedido(requestParseada);//Al ser valida, comenzamos a
+            if (seEncola) {
+                sem_wait(parametrosPLP->mutexColaDeNew);
+                //queue_push(parametrosPLP->colaDeNew, requestParseada); //ver que encolamos!
+                sem_post(parametrosPLP->mutexColaDeNew);
+            } else {
+                gestionarRequest(requestParseada, parametros);
+            }
         } else {
             log_info(parametros->logger, "No se pudo procesar la request solicitada.\n");
         }
-
         //free(leido);
         //free(comandoParseado);
     } while (requestParseada.tipoRequest != EXIT);
@@ -140,7 +146,6 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
 }
 
 bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
-
     t_log *logger = parametros->logger;
 
     if (requestParseada.tipoRequest == INVALIDO) {
@@ -225,7 +230,7 @@ bool validarComandosKernel(t_comando comando, t_log *logger) {
     if (!esValido)
         //log_warning(logger, "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.");
 
-    return esValido;
+        return esValido;
 }
 
 bool esComandoValidoDeKernel(t_comando comando) {
@@ -270,7 +275,6 @@ int gestionarRun(char *pathArchivo, p_consola_kernel *parametros) {
         //Asignamos la linea al primer elemento de la cola de request
         queue_push(archivoLQL.colaDeRequests, linea);
         lineaLeida++;
-        archivoLQL.cantidadDeLineas++;
     }
     administrarRequestsLQL(archivoLQL, parametros);
     fclose(archivo);
@@ -280,7 +284,8 @@ void *administrarRequestsLQL(t_archivoLQL archivoLQL, p_consola_kernel *parametr
     t_comando requestParseada;
     int contadorDeRequest = 0;
     do {
-        char *unaRequest = queue_pop(archivoLQL.colaDeRequests); //primer elemento de la lista de request, es una request
+        char *unaRequest = queue_pop(
+                archivoLQL.colaDeRequests); //primer elemento de la lista de request, es una request
         if (strcmp(unaRequest, " ") != 0) {
             char **comandoParseado = parser(unaRequest); //cada request, es un conjunto de palabras
             requestParseada = instanciarComando(comandoParseado);
@@ -441,7 +446,7 @@ pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros) {
 
 void *sincronizacionPLP(void *parametrosPLP) {
     //Haciendo como ahora, estaría modificando las cosas dentro de la funcion, deberia ser asi?
-    parametros_plp *parametros_PLP = (parametros_plp*) parametrosPLP;
+    parametros_plp *parametros_PLP = (parametros_plp *) parametrosPLP;
     sem_t *semaforo_colaDeNew = parametros_PLP->mutexColaDeNew;
     sem_t *semaforo_colaDeReady = parametros_PLP->mutexColaDeReady;
     //sem_t *gradoMultiprocesamiento = (sem_t *) parametros_PLP->multiprocesamiento;//preguntar a Dami multiprg
@@ -456,5 +461,23 @@ void *sincronizacionPLP(void *parametrosPLP) {
             queue_push(parametros_PLP->colaDeReady, unLQL);
             sem_post(semaforo_colaDeReady);
         }
+    }
+}
+
+bool encolarDirectoNuevoPedido(t_comando requestParseada) {
+    switch (requestParseada.tipoRequest) {
+        case SELECT:
+        case CREATE:
+        case INSERT:
+        case DROP:
+            return true;
+        case DESCRIBE:
+            if ((requestParseada.parametros[0]) != NULL) return true;
+            else return false;
+        case ADD:
+        case RUN:
+        case METRICS:
+        case JOURNAL:
+            return false;
     }
 }

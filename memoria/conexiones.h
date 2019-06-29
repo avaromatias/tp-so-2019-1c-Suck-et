@@ -56,7 +56,7 @@ void conectarseALissandra(t_control_conexion* conexionLissandra, char* ipLissand
 //Gossiping
 void enviarRespuestaGossiping(t_list* memoriasConocidas, int fdRemitente);
 char* concatenarMemoriasConocidas(t_list* memoriasConocidas);
-void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas);
+void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas, t_log* logger);
 
 
 #endif //MEMORIA_CONEXIONES_H

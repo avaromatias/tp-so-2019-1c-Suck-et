@@ -347,7 +347,7 @@ void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memo
 }
 
 void mostrarMemoriasConocidasAlMomento(t_list* memoriasConocidas, pthread_mutex_t semaforoMemoriasConocidas){
-    pthread_mutex_lock(&semaforoMemoriasConocidas);
+    //pthread_mutex_lock(&semaforoMemoriasConocidas);
     void _mostrarPorPantalla(void* elemento){
         if (elemento != NULL){
             printf("Conozco a la memoria: %s\n", (char*) elemento);
@@ -356,7 +356,7 @@ void mostrarMemoriasConocidasAlMomento(t_list* memoriasConocidas, pthread_mutex_
     if (!list_is_empty(memoriasConocidas)){
         list_iterate(memoriasConocidas, _mostrarPorPantalla);
     }
-    pthread_mutex_unlock(&semaforoMemoriasConocidas);
+    //pthread_mutex_unlock(&semaforoMemoriasConocidas);
 
 }
 
@@ -430,8 +430,10 @@ void gossiping(parametros_gossiping* parametros){
         gestionarGossiping(misConexiones, configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria, semaforoMemoriasConocidas);
 
         sleep(5);
+        pthread_mutex_lock(&semaforoMemoriasConocidas);
         intercambiarListaGossiping(memoria->nodosMemoria, memoria->memoriasConocidas);
         mostrarMemoriasConocidasAlMomento(memoria->memoriasConocidas, semaforoMemoriasConocidas);
+        pthread_mutex_unlock(&semaforoMemoriasConocidas);
         //Avisar a Kernel sobre las memorias que conozco
 
 
@@ -727,7 +729,7 @@ int getCantidadCaracteresByPeso(int pesoString) {
 
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
-	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
+	t_configuracion configuracion = cargarConfiguracion("memoria1.cfg", logger);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
     t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};

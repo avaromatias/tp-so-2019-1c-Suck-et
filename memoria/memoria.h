@@ -76,6 +76,8 @@ struct t_memoria_d {
     int marcosOcupados;
     t_dictionary* tablaDeSegmentos;
     t_marco* tablaDeMarcos;
+    t_list* memoriasConocidas;
+    t_list* nodosMemoria;
     t_control_memoria control;
 };
 
@@ -126,7 +128,15 @@ typedef  struct {
     char* nombreTabla;
     t_control_conexion* conexionLissandra;
     t_log* logger;
-} parametros_journal;
+
+}parametros_journal;
+typedef struct {
+    t_memoria* memoria;
+    struct t_control_conexion* conexionLissandra;
+    t_log* logger;
+    int retardo;
+} parametros_hilo_journal;
+
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
 void vaciarMemoria(t_memoria* memoria, t_log* logger);
@@ -134,9 +144,19 @@ pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexio
 int getCantidadCaracteresByPeso(int pesoString);
 
 //gossiping
-typedef struct {
-    char* ipSeed;
-    char* puertoSeed;
-}t_nodo_memoria;
 
+typedef struct {
+    t_log* logger;
+    t_memoria* memoria;
+    GestorConexiones* misConexiones;
+    t_configuracion archivoDeConfiguracion;
+    pthread_mutex_t semaforoMemoriasConocidas;
+}parametros_gossiping;
+
+typedef struct {
+    char* ipNodoMemoria;
+    int puertoNodoMemoria;
+    int fdNodoMemoria;
+}nodoMemoria;
+void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_log* logger);
 #endif /* MEMORIA_H_ */

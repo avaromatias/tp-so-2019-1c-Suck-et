@@ -4,7 +4,7 @@
 
 #include "conexiones.h"
 
-pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger)    {
+pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t semaforoMemoriasConocidas)    {
 
     /*int value;
     sem_getvalue(kernelConectado, &value);
@@ -19,6 +19,7 @@ pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria
     parametros->conexionKernel = conexionKernel;
     parametros->conexionLissandra = conexionLissandra;
     parametros->memoria = memoria;
+    parametros->semaforoMemoriasConocidas = semaforoMemoriasConocidas;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -76,6 +77,12 @@ void* atenderConexiones(void* parametrosThread)    {
                                     case REQUEST: ;
                                         atenderMensajes(header, mensaje, parametros);
                                         break;
+                                    case GOSSIPING: ;
+                                        atenderPedidoMemoria(header, mensaje, parametros);
+                                        break;
+                                    case RESPUESTA_GOSSIPING: ;
+                                        atenderPedidoMemoria(header, mensaje, parametros);
+                                        break;
                                 }
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
@@ -113,8 +120,83 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
         }
     }
     else if(componente == MEMORIA)  {
-        //
+        //enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, NULL);
     }
+}
+
+char* concatenarMemoriasConocidas(t_list* memoriasConocidas){
+    char* respuesta = string_new();
+
+    //t_nodoMemoria* nodoMemoriaAuxiliar = malloc(sizeof(t_nodoMemoria));
+
+    void _concatenarString(void* elemento){
+        if (elemento != NULL){
+            string_append(&respuesta, (char*) elemento);
+            string_append(&respuesta, ";");
+        }
+    }
+    if (!list_is_empty(memoriasConocidas)){
+        list_iterate(memoriasConocidas, _concatenarString);
+    }
+
+
+    return respuesta;
+}
+
+void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas, t_log* logger){
+    char** memorias = string_split(memoriasRecibidas, ";");
+    int i = 0;
+    while (memorias[i] != NULL){
+        char** unaIpSpliteada = string_split(memorias[i], ":");
+
+        agregarIpMemoria(unaIpSpliteada[0], unaIpSpliteada[1], memoriasConocidas, logger);
+        i++;
+    }
+
+
+}
+
+void enviarRespuestaGossiping(t_list* memoriasConocidas, int fdRemitente){
+    char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
+
+    if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
+        printf("Todas las memorias conocidas concatenadas: %s\n", memoriasConocidasConcatenadas);
+        enviarPaquete(fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA, memoriasConocidasConcatenadas);
+    } else{
+        printf("Mi lista estaba vacia\n");
+        enviarPaquete(fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA, "LISTA_VACIA");
+    }
+}
+void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros){
+    t_memoria* memoria = (t_memoria*)parametros->memoria;
+    pthread_mutex_t semaforoMemoriasConocidas = (pthread_mutex_t)parametros->semaforoMemoriasConocidas;
+    t_list* memoriasConocidas = (t_list*)memoria->memoriasConocidas;
+    t_log* logger = parametros->logger;
+
+    pthread_mutex_lock(&semaforoMemoriasConocidas);
+    if (header.tipoMensaje == GOSSIPING){
+        if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
+            printf("Recibi un pedido de mi lista de gossiping, yo tambien la pido\n");
+            enviarRespuestaGossiping(memoriasConocidas, header.fdRemitente);
+        }
+    }else{
+        //Es la respuesta al pedido
+        if (header.tipoMensaje == RESPUESTA_GOSSIPING){
+            if (strcmp(mensaje, "LISTA_VACIA") != 0){
+                printf("Recibi %s como respuesta al gossiping\n", mensaje);
+                agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
+            } else{
+                printf("Recibi lista vacia\n");
+            }
+        }
+
+
+    }
+    pthread_mutex_unlock(&semaforoMemoriasConocidas);
+
+    //free(memoriasConocidas);
+    //free(memoria);
+
 }
 
 void* atenderRequestKernel(void* parametrosRequest)    {
@@ -186,7 +268,7 @@ void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* pa
 
 t_paquete recibirMensajeDeLissandra(t_control_conexion *conexion)    {
     Header header;
-    sem_wait(conexion->semaforo);
+    //sem_wait(conexion->semaforo);
     t_paquete paquete;
     int bytesRecibidos = recv(conexion->fd, &header, sizeof(Header), MSG_WAITALL);
     if(bytesRecibidos == 0) {
@@ -204,7 +286,7 @@ t_paquete recibirMensajeDeLissandra(t_control_conexion *conexion)    {
             paquete.mensaje = NULL;
         }
         else    {
-            sem_post(conexion->semaforo);
+            //sem_post(conexion->semaforo);
             paquete.mensaje = respuesta;
         }
     }
@@ -224,16 +306,17 @@ void conectarseALissandra(t_control_conexion* conexionLissandra, char* ipLissand
     }
 }
 
-void conectarseANodoMemoria(char* unaIp, int unPuerto, t_log* logger){
+bool conectarseANodoMemoria(char* unaIp, char* unPuerto, t_log* logger){
     log_info(logger, "Intentando conectarse a una memoria seed...");
-    int fdNodoMemoria = crearSocketCliente(unaIp, unPuerto, logger);
+    int fdNodoMemoria = crearSocketCliente(unaIp, atoi(unPuerto), logger);
     if(fdNodoMemoria< 0) {
-        char* mensajeError = string_from_format("Hubo un error al intentar conectarse a la memoria con ip %s y puerto %i . Cerrando el proceso...", unaIp, unPuerto);
+        char* mensajeError = string_from_format("Hubo un error al intentar conectarse a la memoria con ip %s y puerto %s . Cerrando el proceso...", unaIp, unPuerto);
         log_error(logger, mensajeError);
-        exit(-1);
+        return NULL;
     }
     else{
-        char* mensajeInfo = string_from_format("Conexion establecida con memoria con ip %s y puerto %i", unaIp, unPuerto);
+        char* mensajeInfo = string_from_format("Conexion establecida con memoria con ip %s y puerto %s", unaIp, unPuerto);
         log_info(logger, mensajeInfo);
+        return fdNodoMemoria;
     }
 }

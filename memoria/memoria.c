@@ -74,6 +74,8 @@ t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamani
     log_info(logger, "Tamaño de página: %i", memoriaPrincipal->tamanioPagina);
     memoriaPrincipal->cantidadTotalMarcos = cantidadTotalMarcosMemoria(*memoriaPrincipal);
     log_info(logger, "Cantidad total de marcos: %i", memoriaPrincipal->cantidadTotalMarcos);
+    memoriaPrincipal->memoriasConocidas = list_create();
+    memoriaPrincipal->nodosMemoria = list_create();
 
     inicializarTablaDeMarcos(memoriaPrincipal);
     return memoriaPrincipal;
@@ -162,7 +164,6 @@ void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, cha
 
     char* request =string_from_format("INSERT %s %s \"%s\" %s", parametrosJournal->nombreTabla, key, value, timestamp);
     string_trim(&request);
-    printf("Request a enviar a lissandra: %s \n", request);
     t_log* logger = parametrosJournal->logger;
 
 
@@ -270,8 +271,6 @@ void* ejecutarConsola(void* parametrosConsola){
 
     do {
         char* leido = readline("\nMemoria@suck-ets:~$ ");
-//        logearValorDeSemaforo(lissandraConectada, logger, "consola");
-        // TODO modularizar hasta el printf
         char** comandoParseado = parser(leido);
         if(comandoParseado == NULL)
             continue;
@@ -280,11 +279,10 @@ void* ejecutarConsola(void* parametrosConsola){
         if(validarComandosComunes(comando, logger))
             printf("%s", gestionarRequest(comando, memoria, conexionLissandra, logger).mensaje);
     } while(comando.tipoRequest != EXIT);
-    printf("Ya analizamos todo lo solicitado.\n");
+    log_info(logger, "Ya analizamos todo los solicitado");
 }
 
 pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra){
-    //sem_wait(lissandraConectada);
 
     pthread_t* hiloConsola = malloc(sizeof(pthread_t));
     parametros_consola_memoria* parametros = (parametros_consola_memoria*) malloc(sizeof(parametros_consola_memoria));
@@ -297,33 +295,163 @@ pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexio
     return hiloConsola;
 }
 
-pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal){
-    /*while (1){
+void journaling(parametros_hilo_journal* parametros){
+
+    t_memoria* memoria = parametros->memoria;
+    t_log* logger = parametros->logger;
+    t_control_conexion* conexionLissandra = parametros->conexionLissandra;
+    int retardoJournal = parametros->retardo;
+
+    while (1){
         sleep(retardoJournal);
-        gestionarJournal(conexixonLissandra, memoria, logger);
-        printf("Se gestionó el journal\n");
+        gestionarJournal(conexionLissandra , memoria, logger);
+        log_info(logger, "Ha finalizado el Journal\n");
         fflush(stdout);
-    }*/
+    }
+}
+pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, int retardoJournal){
+    pthread_t* hiloJournal = malloc(sizeof(pthread_t));
+
+    parametros_hilo_journal* parametros = (parametros_hilo_journal*) malloc(sizeof(parametros_hilo_journal));
+
+    parametros->logger = logger;
+    parametros->memoria = memoria;
+    parametros->conexionLissandra = conexionLissandra;
+    //retardo Journal
+    parametros->retardo = retardoJournal;
+
+    pthread_create(hiloJournal, NULL, &journaling, parametros);
+    return hiloJournal;
+}
+void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_log* logger){
+    char* ipAAgregar= string_new();
+    //Agregar direccion ip:puerto de memoria conocida a la lista
+    string_append(&ipAAgregar, ipMemoriaSeed);
+    string_append(&ipAAgregar, ":");
+    string_append(&ipAAgregar, puertoMemoriaSeed);
+    char* ipNuevaMemoria = string_duplicate(ipAAgregar);
+
+    bool _sonMismoString(void* elemento){
+        if (elemento != NULL){
+            return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
+        }else{
+            return false;
+        }
+    }
+    if (!list_any_satisfy(memoriasConocidas, _sonMismoString)){
+        list_add(memoriasConocidas, ipNuevaMemoria);
+        log_info(logger, "Nueva memoria agregada a lista de memorias conocidas");
+    }else{
+        log_info(logger, "Memoria ya conocida");
+    }
 }
 
-void gestionarGossiping(char** ipSeeds, char** puertoSeeds, t_log* logger){
+void mostrarMemoriasConocidasAlMomento(t_list* memoriasConocidas, pthread_mutex_t semaforoMemoriasConocidas){
+    //pthread_mutex_lock(&semaforoMemoriasConocidas);
+    void _mostrarPorPantalla(void* elemento){
+        if (elemento != NULL){
+            printf("Conozco a la memoria: %s\n", (char*) elemento);
+        }
+    }
+    if (!list_is_empty(memoriasConocidas)){
+        list_iterate(memoriasConocidas, _mostrarPorPantalla);
+    }
+    //pthread_mutex_unlock(&semaforoMemoriasConocidas);
+
+}
+
+void intercambiarListaGossiping(t_list* nodosMemoria, t_list* memoriasConocidas){
+    void enviarPedidoListaGossiping(void* elemento){
+        if (elemento != NULL){
+            nodoMemoria* unNodo = (nodoMemoria*)elemento;
+            enviarPaquete(unNodo->fdNodoMemoria, GOSSIPING,REQUEST ,"DAME_LISTA_GOSSIPING");
+            enviarRespuestaGossiping(memoriasConocidas, unNodo->fdNodoMemoria);
+        }
+    }
+    list_iterate(nodosMemoria, enviarPedidoListaGossiping);
+}
+
+void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** puertoSeeds, t_log* logger, t_memoria* memoria, pthread_mutex_t semaforoMemoriasConocidas){
     int i = 0;
+    int fdNodoMemoria;
+    t_list* memoriasConocidas = (t_list*) memoria->memoriasConocidas;
+
     while (ipSeeds[i] != NULL && puertoSeeds[i] != NULL){
-        conectarseANodoMemoria(ipSeeds[i], puertoSeeds[i], logger);
+
+        char* ipNuevaMemoria = string_new();
+
+
+        //Agregar direccion ip:puerto de memoria conocida a la lista
+        string_append(&ipNuevaMemoria, ipSeeds[i]);
+        string_append(&ipNuevaMemoria, ":");
+        string_append(&ipNuevaMemoria, puertoSeeds[i]);
+        //Si el valor que voy a agregar ya pertenece a la lista
+
+        //Inner function JAPISHH
+        bool _sonMismoString(void* elemento){
+            if (elemento != NULL){
+                return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
+            }else{
+                return false;
+            }
+
+        }
+
+        pthread_mutex_lock(&semaforoMemoriasConocidas);
+        if(!list_any_satisfy(memoriasConocidas, _sonMismoString)){
+            fdNodoMemoria = conectarseAServidor(ipSeeds[i], atoi(puertoSeeds[i]), misConexiones, logger );
+            if (fdNodoMemoria != NULL && fdNodoMemoria >0){
+                log_info(logger, "Nueva conexion establecida con la memoria %s:%s", ipSeeds[i], puertoSeeds[i]);
+
+                nodoMemoria* unNodoMemoria = (nodoMemoria*)malloc(sizeof(nodoMemoria));
+                unNodoMemoria->fdNodoMemoria = fdNodoMemoria;
+                unNodoMemoria->ipNodoMemoria = ipSeeds[i];
+                unNodoMemoria->puertoNodoMemoria = atoi(puertoSeeds[i]);
+                list_add(memoria->nodosMemoria, unNodoMemoria);
+                agregarIpMemoria(ipSeeds[i], puertoSeeds[i], memoriasConocidas, logger);
+
+            }
+        }
+        pthread_mutex_unlock(&semaforoMemoriasConocidas);
+        i++;
     }
 
 }
-pthread_t * crearHiloGossiping(t_memoria* memoria, t_log* logger, t_configuracion configuracion){
-/*    while (1){
-        sleep(configuracion.retardoGossiping);
-        //definir una estructura tabla de gossiping para enviarle a kernel
-        //intentar conectarme a la primer ip_seed-puerto_seed
-        //si tengo exito agregarlo a la estructura
-        //si todavia tengo ip_seed-puerto_seed intentar conectarme
-        //si no enviar resultado a kernel
-        gestionarGossiping(configuracion.ipSeeds, configuracion.puertoSeeds, logger);
+void gossiping(parametros_gossiping* parametros){
+
+    t_memoria* memoria = (t_memoria*) parametros->memoria;
+    t_log* logger = (t_log*)parametros->logger;
+    t_configuracion configuracion = (t_configuracion) parametros->archivoDeConfiguracion;
+    GestorConexiones* misConexiones = (GestorConexiones*) parametros->misConexiones;
+    pthread_mutex_t semaforoMemoriasConocidas = parametros->semaforoMemoriasConocidas;
+    while (1){
+        sleep(15);
+        //sleep(configuracion.retardoGossiping);
+        gestionarGossiping(misConexiones, configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria, semaforoMemoriasConocidas);
+
+        sleep(5);
+        pthread_mutex_lock(&semaforoMemoriasConocidas);
+        intercambiarListaGossiping(memoria->nodosMemoria, memoria->memoriasConocidas);
+        mostrarMemoriasConocidasAlMomento(memoria->memoriasConocidas, semaforoMemoriasConocidas);
+        pthread_mutex_unlock(&semaforoMemoriasConocidas);
+        //Avisar a Kernel sobre las memorias que conozco
+
+
     }
-*/
+}
+pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t semaforoMemoriasConocidas){
+    pthread_t* hiloGossiping = malloc(sizeof(pthread_t));
+    parametros_gossiping* parametros = (parametros_gossiping*) malloc(sizeof(parametros_gossiping));
+
+    parametros->logger = logger;
+    parametros->memoria = memoria;
+    parametros->misConexiones = misConexiones;
+    parametros->archivoDeConfiguracion = configuracion;
+    parametros->semaforoMemoriasConocidas = semaforoMemoriasConocidas;
+
+    pthread_create(hiloGossiping, NULL, &gossiping, parametros);
+    return hiloGossiping;
+
 }
 char* formatearPagina(char* key, char* value, char* timestamp)   {
     long tiempo;
@@ -371,7 +499,6 @@ t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dic
 t_pagina* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria, bool recibiTimestamp) {
     t_pagina* nuevaPagina = crearPagina(key, memoria);
     if (recibiTimestamp){
-        printf("Es un select a lissandra, entonces no es una pagina modificada");
         fflush(stdout);
         nuevaPagina->modificada = false;
     }
@@ -602,7 +729,7 @@ int getCantidadCaracteresByPeso(int pesoString) {
 
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
-	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
+	t_configuracion configuracion = cargarConfiguracion("memoria1.cfg", logger);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
     t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};
@@ -610,20 +737,52 @@ int main(void) {
     sem_init(conexionKernel.semaforo, 0, 0);
     sem_init(conexionLissandra.semaforo, 0, 0);
 
+    pthread_mutex_t semaforoMemoriasConocidas;
+    pthread_mutex_init(&semaforoMemoriasConocidas, NULL);
+
 	conectarseALissandra(&conexionLissandra, configuracion.ipFileSystem, configuracion.puertoFileSystem, logger);
 	int tamanioValue = getTamanioValue(&conexionLissandra, logger);
     t_memoria* memoriaPrincipal = inicializarMemoriaPrincipal(configuracion, tamanioValue, logger);
 	GestorConexiones* misConexiones = inicializarConexion();
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
-    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger);
-    pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra);
-    pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal);
-    pthread_t* hiloGossiping = crearHiloGossiping(memoriaPrincipal, logger, configuracion);
+    //TODO Agregar "mi ip" al archivo de configuracion para que memorias tenga su propia ip en su lista de gossiping
+    agregarIpMemoria(configuracion.ipFileSystem, string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
 
+    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas);
+    pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra);
+    //pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal);
+    pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas);
+    t_comando comando;
+
+    while(1){
+		sem_wait(conexionKernel.semaforo);
+		/*if(conexionKernel.fd > 0)	{
+			//t_paquete request = recibirMensaje(&conexionKernel);
+//			logearValorDeSemaforo(&lissandraConectada, logger, "kernel");
+			if(request.mensaje == NULL)
+				continue;
+			else    {
+                char** comandoParseado = parser(request.mensaje);
+                free(request.mensaje);
+                if (comandoParseado == NULL)
+                    continue;
+                comando = instanciarComando(comandoParseado);
+                free(comandoParseado);
+                t_paquete respuesta = gestionarRequest(comando, memoriaPrincipal, &conexionLissandra, logger);
+                if(respuesta == NULL)   {
+                    log_error(logger, "Se desconectó Lissandra. Finalizando el proceso.");
+                    exit(-1);
+                }
+                if(conexionKernel.fd > 0)
+                    enviarPaquete(conexionKernel.fd, REQUEST, respuesta);
+                    sem_post(conexionKernel.semaforo);
+			}
+		}*/
+    }
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
-    pthread_join(*hiloJournal, NULL);
+//    pthread_join(*hiloJournal, NULL);
     pthread_join(*hiloGossiping, NULL);
 
 	return 0;

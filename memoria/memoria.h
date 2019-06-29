@@ -158,6 +158,5 @@ typedef struct {
     int puertoNodoMemoria;
     int fdNodoMemoria;
 }nodoMemoria;
-
-//void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros);
+void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_log* logger);
 #endif /* MEMORIA_H_ */

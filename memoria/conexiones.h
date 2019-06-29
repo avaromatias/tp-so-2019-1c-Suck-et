@@ -47,10 +47,16 @@ pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria
 
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros);
 void atenderHandshake(Header header, Componente componente, parametros_thread_memoria* parametros);
+void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros);
 
 t_paquete recibirMensajeDeLissandra(t_control_conexion *conexion);
 
 void conectarseALissandra(t_control_conexion* conexionLissandra, char* ipLissandra, int puertoLissandra, t_log* logger);
-bool conectarseANodoMemoria(char* unaIp, char* unPuerto, t_log* logger);
+
+//Gossiping
+void enviarRespuestaGossiping(t_list* memoriasConocidas, int fdRemitente);
+char* concatenarMemoriasConocidas(t_list* memoriasConocidas);
+void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas);
+
 
 #endif //MEMORIA_CONEXIONES_H

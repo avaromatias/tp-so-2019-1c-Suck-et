@@ -128,10 +128,11 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
         requestParseada = instanciarComando(comandoParseado);
         requestEsValida = analizarRequest(requestParseada, parametros);
         if (requestEsValida) {
-            seEncola = encolarDirectoNuevoPedido(requestParseada);//Al ser valida, comenzamos a
+            seEncola = encolarDirectoNuevoPedido(requestParseada);//Al ser valida, comenzamos a encolar
             if (seEncola) {
+                t_archivoLQL *unLQL = convertirRequestALQL(requestParseada);
                 sem_wait(parametrosPLP->mutexColaDeNew);
-                //queue_push(parametrosPLP->colaDeNew, requestParseada); //ver que encolamos!
+                queue_push(parametrosPLP->colaDeNew, unLQL); //ver que encolamos!
                 sem_post(parametrosPLP->mutexColaDeNew);
             } else {
                 gestionarRequest(requestParseada, parametros);
@@ -276,6 +277,7 @@ int gestionarRun(char *pathArchivo, p_consola_kernel *parametros) {
         queue_push(archivoLQL.colaDeRequests, linea);
         lineaLeida++;
     }
+    archivoLQL.cantidadDeLineas = queue_size(archivoLQL.colaDeRequests);
     administrarRequestsLQL(archivoLQL, parametros);
     fclose(archivo);
 }
@@ -454,7 +456,7 @@ void *sincronizacionPLP(void *parametrosPLP) {
     while (1) {
         if (queue_is_empty(parametros_PLP->colaDeNew)) {
             //sem_wait(gradoMultiprocesamiento);
-            sem_wait(semaforo_colaDeNew);
+            sem_wait(semaforo_colaDeNew);//
             t_archivoLQL *unLQL = queue_pop(parametros_PLP->colaDeNew);
             sem_post(semaforo_colaDeNew);
             sem_wait(semaforo_colaDeReady);
@@ -480,4 +482,25 @@ bool encolarDirectoNuevoPedido(t_comando requestParseada) {
         case JOURNAL:
             return false;
     }
+}
+
+t_archivoLQL* convertirRequestALQL(t_comando requestParseada){
+    t_archivoLQL *unLQL = (t_archivoLQL*) malloc(sizeof(t_archivoLQL));
+    char *requestDelLQL = string_new();
+
+    switch(requestParseada.tipoRequest){
+        case SELECT: string_append(&requestDelLQL,"SELECT");
+        case INSERT: string_append(&requestDelLQL,"INSERT");
+        case CREATE: string_append(&requestDelLQL,"CREATE");
+        case DROP: string_append(&requestDelLQL,"DROP");
+        case DESCRIBE: string_append(&requestDelLQL,"DESCRIBE");
+    }
+    for (int i = 0; i < requestParseada.cantidadParametros ; ++i) {
+        string_append(&requestDelLQL, requestParseada.parametros[i]);
+    }
+
+    unLQL->cantidadDeLineas = queue_size(unLQL->colaDeRequests);
+    //queue_push(unLQL->colaDeRequests, &unLQL);
+
+    return unLQL;
 }

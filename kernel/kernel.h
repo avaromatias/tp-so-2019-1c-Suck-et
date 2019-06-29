@@ -37,7 +37,7 @@ typedef struct {
 //Estructura necesaria para el manejo de archivosLQL
 typedef struct {
     t_queue *colaDeRequests;
-    int cantidadDeLineas;//chau, modificar para hacer un queue_size
+    int cantidadDeLineas;
 } t_archivoLQL;
 
 typedef struct {
@@ -108,6 +108,8 @@ char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
 
 // ***** PLANIFICADORES *****
 bool encolarDirectoNuevoPedido(t_comando requestParseada);
+
+t_archivoLQL* convertirRequestALQL(t_comando requestParseada);
 
 pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros);
 

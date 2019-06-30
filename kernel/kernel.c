@@ -127,9 +127,9 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
         }
         requestParseada = instanciarComando(comandoParseado);
         requestEsValida = analizarRequest(requestParseada, parametros);
-        if (requestEsValida) {
+        if (requestEsValida == true) {
             seEncola = encolarDirectoNuevoPedido(requestParseada);//Al ser valida, comenzamos a encolar
-            if (seEncola) {
+            if (seEncola == true) {
                 t_archivoLQL *unLQL = convertirRequestALQL(requestParseada);
                 sem_wait(parametrosPLP->mutexColaDeNew);
                 queue_push(parametrosPLP->colaDeNew, unLQL); //ver que encolamos!
@@ -151,6 +151,7 @@ bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
 
     if (requestParseada.tipoRequest == INVALIDO) {
         printf("Comando inválido.\n");
+        return false;
     } else {
         if (validarComandosComunes(requestParseada, logger) || validarComandosKernel(requestParseada, logger)) {
             return true;
@@ -438,6 +439,8 @@ char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping
     return direccionesDeMemorias;
 }
 
+/****** PLANIFICACIÓN ******/
+
 pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros) {
     pthread_t *hiloPLP = (pthread_t *) malloc(sizeof(pthread_t));
 
@@ -480,6 +483,7 @@ bool encolarDirectoNuevoPedido(t_comando requestParseada) {
         case RUN:
         case METRICS:
         case JOURNAL:
+        case EXIT:
             return false;
     }
 }
@@ -500,7 +504,7 @@ t_archivoLQL* convertirRequestALQL(t_comando requestParseada){
     }
 
     unLQL->cantidadDeLineas = queue_size(unLQL->colaDeRequests);
-    //queue_push(unLQL->colaDeRequests, &unLQL);
+    queue_push(unLQL->colaDeRequests, requestDelLQL);
 
     return unLQL;
 }

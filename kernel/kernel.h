@@ -38,6 +38,9 @@ typedef struct {
 typedef struct {
     t_queue *colaDeRequests;
     int cantidadDeLineas;
+    int cantidadDeSelectProcesados;
+    int cantidadDeInsertProcesados;
+    int cantidadDeCreateProcesados;
 } t_archivoLQL;
 
 typedef struct {
@@ -63,13 +66,21 @@ typedef struct {
     t_log *logger;
 } parametros_plp;
 
-//Para Planificador
+//Estructura necesaria para el PCP
+typedef struct {
+    int *quantum;
+    int *multiprocesamiento;
+    t_queue *colaDeReady;
+    t_queue *colaDeExecute;
+    sem_t *mutexColaDeReady;
+    t_log *logger;
+} parametros_pcp;
 
 // ***** COMPORTAMIENTOS DEL KERNEL *****
 
 t_configuracion cargarConfiguracion(char *, t_log *);
 
-int gestionarRequest(t_comando requestParseada, p_consola_kernel *parametros);
+int gestionarRequest(t_comando requestParseada, p_consola_kernel *parametros, parametros_plp *parametrosPLP);
 
 void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion, parametros_plp *parametrosPLP);
 
@@ -95,9 +106,10 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria);
 
 int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros);
 
-int gestionarRun(char *pathArchivo, p_consola_kernel *parametros);
+int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP);
 
 // ***** MANEJO DE MEMORIAS *****
+
 bool existenMemoriasConectadas(GestorConexiones *misConexiones);
 
 char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas);
@@ -107,6 +119,7 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio);
 char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
 
 // ***** PLANIFICADORES *****
+
 bool encolarDirectoNuevoPedido(t_comando requestParseada);
 
 t_archivoLQL* convertirRequestALQL(t_comando requestParseada);
@@ -114,5 +127,8 @@ t_archivoLQL* convertirRequestALQL(t_comando requestParseada);
 pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros);
 
 void *sincronizacionPLP(void* parametrosPLP);
+
+bool colaEstaVacia(t_queue *colaDeRequests);
+// dentro tiene el queue_is_empty, pero es poco descriptivo. Después se borra esta
 
 #endif /* KERNEL_H_ */

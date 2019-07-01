@@ -68,6 +68,7 @@ typedef struct {
 
 //Estructura necesaria para el PCP
 typedef struct {
+    t_archivoLQL *unLQL;
     int *quantum;
     int *multiprocesamiento;
     t_queue *colaDeReady;
@@ -76,11 +77,19 @@ typedef struct {
     t_log *logger;
 } parametros_pcp;
 
+//Estructura hibrida necesaria para planificacion
+typedef struct {
+    p_consola_kernel *parametrosConsola;
+    parametros_pcp *parametrosPCP;
+} p_planificacion;
+
 // ***** COMPORTAMIENTOS DEL KERNEL *****
 
 t_configuracion cargarConfiguracion(char *, t_log *);
 
-int gestionarRequest(t_comando requestParseada, p_consola_kernel *parametros, parametros_plp *parametrosPLP);
+int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *parametros);
+
+int gestionarRequestKernel(t_comando requestParseada, p_consola_kernel *parametros, parametros_plp *parametrosPLP);
 
 void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion, parametros_plp *parametrosPLP);
 
@@ -130,5 +139,7 @@ void *sincronizacionPLP(void* parametrosPLP);
 
 bool colaEstaVacia(t_queue *colaDeRequests);
 // dentro tiene el queue_is_empty, pero es poco descriptivo. Después se borra esta
+
+void instanciadorPCPs(parametros_pcp *parametrosPCP, p_consola_kernel *parametrosConsola);
 
 #endif /* KERNEL_H_ */

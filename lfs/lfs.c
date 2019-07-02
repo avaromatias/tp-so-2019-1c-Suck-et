@@ -132,7 +132,7 @@ void crearBinarios(char *nombreTabla, int particiones) {
         bloqueA->particion = i;
         int bloque = obtenerBloqueDisponible(nombreTabla, i);
         if (bloque != -1) {
-            dictionary_put(bloquesAsignados, (char *) string_from_format("%i",bloque), bloqueA);
+            dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque), bloqueA);
             char *nombreArchivo = string_itoa(i);
             string_append(&nombreArchivo, ".bin");
             FILE *file = fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "w");
@@ -567,7 +567,8 @@ void compactacion(void *parametrosThread) {
                     lfsInsertCompactacion(nombreTabla, string_duplicate(linea[1]), string_duplicate(linea[2]),
                                           (time_t) strtol(string_duplicate(linea[0]), NULL, 10));
                 }
-                eliminarArchivosTmpcYBin(nombreTabla);
+                eliminarArchivosSegunExtension(nombreTabla, ".tmpc");
+                //eliminarArchivosSegunExtension(nombreTabla, ".bin");
                 t_metadata *meta = dictionary_get(metadatas, nombreTabla);
                 crearBinarios(nombreTabla, meta->partitions);
                 pthread_mutex_unlock(sem);
@@ -576,7 +577,7 @@ void compactacion(void *parametrosThread) {
     }
 }
 
-void eliminarArchivosTmpcYBin(char *nombreTabla) {
+void eliminarArchivosSegunExtension(char *nombreTabla, char *extension) {
     DIR *d;
     struct dirent *dir;
     char **dirPath = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
@@ -589,7 +590,7 @@ void eliminarArchivosTmpcYBin(char *nombreTabla) {
             string_append(&pathArchivo, "/");
             string_append(&pathArchivo, nombreTabla);
             if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
-                if (string_ends_with(dir->d_name, ".tmpc") || string_ends_with(dir->d_name, ".bin")) {
+                if (string_ends_with(dir->d_name, extension)) {
                     if (deleteFile(pathArchivo) != 0) {
                         return 0;
                     }
@@ -630,7 +631,7 @@ char **filtrarKeyMax(char **listaLineas) {
             dictionary_put(keys, key, key);
         }
     }
-    char **lineasSinRepetir = calloc(dictionary_size(keys)+1, sizeof(char *));
+    char **lineasSinRepetir = calloc(dictionary_size(keys) + 1, sizeof(char *));
     void obtenerMaxTimestamp(char *keyD, char *valorD) {
         char *mayorLinea = string_new();
         int mayorTimestamp = -1;
@@ -760,8 +761,8 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
     while (linea[indice] != '\0' && indice < string_length(linea)) {
         pthread_mutex_lock(&mutexAsignacionBloques);
         bloque = obtenerBloqueDisponible(nombreTabla, particion); // Aca creo que esta obteniendo un bloque disponible distinto al que la particion ya tiene asignado
-        if(bloque==-1){
-            log_error(logger,"No hay bloques disponibles.");
+        if (bloque == -1) {
+            log_error(logger, "No hay bloques disponibles.");
         }
         char *bloqueString = string_itoa(bloque);
         free(dictionary_get(bloquesAsignados, bloqueString));
@@ -772,9 +773,8 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
         pthread_mutex_t *semBloque = (pthread_mutex_t *) obtenerSemaforoPath(pathBloque);
         pthread_mutex_lock(semBloque);
         FILE *f = fopen(pathBloque, "a");
-                       int longitudArchivo = obtenerTamanioBloque(bloque);
-        while (longitudArchivo < obtenerTamanioBloques(configuracion.puntoMontaje) &&
-               indice < string_length(linea)) {
+        int longitudArchivo = obtenerTamanioBloque(bloque);
+        while (longitudArchivo < obtenerTamanioBloques(configuracion.puntoMontaje) && indice < string_length(linea)) {
             fputc(linea[indice], f);
             longitudArchivo++;
             indice++;
@@ -896,7 +896,8 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             //6. Obtengo los bloques de los archivos temporales que se están compactando
             char *bloquesTemporalesCompactacion = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
 
-            char **bloques = convertirStringDeBloquesAArray(concat(5, bloquesParticion, ",", bloquesTemporales, ",", bloquesTemporalesCompactacion));
+            char **bloques = convertirStringDeBloquesAArray(
+                    concat(5, bloquesParticion, ",", bloquesTemporales, ",", bloquesTemporalesCompactacion));
             char *mayorLinea = string_duplicate(obtenerLineaMasReciente(bloques, key));
 
             //7. Escaneo la memoria temporal de la tabla
@@ -1377,7 +1378,8 @@ void cargarBloquesAsignados(char *path) {
                     } else {
                         particion = -1;
                     }
-                    char **arrayDeBloques = convertirStringDeBloquesAArray(obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo));
+                    char **arrayDeBloques = convertirStringDeBloquesAArray(
+                            obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo));
                     for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
                         t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
                         bloque->tabla = concat(1, nombreTabla);

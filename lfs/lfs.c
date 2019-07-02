@@ -896,8 +896,11 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             //6. Obtengo los bloques de los archivos temporales que se están compactando
             char *bloquesTemporalesCompactacion = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
 
-            //7. Escaneo la memoria temporal de la tabla TODO: Revisar la memtable primero
-            /*if (dictionary_has_key(memTable, nombreTabla)) {
+            char **bloques = convertirStringDeBloquesAArray(concat(5, bloquesParticion, ",", bloquesTemporales, ",", bloquesTemporalesCompactacion));
+            char *mayorLinea = string_duplicate(obtenerLineaMasReciente(bloques, key));
+
+            //7. Escaneo la memoria temporal de la tabla
+            if (dictionary_has_key(memTable, nombreTabla)) {
                 t_dictionary *tabla = dictionary_get(memTable, nombreTabla);
                 if (dictionary_has_key(tabla, key)) {
                     t_list *listaDeRegistros = (t_list *) dictionary_get(tabla, key);
@@ -907,21 +910,16 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                         char *elemento = list_get(listaOrdenada, (tamanioLista - 1));
                         if (elemento != NULL) {
                             char **lineaPartida = desarmarLinea(elemento);
-                            char *mayorTimestampMem = string_duplicate(lineaPartida[0]);
-                            if (atoi(mayorTimestampMem) > mayorTimestamp) {
-                                mayorTimestamp = atoi(mayorTimestampMem);
-                                valorMayorTimestamp = string_duplicate(lineaPartida[2]);
-                                mayorLinea = string_new();
-                                mayorLinea = concat(1, elemento);
+                            char **lineaPartida2 = desarmarLinea(mayorLinea);
+                            int mayorTimestampMem = atoi(lineaPartida[0]);
+                            int mayorTimestampBlock = atoi(lineaPartida2[0]);
+                            if (mayorTimestampMem > mayorTimestampBlock) {
+                                mayorLinea = elemento;
                             }
                         }
                     }
                 }
-            }*/
-
-            char **bloques = convertirStringDeBloquesAArray(
-                    concat(5, bloquesParticion, ",", bloquesTemporales, ",", bloquesTemporalesCompactacion));
-            char *mayorLinea = string_duplicate(obtenerLineaMasReciente(bloques, key));
+            }
 
             //8. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
             if (strcmp(mayorLinea, "") != 0) {

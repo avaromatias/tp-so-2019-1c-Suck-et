@@ -84,7 +84,7 @@ t_dictionary *archivosAbiertos;
 t_dictionary *tablasEnUso;
 t_dictionary *hilosTablas;
 t_bitarray *bitmap;
-pthread_mutex_t mutexAsignacionBloques;
+pthread_mutex_t* mutexAsignacionBloques;
 
 
 //Header de funciones

@@ -127,13 +127,12 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 void crearBinarios(char *nombreTabla, int particiones) {
     pthread_mutex_lock(&mutexAsignacionBloques);
     for (int i = 0; i < particiones; i++) {
-
+        t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+        bloqueA->tabla = concat(1, nombreTabla);
+        bloqueA->particion = i;
         int bloque = obtenerBloqueDisponible(nombreTabla, i);
         if (bloque != -1) {
-            t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-            bloqueA->tabla = concat(1, nombreTabla);
-            bloqueA->particion = i;
-            dictionary_put(bloquesAsignados, (char *) string_itoa(bloque), bloqueA);
+            dictionary_put(bloquesAsignados, (char *) string_from_format("%i",bloque), bloqueA);
             char *nombreArchivo = string_itoa(i);
             string_append(&nombreArchivo, ".bin");
             FILE *file = fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "w");
@@ -229,6 +228,8 @@ void lfsDump() {
                 nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
                 nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
             }
+            pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
+            pthread_mutex_lock(sem);
             pthread_mutex_t *semArchivo = obtenerSemaforoPath(nombreArchivo);
             void _dumpKey(char *key, t_list *listaDeRegistros) {
                 int index = 0;
@@ -244,9 +245,12 @@ void lfsDump() {
 
             }
             dictionary_iterator(tablaDeKeys, _dumpKey);
+            pthread_mutex_unlock(sem);
         }
         if (!dictionary_is_empty(memTable)) {
+
             dictionary_iterator(memTable, dumpTabla);
+
         }
     }
 }
@@ -558,7 +562,7 @@ void compactacion(void *parametrosThread) {
             if (tamanioDeArrayDeStrings(lineas) > 0) {
                 char **lineasMaximas = filtrarKeyMax(lineas);
                 pthread_mutex_lock(sem);
-                liberarBloques(bloquesTempALiberar);
+                liberarBloques(bloques);
                 for (int j = 0; j < tamanioDeArrayDeStrings(lineasMaximas); j++) {
                     char **linea = desarmarLinea(lineasMaximas[j]);
                     lfsInsertCompactacion(nombreTabla, string_duplicate(linea[1]), string_duplicate(linea[2]),
@@ -644,7 +648,7 @@ char **filtrarKeyMax(char **listaLineas) {
         lineasSinRepetir[tamanioDeArrayDeStrings(lineasSinRepetir)] = string_duplicate(mayorLinea);
     }
     dictionary_iterator(keys, obtenerMaxTimestamp);
-
+    lineasSinRepetir[tamanioDeArrayDeStrings(lineasSinRepetir)] = NULL;
     return lineasSinRepetir;
 }
 
@@ -757,14 +761,16 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
     int indice = 0;
     int bloque;
     while (linea[indice] != '\0' && indice < string_length(linea)) {
+        pthread_mutex_lock(&mutexAsignacionBloques);
         bloque = obtenerBloqueDisponible(nombreTabla, particion); // Aca creo que esta obteniendo un bloque disponible distinto al que la particion ya tiene asignado
+        dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque),
+                       bloqueA); //Tengo mis dudas con respecto a esto: porque el bloque podria ya estar asignado a esa tabla y particion
+        pthread_mutex_unlock(&mutexAsignacionBloques);
         char *pathBloque = obtenerPathBloque(bloque);
         pthread_mutex_t *semBloque = (pthread_mutex_t *) obtenerSemaforoPath(pathBloque);
         pthread_mutex_lock(semBloque);
         FILE *f = fopen(pathBloque, "a");
-        dictionary_put(bloquesAsignados, (char *) string_from_format("%i", bloque),
-                       bloqueA); //Tengo mis dudas con respecto a esto: porque el bloque podria ya estar asignado a esa tabla y particion
-        int longitudArchivo = obtenerTamanioBloque(bloque);
+                       int longitudArchivo = obtenerTamanioBloque(bloque);
         while (longitudArchivo < obtenerTamanioBloques(configuracion.puntoMontaje) &&
                indice < string_length(linea)) {
             fputc(linea[indice], f);

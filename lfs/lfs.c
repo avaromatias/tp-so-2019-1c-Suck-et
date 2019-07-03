@@ -570,7 +570,7 @@ void compactacion(void *parametrosThread) {
                 eliminarArchivosSegunExtension(nombreTabla, ".tmpc");
                 //eliminarArchivosSegunExtension(nombreTabla, ".bin");
                 t_metadata *meta = dictionary_get(metadatas, nombreTabla);
-                crearBinarios(nombreTabla, meta->partitions);
+                //crearBinarios(nombreTabla, meta->partitions);
                 pthread_mutex_unlock(sem);
             }
         }
@@ -758,53 +758,58 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
     // TODO: Insertar en la memoria temporal del punto anterior una nueva entrada que contenga los datos enviados en la request.
     int indice = 0;
     int bloque;
+    char *bloquesDeParticion = string_duplicate("[");
     while (linea[indice] != '\0' && indice < string_length(linea)) {
         pthread_mutex_lock(&mutexAsignacionBloques);
         bloque = obtenerBloqueDisponible(nombreTabla, particion); // Aca creo que esta obteniendo un bloque disponible distinto al que la particion ya tiene asignado
         if (bloque == -1) {
-            log_error(logger, "No hay bloques disponibles.");
-        }
-        char *bloqueString = string_itoa(bloque);
-        free(dictionary_get(bloquesAsignados, bloqueString));
-        dictionary_put(bloquesAsignados, bloqueString, bloqueA); //Tengo mis dudas con respecto a esto: porque el bloque podria ya estar asignado a esa tabla y particion
-        free(bloqueString);
-        pthread_mutex_unlock(&mutexAsignacionBloques);
-        char *pathBloque = obtenerPathBloque(bloque);
-        pthread_mutex_t *semBloque = (pthread_mutex_t *) obtenerSemaforoPath(pathBloque);
-        pthread_mutex_lock(semBloque);
-        FILE *f = fopen(pathBloque, "a");
-        int longitudArchivo = obtenerTamanioBloque(bloque);
-        while (longitudArchivo < obtenerTamanioBloques(configuracion.puntoMontaje) && indice < string_length(linea)) {
-            fputc(linea[indice], f);
-            longitudArchivo++;
-            indice++;
-        }
-        fclose(f);
-        pthread_mutex_unlock(semBloque);
-        free(pathBloque);
-        if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
-            bitarray_set_bit(bitmap, bloque);
+            log_error(logger, "No hay bloques disponibles."); //Si no hay bloques disponibles deberia detenerse la ejecucion de la funcion
+        } else {
+            char *bloqueString = string_itoa(bloque);
+            free(dictionary_get(bloquesAsignados, bloqueString));
+            dictionary_put(bloquesAsignados, bloqueString, bloqueA); //Tengo mis dudas con respecto a esto: porque el bloque podria ya estar asignado a esa tabla y particion
+            pthread_mutex_unlock(&mutexAsignacionBloques);
+            string_append(&bloquesDeParticion, bloqueString);
+            string_append(&bloquesDeParticion, ",");
+            char *pathBloque = obtenerPathBloque(bloque);
+            pthread_mutex_t *semBloque = (pthread_mutex_t *) obtenerSemaforoPath(pathBloque);
+            pthread_mutex_lock(semBloque);
+            FILE *f = fopen(pathBloque, "a");
+            int longitudArchivo = obtenerTamanioBloque(bloque);
+            while (longitudArchivo < obtenerTamanioBloques(configuracion.puntoMontaje) && indice < string_length(linea)) {
+                fputc(linea[indice], f);
+                longitudArchivo++;
+                indice++;
+            }
+            fclose(f);
+            free(bloqueString);
+            pthread_mutex_unlock(semBloque);
+            free(pathBloque);
+            if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
+                bitarray_set_bit(bitmap, bloque);
+            }
         }
     }
     int size;
     char *bloques;
+    bloques = string_substring_until(bloquesDeParticion, strlen(bloquesDeParticion) - 1);
+    string_append(&bloques, "]");
     if (archivoVacio(nombreArchivo)) {
         size = strlen(linea);
-        char *bloqueString = string_itoa(bloque);
-        bloques = concat(3, "[", bloqueString, "]");
-        free(bloqueString);
     } else {
         t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
-        char **blocks = string_get_string_as_array(
-                config_get_string_value(archivoConfig, "BLOCKS")); //Aca puede obtenerlo directamente como un string
-        if (!arrayIncluye(blocks, string_from_format("%i", bloque))) {
-            int tam = tamanioDeArrayDeStrings(blocks);
-            blocks = realloc(blocks, sizeof(char) * (tam+2));
-            blocks[tam] = string_from_format("%i", bloque);
-            blocks[tam + 1] = NULL;
+        /*char **blocks = string_get_string_as_array(config_get_string_value(archivoConfig, "BLOCKS")); //Aca puede obtenerlo directamente como un string
+        char **bloquesArray = convertirStringDeBloquesAArray(bloques);
+        for(int i = 0; i < tamanioDeArrayDeStrings(bloques); i++) {
+            if (!arrayIncluye(blocks, bloquesArray[i])) {
+                int tam = tamanioDeArrayDeStrings(blocks);
+                blocks = realloc(blocks, sizeof(char) * (tam+2));
+                blocks[tam] = string_from_format("%i", bloque);
+                blocks[tam + 1] = NULL;
+            }
         }
-        bloques = convertirArrayAString(blocks);
-        size = config_get_int_value(archivoConfig, "SIZE") + strlen(linea);
+        bloques = convertirArrayAString(blocks);*/
+        size = config_get_int_value(archivoConfig, "SIZE") + strlen(linea); //Para obtener el size deberia leer los bloques que tiene asignada la particion
         config_destroy(archivoConfig);
     }
     FILE *fParticion = fopen(nombreArchivo, "w");

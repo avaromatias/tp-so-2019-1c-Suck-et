@@ -137,9 +137,10 @@ void crearBinarios(char *nombreTabla, int particiones) {
             char *nombreArchivo = string_itoa(i);
             string_append(&nombreArchivo, ".bin");
             FILE *file = fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "w");
-            int tamanio = obtenerTamanioBloque(bloque);
-            char *tamanioString = string_itoa(tamanio);
             char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, i);
+            int cantidadBloquesAsignados = tamanioDeArrayDeStrings(convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
+            int tamanio = ((cantidadBloquesAsignados - 1) * obtenerTamanioBloques(configuracion.puntoMontaje)) + obtenerTamanioBloque(bloque);
+            char *tamanioString = string_itoa(tamanio);
             char *contenido = generarContenidoParaParticion(tamanioString, bloquesAsignadosAParticion);
             fwrite(contenido, sizeof(char) * strlen(contenido), 1, file);
             free(contenido);
@@ -822,26 +823,38 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             }
         }
     }
-    int size;
-    char *bloques;
-    bloques = string_substring_until(bloquesDeParticion, strlen(bloquesDeParticion) - 1);
-    string_append(&bloques, "]");
-    if (archivoVacio(nombreArchivo)) {
-        size = strlen(linea);
-    } else {
-        t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
-        if(string_ends_with(nombreArchivo, ".bin")) {
-            size = config_get_int_value(archivoConfig, "SIZE") + strlen(linea); //Para obtener el size deberia leer los bloques que tiene asignada la particion
-        } else {
+    if(particion == -1) {
+/*        int size;
+        char *bloques;
+        bloques = string_substring_until(bloquesDeParticion, strlen(bloquesDeParticion) - 1);
+        string_append(&bloques, "]");
+        int cantidadBloquesAsignados = tamanioDeArrayDeStrings(convertirStringDeBloquesAArray(bloques));
+        if (archivoVacio(nombreArchivo)) {
             size = strlen(linea);
+        } else {
+            t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
+            size = config_get_int_value(archivoConfig, "SIZE") + strlen(linea) + ((cantidadBloquesAsignados - 1) *
+                                                                                  obtenerTamanioBloques(
+                                                                                          configuracion.puntoMontaje)); //Para obtener el size deberia leer los bloques que tiene asignada la particion
+            config_destroy(archivoConfig);
         }
-        config_destroy(archivoConfig);
+        FILE *fParticion = fopen(nombreArchivo, "w");
+        char *contenido = generarContenidoParaParticion(string_from_format("%i", size), bloques);
+        fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
+        fclose(fParticion);
+        free(contenido);*/
+        FILE *fParticion = fopen(nombreArchivo, "w");
+        char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, particion);
+        int cantidadBloquesAsignados = tamanioDeArrayDeStrings(convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
+        int tamanio = ((cantidadBloquesAsignados - 1) * obtenerTamanioBloques(configuracion.puntoMontaje)) + obtenerTamanioBloque(bloque);
+        char *tamanioString = string_itoa(tamanio);
+        char *contenido = generarContenidoParaParticion(tamanioString, bloquesAsignadosAParticion);
+        fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
+        free(contenido);
+        free(bloquesAsignadosAParticion);
+        fclose(fParticion);
+        free(tamanioString);
     }
-    FILE *fParticion = fopen(nombreArchivo, "w");
-    char *contenido = generarContenidoParaParticion(string_from_format("%i", size), bloques);
-    fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
-    fclose(fParticion);
-    free(contenido);
 }
 
 int renombrarTemporales(char *nombreTabla) {

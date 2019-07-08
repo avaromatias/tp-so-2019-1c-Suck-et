@@ -43,12 +43,6 @@ typedef struct {
     int cantidadDeCreateProcesados;
 } t_archivoLQL;
 
-typedef struct {
-    int indice;
-    int fileDescriptor;
-    char *consistencia;
-} memoria_conocida;
-
 //Estructura necesaria para manejar las consistencias y la metadata
 typedef struct {
     t_log *logger;
@@ -64,17 +58,17 @@ typedef struct {
     sem_t *mutexColaDeNew;
     sem_t *mutexColaDeReady;
     t_log *logger;
+    sem_t *cantidadProcesosEnNew;
+    sem_t *cantidadProcesosEnReady;
 } parametros_plp;
 
 //Estructura necesaria para el PCP
 typedef struct {
-    t_archivoLQL *unLQL;
     int *quantum;
-    int *multiprocesamiento;
     t_queue *colaDeReady;
-    t_queue *colaDeExecute;
     sem_t *mutexColaDeReady;
     t_log *logger;
+    sem_t *cantidadProcesosEnReady;
 } parametros_pcp;
 
 //Estructura hibrida necesaria para planificacion
@@ -131,15 +125,16 @@ char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
 
 bool encolarDirectoNuevoPedido(t_comando requestParseada);
 
-t_archivoLQL* convertirRequestALQL(t_comando requestParseada);
+t_archivoLQL *convertirRequestALQL(t_comando requestParseada);
 
 pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros);
 
-void *sincronizacionPLP(void* parametrosPLP);
+pthread_t *crearHiloPlanificadorCortoPlazo(parametros_pcp *parametros);
 
-bool colaEstaVacia(t_queue *colaDeRequests);
-// dentro tiene el queue_is_empty, pero es poco descriptivo. Después se borra esta
+void *sincronizacionPLP(void *parametrosPLP);
 
-void instanciadorPCPs(parametros_pcp *parametrosPCP, p_consola_kernel *parametrosConsola);
+void instanciarPCPs(parametros_pcp *parametrosPCP, p_consola_kernel *parametrosConsola);
+
+void *planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL);
 
 #endif /* KERNEL_H_ */

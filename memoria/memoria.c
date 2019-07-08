@@ -364,7 +364,10 @@ void intercambiarListaGossiping(t_list* nodosMemoria, t_list* memoriasConocidas)
     void enviarPedidoListaGossiping(void* elemento){
         if (elemento != NULL){
             nodoMemoria* unNodo = (nodoMemoria*)elemento;
-            enviarPaquete(unNodo->fdNodoMemoria, GOSSIPING,REQUEST ,"DAME_LISTA_GOSSIPING");
+            //A un nodo memoria le pido su lista de gossiping
+            enviarPedidoGossiping(unNodo->fdNodoMemoria);
+            //enviarPaquete(unNodo->fdNodoMemoria, GOSSIPING,REQUEST ,"DAME_LISTA_GOSSIPING");
+            //A un nodo memoria le envio mi lista de gossiping
             enviarRespuestaGossiping(memoriasConocidas, unNodo->fdNodoMemoria);
         }
     }
@@ -427,6 +430,7 @@ void gossiping(parametros_gossiping* parametros){
     while (1){
         sleep(15);
         //sleep(configuracion.retardoGossiping);
+        //Se conecta a memorias y las agrega como nodos de memoria
         gestionarGossiping(misConexiones, configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria, semaforoMemoriasConocidas);
 
         sleep(5);

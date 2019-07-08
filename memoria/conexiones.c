@@ -160,30 +160,38 @@ void enviarRespuestaGossiping(t_list* memoriasConocidas, int fdRemitente){
     char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
 
     if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
-        printf("Todas las memorias conocidas concatenadas: %s\n", memoriasConocidasConcatenadas);
+        printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, fdRemitente);
         enviarPaquete(fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA, memoriasConocidasConcatenadas);
     } else{
         printf("Mi lista estaba vacia\n");
         enviarPaquete(fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA, "LISTA_VACIA");
     }
 }
+
+void enviarPedidoGossiping(int fdDestinatario){
+    enviarPaquete(fdDestinatario, GOSSIPING, REQUEST, "DAME_LISTA_GOSSIPING");
+}
 void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros){
-    t_memoria* memoria = (t_memoria*)parametros->memoria;
+
     pthread_mutex_t semaforoMemoriasConocidas = (pthread_mutex_t)parametros->semaforoMemoriasConocidas;
+    pthread_mutex_lock(&semaforoMemoriasConocidas);
+    t_memoria* memoria = (t_memoria*)parametros->memoria;
     t_list* memoriasConocidas = (t_list*)memoria->memoriasConocidas;
     t_log* logger = parametros->logger;
 
-    pthread_mutex_lock(&semaforoMemoriasConocidas);
+
+
     if (header.tipoMensaje == GOSSIPING){
         if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
-            printf("Recibi un pedido de mi lista de gossiping, yo tambien la pido\n");
+            printf("Recibi un pedido de mi lista de gossiping de fd: %i, envio la respuesta\n", header.fdRemitente);
+            //enviarPaquete(header.fdRemitente, GOSSIPING,REQUEST ,"DAME_LISTA_GOSSIPING");
             enviarRespuestaGossiping(memoriasConocidas, header.fdRemitente);
         }
     }else{
         //Es la respuesta al pedido
         if (header.tipoMensaje == RESPUESTA_GOSSIPING){
             if (strcmp(mensaje, "LISTA_VACIA") != 0){
-                printf("Recibi %s como respuesta al gossiping\n", mensaje);
+                printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
                 agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
             } else{
                 printf("Recibi lista vacia\n");

@@ -15,8 +15,12 @@ int main(void) {
 
     sem_t *mutexColaDeNew = (sem_t *) malloc(sizeof(sem_t));
     sem_t *mutexColaDeReady = (sem_t *) malloc(sizeof(sem_t));
+    sem_t *cantidadProcesosEnNew = (sem_t *) malloc(sizeof(sem_t));
+    sem_t *cantidadProcesosEnReady = (sem_t *) malloc(sizeof(sem_t));
     sem_init(mutexColaDeNew, 0, 1);
     sem_init(mutexColaDeReady, 0, 0);
+    sem_init(cantidadProcesosEnNew, 0, 0);
+    sem_init(cantidadProcesosEnReady, 0, 0);
 
     t_configuracion configuracion = cargarConfiguracion("kernel.cfg", logger);
 
@@ -61,19 +65,23 @@ int main(void) {
     parametrosPLP->colaDeReady = colaDeReady;
     parametrosPLP->mutexColaDeNew = mutexColaDeNew;
     parametrosPLP->mutexColaDeReady = mutexColaDeReady;
-    parametrosPLP->logger = logger;
-
-    parametros_pcp *parametrosPCP = (parametros_pcp *) malloc(sizeof(parametros_pcp *));
-
-    parametrosPLP->colaDeNew = colaDeNew;
-    parametrosPLP->colaDeReady = colaDeReady;
-    parametrosPLP->mutexColaDeNew = mutexColaDeNew;
-    parametrosPLP->mutexColaDeReady = mutexColaDeReady;
+    parametrosPLP->cantidadProcesosEnNew = cantidadProcesosEnNew;
+    parametrosPLP->cantidadProcesosEnReady = cantidadProcesosEnReady;
     parametrosPLP->logger = logger;
 
     pthread_t *hiloPlanificadorLargoPlazo = crearHiloPlanificadorLargoPlazo(parametrosPLP);
 
-    //instanciadorPCPs(parametrosPCP, parametros);
+    parametros_pcp *parametrosPCP = (parametros_pcp *) malloc(sizeof(parametros_pcp));
+
+    parametrosPCP->quantum = configuracion.quantum;
+    parametrosPCP->colaDeReady = colaDeReady;
+    parametrosPCP->mutexColaDeReady = mutexColaDeReady;
+    parametrosPCP->cantidadProcesosEnReady = cantidadProcesosEnReady;
+    parametrosPCP->logger = logger;
+
+    for (int i = 0; i < configuracion.multiprocesamiento; i++) {
+        crearHiloPlanificadorCortoPlazo(parametrosPCP);
+    }
 
     ejecutarConsola(parametros, configuracion, parametrosPLP);
 
@@ -138,17 +146,18 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
         requestParseada = instanciarComando(comandoParseado);
         requestEsValida = analizarRequest(requestParseada, parametros);
         if (requestEsValida == true) {
-            seEncola = encolarDirectoNuevoPedido(requestParseada);//Al ser valida, comenzamos a encolar
+            seEncola = encolarDirectoNuevoPedido(requestParseada);
             if (seEncola == true) {
                 t_archivoLQL *unLQL = convertirRequestALQL(requestParseada);
                 sem_wait(semaforo_colaDeNew);
-                queue_push(parametrosPLP->colaDeNew, unLQL); //ver que encolamos!
+                queue_push(parametrosPLP->colaDeNew, unLQL);
+                sem_post(parametrosPLP->cantidadProcesosEnNew);
                 sem_post(semaforo_colaDeNew);
             } else {
                 gestionarRequestKernel(requestParseada, parametros, parametrosPLP);
             }
         } else {
-            log_info(parametros->logger, "No se pudo procesar la request solicitada.");
+            log_info(parametros->logger, "No se pudo procesar la request solicitada.\n");
         }
         //free(leido);
         //free(comandoParseado);
@@ -483,14 +492,14 @@ void *sincronizacionPLP(void *parametrosPLP) {
     sem_t *semaforo_colaDeReady = parametros_PLP->mutexColaDeReady;
 
     while (1) {
-        if (queue_is_empty(parametros_PLP->colaDeNew)) {
-            sem_wait(semaforo_colaDeNew);//
-            t_archivoLQL *unLQL = queue_pop(parametros_PLP->colaDeNew);
-            sem_post(semaforo_colaDeNew);
-            sem_wait(semaforo_colaDeReady);
-            queue_push(parametros_PLP->colaDeReady, unLQL);
-            sem_post(semaforo_colaDeReady);
-        }
+        sem_wait(parametros_PLP->cantidadProcesosEnNew);
+        sem_wait(semaforo_colaDeNew);
+        t_archivoLQL *unLQL = queue_pop(parametros_PLP->colaDeNew);
+        sem_post(semaforo_colaDeNew);
+        sem_wait(semaforo_colaDeReady);
+        queue_push(parametros_PLP->colaDeReady, unLQL);
+        sem_post(semaforo_colaDeReady);
+        sem_post(parametros_PLP->cantidadProcesosEnReady);
     }
 }
 
@@ -539,10 +548,17 @@ t_archivoLQL *convertirRequestALQL(t_comando requestParseada) {
     return unLQL;
 }
 
-void *planificarRequest(p_planificacion *paramPlanificacionGeneral) {
+pthread_t *crearHiloPlanificadorCortoPlazo(parametros_pcp *parametros) {
+    pthread_t *hiloPCP = (pthread_t *) malloc(sizeof(pthread_t));
+
+    pthread_create(hiloPCP, NULL, &instanciarPCPs, parametros);
+
+    return hiloPCP;
+}
+
+void *planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL* archivoLQL) {
     int quantumMaximo = (int) paramPlanificacionGeneral->parametrosPCP->quantum;
-    t_archivoLQL *unLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
-    unLQL = paramPlanificacionGeneral->parametrosPCP->unLQL;
+    t_archivoLQL *unLQL = archivoLQL;
     t_comando requestParseada;
 
     for (int quantumsConsumidos = 0; quantumsConsumidos < quantumMaximo; quantumsConsumidos++) {
@@ -566,59 +582,20 @@ void *planificarRequest(p_planificacion *paramPlanificacionGeneral) {
     }
 }
 
-void instanciadorPCPs(parametros_pcp *parametrosPCP, p_consola_kernel *parametrosConsola) {
-    p_planificacion *p_planificacionGeneral = (p_planificacion *) malloc(sizeof(p_planificacion));
-    int multiprocesamiento = (int) parametrosPCP->multiprocesamiento;
-    int requestEnSimultaneo = 0;
-    //sem_t *semaforo_colaDeNew = parametrosPLP->mutexColaDeNew;
+void instanciarPCPs(parametros_pcp *parametrosPCP, p_consola_kernel *parametrosConsola) {
 
-    while (requestEnSimultaneo <= multiprocesamiento) {
-        if (colaEstaVacia(parametrosPCP->colaDeReady) != true) {
-            //gestionamosLaColaDeReady
-            t_archivoLQL *nuevoLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
-            sem_wait(parametrosPCP->mutexColaDeReady);
-            nuevoLQL = queue_pop(parametrosPCP->colaDeReady);
-            sem_post(parametrosPCP->mutexColaDeReady);
-            parametrosPCP->unLQL = nuevoLQL;
+    sem_t *semaforo_cantidadProcesosEnReady = parametrosPCP->cantidadProcesosEnReady;
+    sem_t *semaforo_mutexColaDeReady = parametrosPCP->mutexColaDeReady;
 
-            p_planificacion *paramPlanificacionGeneral = (p_planificacion *) malloc(sizeof(p_planificacion));
-            paramPlanificacionGeneral->parametrosConsola = parametrosConsola;
-            paramPlanificacionGeneral->parametrosPCP = parametrosPCP;
+    sem_wait(semaforo_cantidadProcesosEnReady);
+    sem_wait(semaforo_mutexColaDeReady);
+    t_archivoLQL *nuevoLQL = queue_pop(parametrosPCP->colaDeReady);
+    sem_post(semaforo_mutexColaDeReady);
 
-            pthread_t *requestEnEjecucion = (pthread_t *) malloc(sizeof(pthread_t));
-            pthread_create(requestEnEjecucion, NULL, &planificarRequest, p_planificacionGeneral);
+    p_planificacion *paramPlanificacionGeneral = (p_planificacion *) malloc(sizeof(p_planificacion));
+    paramPlanificacionGeneral->parametrosConsola = parametrosConsola;
+    paramPlanificacionGeneral->parametrosPCP = parametrosPCP;
 
-        }
+    planificarRequest(paramPlanificacionGeneral, nuevoLQL);
 
-    }
 }
-
-/*while (1) {
-for (
-int quantumsConsumidos = 0;
-quantumsConsumidos<quantumMaximo;
-quantumsConsumidos++){
-wait(semColaReady);
-t_queue *unLQL = queue_pop(colaReady);
-signal(semColaReady);
-char *unaSentencia = queue_pop(unLQL);
-char **comandoParseado = parser(unaSentencia);
-t_comando comando = inicializarComando(comandoParseado);
-t_paquete resultado = gestionarRequest(comando);
-
-// acá irían cosas que harías con ese resultado, podés mostrarlo en pantalla o hacer algo como actualizar la tabla de metadata
-t_queue *colaDestino;
-if (unLQL == NULL) {
-colaDestino = colaFinalizados;
-}
-else {
-colaDestino = colaReady;
-}
-queue_push(colaDestino);
-}
-}*/
-
-bool colaEstaVacia(t_queue *colaDeRequests) {
-    if (queue_is_empty(colaDeRequests) == 0) return true; else return false;
-}
-

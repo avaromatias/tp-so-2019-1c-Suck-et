@@ -29,7 +29,6 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <stdarg.h>
-
 #include "../libs/config.h"
 #include "../libs/sockets.h"
 #include "../libs/consola.h"
@@ -67,9 +66,8 @@ typedef struct {
 } parametros_thread_request;
 
 typedef struct {
-    char* tabla;
+    char *tabla;
     char *tiempoCompactacion;
-    pthread_mutex_t* sem;
 } parametros_thread_compactacion;
 
 typedef struct {
@@ -84,24 +82,34 @@ t_dictionary *metadatas;
 t_dictionary *memTable;
 t_dictionary *archivosAbiertos;
 t_dictionary *tablasEnUso;
+t_dictionary *hilosTablas;
 t_bitarray *bitarray;
 void *bitmap;
-pthread_mutex_t mutexAsignacionBloques;
+pthread_mutex_t* mutexAsignacionBloques;
 
 
 //Header de funciones
 t_configuracion cargarConfiguracion(char *path, t_log *logger);
 
-void atenderMensajes(void* parametrosRequest);
+void atenderMensajes(void *parametrosRequest);
 
-char** obtenerTablas();
+char **obtenerTablas();
+
 t_response *lfsDescribe(char *nombreTabla);
 
-t_response* lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
+void *obtenerSemaforoPath(char *path);
 
-t_response* lfsSelect(char *nombreTabla, char *key);
+char *obtenerBloquesSegunExtension(char *nombreTabla, char *ext);
 
-t_response* lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
+char **filtrarKeyMax(char **listaLineas);
+
+//char* stringDeArraySinCorchetes(char* array);
+
+t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particiones, char *tiempoCompactacion);
+
+t_response *lfsSelect(char *nombreTabla, char *key);
+
+t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
 
 int obtenerBloqueDisponible(char *nombreTabla, int particion);
 
@@ -115,6 +123,7 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 
 char *generarContenidoParaParticion(char *tamanio, char *bloques);
 
+pthread_t *crearHiloCompactacion(char *nombreTabla, char *tiempoCompactacion);
 
 char *obtenerNombreArchivoParticion(int particion);
 
@@ -122,23 +131,36 @@ int obtenerTamanioBloque(int bloque);
 
 int obtenerTamanioBloques(char *puntoMontaje);
 
-sem_t* obtenerSemaforoPath(char* path);
-
 int obtenerCantidadBloques(char *puntoMontaje);
+
 char *obtenerLineaMasReciente(char **bloques, char *key);
+
 char *obtenerStringBloquesDeArchivo(char *nombreTabla, char *nombreArchivo);
+
 char **convertirStringDeBloquesAArray(char *bloques);
-//void eliminarCharDeString(char *string, char ch);
-//char *stringDeArraySinCorchetes(char *array);
-//char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo);
+
 char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext);
+
+char *obtenerLineaMasReciente(char **bloques, char *key);
+
+char *obtenerStringBloquesDeArchivo(char *nombreTabla, char *nombreArchivo);
+
+char **convertirStringDeBloquesAArray(char *bloques);
+
+void eliminarCharDeString(char *string, char ch);
+
+char *obtenerBloquesAsignados(char *nombreTabla, int particion);
+
+char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext);
+
+char **obtenerLineasDeBloques(char **bloques);
 
 /**
 * @NAME: gestionarRequest
 * @DESC: Gestiona los comandos recibidos por consola y decide como proceder
 *
 */
-t_response* gestionarRequest(t_comando comando);
+t_response *gestionarRequest(t_comando comando);
 
 /**
 * @NAME: existeTabla

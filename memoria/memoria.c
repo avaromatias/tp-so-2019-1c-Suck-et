@@ -232,8 +232,8 @@ t_paquete gestionarJournal(t_control_conexion *conexionConLissandra, t_memoria *
 
 t_paquete gestionarDescribe(char *nombreTabla, t_control_conexion *conexionLissandra)  {
     char* request = string_from_format("DESCRIBE");
-    if(nombreTabla == NULL) {
-        request = string_from_format("DESCRIBE %s");
+    if(nombreTabla != NULL) {
+        request = string_from_format("DESCRIBE %s", nombreTabla);
     }
     enviarPaquete(conexionLissandra->fd, REQUEST, DESCRIBE, request);
     free(request);
@@ -528,6 +528,7 @@ void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* v
     strcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0");
     dictionary_put(tablaDePaginas, nuevaPagina->key, nuevaPagina);
 }
+
 t_pagina* lru(t_dictionary* tablaDePaginas) {
 
     t_pagina* paginaLRU = malloc(sizeof(t_pagina));

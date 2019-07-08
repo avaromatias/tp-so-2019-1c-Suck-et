@@ -298,7 +298,7 @@ t_response *lfsDescribeAll() {
         for (int i = 0; i < cantidadDeTablas; i++) {
             char *nombreTabla = string_duplicate(tablas[i]);
             t_response *retornoTabla = lfsDescribe(nombreTabla);
-            char *respuestaTabla = string_new();
+            char *respuestaTabla;
             respuestaTabla = concat(4, "-----------------\nTABLE=", string_duplicate(nombreTabla), "\n",
                                     string_duplicate(retornoTabla->valor));
             string_append(&respuesta, respuestaTabla);
@@ -598,7 +598,7 @@ void compactacion(void *parametrosThread) {
                 }
                 eliminarArchivosSegunExtension(nombreTabla, ".tmpc");
                 eliminarArchivosSegunExtension(nombreTabla, ".bin");
-                t_metadata *meta = dictionary_get(metadatas, nombreTabla);
+                t_metadata *meta = obtenerMetadata(nombreTabla);
                 crearBinarios(nombreTabla, meta->partitions);
                 pthread_mutex_unlock(sem);
             }
@@ -651,6 +651,7 @@ void liberarBloque(char *nroBloque) {
     bloque->particion = -1;
     free(dictionary_get(bloquesAsignados, nroBloque));
     dictionary_put(bloquesAsignados, nroBloque, bloque);
+    bitarray_clean_bit(bitarray, atoi(nroBloque));
     pthread_mutex_unlock(&mutexAsignacionBloques);
 }
 
@@ -689,7 +690,7 @@ pthread_t *crearHiloCompactacion(char *nombreTabla, char *tiempoCompactacion) {
             sizeof(parametros_thread_compactacion));
 
     parametros->tabla = string_duplicate(nombreTabla);
-    parametros->tiempoCompactacion = tiempoCompactacion;
+    parametros->tiempoCompactacion = string_duplicate(tiempoCompactacion);
 
     pthread_create(hiloCompactacion, NULL, &compactacion, parametros);
 
@@ -771,8 +772,7 @@ void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, time_t tim
     char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
     if (existeElArchivo(path)) {
         char *linea = armarLinea(key, valor, timestamp);
-        obtenerMetadata(nombreTabla);
-        t_metadata *meta = dictionary_get(metadatas, nombreTabla);
+        t_metadata *meta = obtenerMetadata(nombreTabla);
         int particion = calcularParticion(key, meta);
         char *nombreArchivo;
         char *p = string_itoa(particion);
@@ -901,8 +901,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
         if (existeElArchivo(path)) {
 
             //2. Obtener la metadata asociada a dicha tabla
-            obtenerMetadata(nombreTabla);
-            t_metadata *meta = dictionary_get(metadatas, nombreTabla);
+            t_metadata *meta = obtenerMetadata(nombreTabla);
 
             //3. Calcular cual es la partición que contiene dicho KEY
             int particion = calcularParticion(key, meta);
@@ -1213,15 +1212,16 @@ int existeTabla(char *tabla) {
     return 0;
 }
 
-void obtenerMetadata(char *tabla) {
+t_metadata *obtenerMetadata(char *tabla) {
     char *metadataPath = obtenerPathMetadata(tabla, configuracion.puntoMontaje);
     t_config *config = abrirArchivoConfiguracion(metadataPath, logger);
-    t_metadata *metadata = (t_metadata *) malloc(sizeof(t_metadata));
 
     if (config == NULL) {
         log_error(logger, "No se pudo obtener el archivo Metadata.");
         exit(1);
     }
+
+    t_metadata *metadata = (t_metadata *) malloc(sizeof(t_metadata));
 
     if (config_has_property(config, "PARTITIONS")) {
         metadata->partitions = config_get_int_value(config, "PARTITIONS");
@@ -1238,6 +1238,8 @@ void obtenerMetadata(char *tabla) {
     dictionary_put(metadatas, tabla, metadata);
     free(metadataPath);
     config_destroy(config);
+
+    return (t_metadata *) dictionary_get(metadatas, tabla);
 }
 
 int calcularParticion(char *key, t_metadata *metadata) {
@@ -1294,9 +1296,7 @@ char *crearDirEnPuntoDeMontaje(char *puntoMontaje, char *nombreDir) {
 }
 
 void crearDirTables(char *puntoMontaje) {
-    char *nombreArchivo = string_new();
-    string_append(&nombreArchivo, puntoMontaje);
-    string_append(&nombreArchivo, "Tables");
+    char *nombreArchivo = concat(2, puntoMontaje, "Tables");
 
     if (!existeElArchivo(nombreArchivo)) {
         mkdir_recursive(nombreArchivo);
@@ -1345,16 +1345,16 @@ void cargarBloquesAsignados(char *path) {
     char **tablas = obtenerTablas();
     for (int i = 0; i < tamanioDeArrayDeStrings(tablas); i++) {
         char *nombreTabla = string_duplicate(tablas[i]);
-        obtenerMetadata(nombreTabla);
-        t_metadata *meta = dictionary_get(metadatas, nombreTabla);
+        t_metadata *meta = obtenerMetadata(nombreTabla);
         pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
         int init = pthread_mutex_init(semaforoTabla, NULL);
         dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
-        pthread_t *hilo = crearHiloCompactacion(nombreTabla, string_from_format("%i", meta->compaction_time));
+        char *compactationTimeString = string_itoa(meta->compaction_time);
+        pthread_t *hilo = crearHiloCompactacion(nombreTabla, compactationTimeString);
+        free(compactationTimeString);
         pthread_detach(*hilo);
         dictionary_put(hilosTablas, nombreTabla, hilo);
-        char *pathTabla;
-        pathTabla = concat(3, path, "/", nombreTabla);
+        char *pathTabla = concat(3, path, "/", nombreTabla);
         DIR *d;
         struct dirent *dir;
         d = opendir(pathTabla);
@@ -1375,17 +1375,18 @@ void cargarBloquesAsignados(char *path) {
                             obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo));
                     for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
                         t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-                        bloque->tabla = concat(1, nombreTabla);
+                        bloque->tabla = string_duplicate(nombreTabla);
                         bloque->particion = particion;
                         pthread_mutex_lock(&mutexAsignacionBloques);
                         dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
-                        pthread_mutex_lock(&mutexAsignacionBloques);
+                        pthread_mutex_unlock(&mutexAsignacionBloques);
                     }
                     freeArrayDeStrings(arrayDeBloques);
                     free(nombreArchivo);
                 }
             }
         }
+        free(pathTabla);
     }
 }
 
@@ -1434,10 +1435,10 @@ void crearDirBloques(char *puntoMontaje) {
     int bloques = obtenerCantidadBloques(puntoMontaje);
     if (bloques != -1) {
         for (int i = 0; i < bloques; i++) {
-            char *nroBloque = string_from_format("%i", i);
+            char *nroBloque = string_itoa(i);
             char *unArchivoDeBloque = concat(4, nombreArchivo, "/", nroBloque, ".bin");
             t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-            bloque->tabla = concat(1, "");
+            bloque->tabla = string_new();
             bloque->particion = -1;
             pthread_mutex_lock(&mutexAsignacionBloques);
             dictionary_put(bloquesAsignados, nroBloque, bloque);
@@ -1498,6 +1499,7 @@ void *obtenerSemaforoPath(char *path) {
 
 int crearDirectoriosBase(char *puntoMontaje) {
     crearDirMetadata(puntoMontaje);
+    inicializarBitmap();
     crearDirBloques(puntoMontaje);
     crearDirTables(puntoMontaje);
 }
@@ -1516,9 +1518,7 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_lf
 }
 
 void inicializarBitmap() {
-    char *bitmapPath = string_new();
-    string_append(&bitmapPath, configuracion.puntoMontaje);
-    string_append(&bitmapPath, "Metadata/Bitmap.bin");
+    char *bitmapPath = concat(2, configuracion.puntoMontaje, "Metadata/Bitmap.bin");
     int fd = open(bitmapPath, O_RDWR);
     int tamanioBitarray = obtenerCantidadBloques(configuracion.puntoMontaje) / 8;
     if(lseek(fd, 0, SEEK_END) <= 0) {
@@ -1526,6 +1526,7 @@ void inicializarBitmap() {
     }
     bitmap = mmap(NULL, tamanioBitarray, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
     bitarray = bitarray_create_with_mode(bitmap, tamanioBitarray, MSB_FIRST);
+    free(bitmapPath);
 }
 
 void *atenderConexiones(void *parametrosThread) {
@@ -1616,7 +1617,6 @@ int main(void) {
     mutexAsignacionBloques = malloc(sizeof(pthread_mutex_t));
     int init = pthread_mutex_init(&mutexAsignacionBloques, NULL);
     inicializarLFS(configuracion.puntoMontaje);
-    inicializarBitmap();
 
     log_info(logger, "Puerto Escucha: %i", configuracion.puertoEscucha);
     log_info(logger, "Punto Montaje: %s", configuracion.puntoMontaje);

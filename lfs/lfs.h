@@ -140,6 +140,8 @@ char **convertirStringDeBloquesAArray(char *bloques);
 
 void eliminarCharDeString(char *string, char ch);
 
+char *obtenerBloquesAsignados(char *nombreTabla, int particion);
+
 //char *stringDeArraySinCorchetes(char *array);
 //char **bloquesEnParticion(char *nombreTabla, char *nombreArchivo);
 char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext);

@@ -32,25 +32,25 @@ int main(void) {
     log_info(logger, "Retardo de Ejecución : %i", configuracion.refreshMetadata);
 
     t_dictionary *metadataTablas = dictionary_create(); //voy a tener el nombreTabla, criterio, particiones y tpo_Compactación
+    t_dictionary *tablaDeMemoriasConCriterios = dictionary_create();//tendremos por cada criterio una lista de memorias
 
-    t_dictionary *tablaDeMemoriasConCriterios = dictionary_create();
     t_queue *colaDeCriteriosSC = queue_create();
     t_queue *colaDeCriteriosSHC = queue_create();
     t_queue *colaDeCriteriosEC = queue_create();
-    dictionary_put(tablaDeMemoriasConCriterios, "SC", colaDeCriteriosSC);
+
     //voy a tener relacion de criterio con un t_list* de FDs
+    dictionary_put(tablaDeMemoriasConCriterios, "SC", colaDeCriteriosSC);
     dictionary_put(tablaDeMemoriasConCriterios, "SHC", colaDeCriteriosSHC);
     dictionary_put(tablaDeMemoriasConCriterios, "EC", colaDeCriteriosEC);
 
     t_queue *colaDeNew = queue_create();
     t_queue *colaDeReady = queue_create();
-    t_queue *colaDeExecute = queue_create();
     t_list *finalizados = list_create();
 
     GestorConexiones *misConexiones = inicializarConexion();
     conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
 
-    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
+    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios);
 
     p_consola_kernel *parametros = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
@@ -78,6 +78,7 @@ int main(void) {
     parametrosPCP->mutexColaDeReady = mutexColaDeReady;
     parametrosPCP->cantidadProcesosEnReady = cantidadProcesosEnReady;
     parametrosPCP->logger = logger;
+    parametrosPCP->finalizados = finalizados;
 
     for (int i = 0; i < configuracion.multiprocesamiento; i++) {
         crearHiloPlanificadorCortoPlazo(parametrosPCP);
@@ -157,7 +158,7 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
                 gestionarRequestKernel(requestParseada, parametros, parametrosPLP);
             }
         } else {
-            log_error(parametros->logger, "No se pudo procesar la request solicitada.\n");
+            log_error(parametros->logger, "No se pudo procesar la request solicitada.");
         }
         //free(leido);
         //free(comandoParseado);
@@ -509,7 +510,7 @@ t_archivoLQL *convertirRequestALQL(t_comando requestParseada) {
         case DESCRIBE:
             string_append(&requestDelLQL, "DESCRIBE");
     }
-    for (int i = 0; i < requestParseada.cantidadParametros; ++i) {
+    for (int i = 0; i < requestParseada.cantidadParametros; i++) {
         string_append(&requestDelLQL, requestParseada.parametros[i]);
     }
 
@@ -547,18 +548,21 @@ void *planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archi
         bool requestEsValida = analizarRequest(requestParseada, pConsolaKernel);
         if (requestEsValida == true) {
             if ((diferenciarRequest(requestParseada) == 1)) { //Si es 1 es primitiva
-                int respuesta = gestionarRequestPrimitivas(requestParseada, pConsolaKernel);
+                gestionarRequestPrimitivas(requestParseada, pConsolaKernel);
                 actualizarCantRequest(archivoLQL, requestParseada);
             } else { //Si es 0 es comando de Kernel
-                int respuesta = gestionarRequestKernel(requestParseada, pConsolaKernel, parametrosPLP);
+                gestionarRequestKernel(requestParseada, pConsolaKernel, parametrosPLP);
             }
         } else {
             log_warning(pConsolaKernel->logger,
                         "No se pudo procesar la request ubicada en la línea %s. Corríjala y vuelvala a ejecutar.",
                         lineaDeEjecucion);
-            //TODO: ADEMAS DEBEMOS SALIR DE LA EJECUCION DE ESTE LQL
+            //TODO: ADEMAS DEBEMOS SALIR DE LA EJECUCION DE ESTE LQL -CONSULTAR FER
         }
     }
+    sem_wait(paramPlanifGeneral->parametrosPCP->mutexColaDeReady);
+    queue_push(paramPlanifGeneral->parametrosPCP->colaDeReady, unLQL);
+    sem_post(paramPlanifGeneral->parametrosPCP->mutexColaDeReady);
 }
 
 void actualizarCantRequest(t_archivoLQL *archivoLQL, t_comando requestParseada) {

@@ -4,11 +4,12 @@
 
 #include "conexiones.h"
 
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger) {
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCrits) {
     pthread_t *hiloConexiones = malloc(sizeof(pthread_t));
 
-    parametros_thread *parametros = (parametros_thread *) malloc(sizeof(parametros_thread));
+    parametros_thread_k *parametros = (parametros_thread_k *) malloc(sizeof(parametros_thread_k));
 
+    parametros->tablaDeMemoriasConCriterios = tablaDeMemoriasConCrits;
     parametros->conexion = unaConexion;
     parametros->logger = logger;
 
@@ -18,9 +19,10 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger) {
 }
 
 void *atenderConexiones(void *parametrosThread) {
-    parametros_thread *parametros = (parametros_thread *) parametrosThread;
+    parametros_thread_k *parametros = (parametros_thread_k*) parametrosThread;
     GestorConexiones *unaConexion = parametros->conexion;
     t_log *logger = parametros->logger;
+    t_dictionary *tablaDeMemoriasConCriterios = parametros->tablaDeMemoriasConCriterios;
 
     fd_set emisores;
 
@@ -59,9 +61,11 @@ void *atenderConexiones(void *parametrosThread) {
                             else if (bytesRecibidos == 0) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();
+                                desconexionMemoria(fdConectado, tablaDeMemoriasConCriterios, logger);
                                 desconectarCliente(fdConectado, unaConexion, logger);
                             } else {
                                 switch (header.tipoMensaje) {
+
                                     case RESPUESTA:
                                         //gestionarRespuesta();//atenderMensajes(header, mensaje, parametros);
                                         break;
@@ -110,6 +114,19 @@ int conectarseAMemoriaPrincipal(char* ipMemoria, int puertoMemoria, GestorConexi
     return fdMemoria;
 }
 
+void desconexionMemoria(int fdMemoria, t_dictionary *memConCriterios, t_log *logger) {
+    //TODO ELIMINAMOS LA MEMORIA QUE SE DESCONECTÓ DE NUESTRA TABLA DE MEMORIAS CON CRITERIOS
+    int fdDesconectado = fdMemoria;
+    t_dictionary *tablaDeMemoriasConCriterios = memConCriterios;
+    dictionary_remove_and_destroy(tablaDeMemoriasConCriterios, "SC", fdDesconectado);
+    dictionary_remove_and_destroy(tablaDeMemoriasConCriterios, "SHC", fdDesconectado);
+    dictionary_remove_and_destroy(tablaDeMemoriasConCriterios, "EC", fdDesconectado);
+
+    log_info(logger, "La memoria conectada por el fd %i ha sido eliminada por desconexión.\n", fdDesconectado);
+}
+
+
+
 /*
 void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char *ipMemoria, int puertoMemoria, t_log *logger) {
     log_info(logger, "Intentando conectarse a Memoria Principal.");
@@ -123,3 +140,5 @@ void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char *ipMe
         memoriaConocida->utilizacion = 1;
     }
 }*/
+
+

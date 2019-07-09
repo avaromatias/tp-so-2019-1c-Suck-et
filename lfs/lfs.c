@@ -795,10 +795,10 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
         bloque = obtenerBloqueDisponible(nombreTabla, particion); // Aca creo que esta obteniendo un bloque disponible distinto al que la particion ya tiene asignado
         if (bloque == -1) {
             pthread_mutex_unlock(&mutexAsignacionBloques);
-            log_error(logger, "No hay bloques disponibles."); //Si no hay bloques disponibles deberia detenerse la ejecucion de la funcion
+            log_error(logger, "No hay bloques disponibles.");
+            break;
         } else {
             char *bloqueString = string_itoa(bloque);
-            //free(dictionary_get(bloquesAsignados, bloqueString)); //TODO: Se podria usar la funcion liberarBloque
             dictionary_put(bloquesAsignados, bloqueString, bloqueA); //Tengo mis dudas con respecto a esto: porque el bloque podria ya estar asignado a esa tabla y particion
             pthread_mutex_unlock(&mutexAsignacionBloques);
             string_append(&bloquesDeParticion, bloqueString);

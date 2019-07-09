@@ -798,7 +798,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             log_error(logger, "No hay bloques disponibles."); //Si no hay bloques disponibles deberia detenerse la ejecucion de la funcion
         } else {
             char *bloqueString = string_itoa(bloque);
-            free(dictionary_get(bloquesAsignados, bloqueString)); //TODO: Se podria usar la funcion liberarBloque
+            //free(dictionary_get(bloquesAsignados, bloqueString)); //TODO: Se podria usar la funcion liberarBloque
             dictionary_put(bloquesAsignados, bloqueString, bloqueA); //Tengo mis dudas con respecto a esto: porque el bloque podria ya estar asignado a esa tabla y particion
             pthread_mutex_unlock(&mutexAsignacionBloques);
             string_append(&bloquesDeParticion, bloqueString);

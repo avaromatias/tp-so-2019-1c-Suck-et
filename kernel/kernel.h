@@ -40,7 +40,6 @@ typedef struct {
     int cantidadDeLineas;
     int cantidadDeSelectProcesados;
     int cantidadDeInsertProcesados;
-    int cantidadDeCreateProcesados;
 } t_archivoLQL;
 
 //Estructura necesaria para manejar las consistencias y la metadata
@@ -74,6 +73,7 @@ typedef struct {
 //Estructura hibrida necesaria para planificacion
 typedef struct {
     p_consola_kernel *parametrosConsola;
+    parametros_plp *parametrosPLP;
     parametros_pcp *parametrosPCP;
 } p_planificacion;
 
@@ -111,6 +111,10 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros);
 
 int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP);
 
+int diferenciarRequest(t_comando requestParseada);
+
+void actualizarCantRequest(t_archivoLQL *archivoLQL, t_comando requestParseada);
+
 // ***** MANEJO DE MEMORIAS *****
 
 bool existenMemoriasConectadas(GestorConexiones *misConexiones);
@@ -133,7 +137,7 @@ pthread_t *crearHiloPlanificadorCortoPlazo(parametros_pcp *parametros);
 
 void *sincronizacionPLP(void *parametrosPLP);
 
-void instanciarPCPs(parametros_pcp *parametrosPCP, p_consola_kernel *parametrosConsola);
+void instanciarPCPs(parametros_pcp *parametrosPCP, parametros_plp *parametrosPLP, p_consola_kernel *parametrosConsola);
 
 void *planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL);
 

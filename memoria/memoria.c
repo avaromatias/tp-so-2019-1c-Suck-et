@@ -112,9 +112,11 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *cone
     }
     char* request = string_from_format("SELECT %s %s", nombreTabla, key);
     log_info(logger, "Valor no encontrado en memoria. Se enviará la siguiente request a Lissandra: %s", request);
+    sem_wait(conexionLissandra->semaforo);
     enviarPaquete(conexionLissandra->fd, REQUEST, SELECT, request);
     free(request);
     respuesta = recibirMensajeDeLissandra(conexionLissandra);
+    sem_post(conexionLissandra->semaforo);
     if(respuesta.tipoMensaje == RESPUESTA)   {
         char** componentesSelect = string_split(respuesta.mensaje, ";");
         insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger, conexionLissandra);
@@ -127,9 +129,11 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *cone
 
 t_paquete gestionarCreate(char* nombreTabla, char* tipoConsistencia, char* cantidadParticiones, char* tiempoCompactacion, t_control_conexion* conexionLissandra, t_log* logger)   {
     char* request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones, tiempoCompactacion);
+    sem_wait(conexionLissandra->semaforo);
     enviarPaquete(conexionLissandra->fd, REQUEST, CREATE, request);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
+    sem_post(conexionLissandra->semaforo);
     return respuesta;
 }
 
@@ -227,9 +231,8 @@ t_paquete gestionarJournal(t_control_conexion *conexionConLissandra, t_memoria *
     parametrosJournal->conexionLissandra = conexionConLissandra;
     mi_dictionary_iterator(parametrosJournal, memoria->tablaDeSegmentos, &iterarSegmentos);
 
-    //mutex memoria
     vaciarMemoria(memoria, logger);
-    //mutex memoria
+
     t_paquete resultado = {.mensaje = "Se gestionó el journal", .tipoMensaje = RESPUESTA };
 
     return resultado;
@@ -550,6 +553,7 @@ void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* v
     strcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0");
     dictionary_put(tablaDePaginas, nuevaPagina->key, nuevaPagina);
 }
+
 t_pagina* lru(t_dictionary* tablaDePaginas) {
 
     t_pagina* paginaLRU = malloc(sizeof(t_pagina));
@@ -754,15 +758,14 @@ int getCantidadCaracteresByPeso(int pesoString) {
 }
 
 int main(void) {
+    char* nombreArchivoConfiguracion = readline("Escriba el nombre del archivo de configuración que desee cargar (el mismo deberá estar en el mismo directorio que el ejecutable).\n");
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
-	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
+    char* nombreArchivoConfiguracionConExtension = string_from_format("%s.cfg", nombreArchivoConfiguracion);
+	t_configuracion configuracion = cargarConfiguracion(nombreArchivoConfiguracionConExtension, logger);
+	free(nombreArchivoConfiguracionConExtension);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
     t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};
-
-    //sem_t* semaforoJournaling = (sem_t*) malloc(sizeof(sem_t));
-
-    //sem_init(semaforoJournaling, 0, 0);
 
     sem_init(conexionKernel.semaforo, 0, 0);
     sem_init(conexionLissandra.semaforo, 0, 0);

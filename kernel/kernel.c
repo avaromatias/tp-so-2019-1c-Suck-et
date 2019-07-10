@@ -17,8 +17,10 @@ int main(void) {
     sem_t *mutexColaDeReady = (sem_t *) malloc(sizeof(sem_t));
     sem_t *cantidadProcesosEnNew = (sem_t *) malloc(sizeof(sem_t));
     sem_t *cantidadProcesosEnReady = (sem_t *) malloc(sizeof(sem_t));
+    sem_t *mutexListaFinalizados = (sem_t *) malloc(sizeof(sem_t));
     sem_init(mutexColaDeNew, 0, 1);
     sem_init(mutexColaDeReady, 0, 0);
+    sem_init(mutexListaFinalizados, 0, 1);
     sem_init(cantidadProcesosEnNew, 0, 0);
     sem_init(cantidadProcesosEnReady, 0, 0);
 
@@ -32,25 +34,25 @@ int main(void) {
     log_info(logger, "Retardo de Ejecución : %i", configuracion.refreshMetadata);
 
     t_dictionary *metadataTablas = dictionary_create(); //voy a tener el nombreTabla, criterio, particiones y tpo_Compactación
+    t_dictionary *tablaDeMemoriasConCriterios = dictionary_create();//tendremos por cada criterio una lista de memorias
 
-    t_dictionary *tablaDeMemoriasConCriterios = dictionary_create();
-    t_queue *colaDeCriteriosSC = queue_create();
-    t_queue *colaDeCriteriosSHC = queue_create();
-    t_queue *colaDeCriteriosEC = queue_create();
-    dictionary_put(tablaDeMemoriasConCriterios, "SC", colaDeCriteriosSC);
+    t_list *listaDeCriteriosSC = list_create();
+    t_list *listaDeCriteriosSHC = list_create();
+    t_list *listaDeCriteriosEC = list_create();
+
     //voy a tener relacion de criterio con un t_list* de FDs
-    dictionary_put(tablaDeMemoriasConCriterios, "SHC", colaDeCriteriosSHC);
-    dictionary_put(tablaDeMemoriasConCriterios, "EC", colaDeCriteriosEC);
+    dictionary_put(tablaDeMemoriasConCriterios, "SC", listaDeCriteriosSC);
+    dictionary_put(tablaDeMemoriasConCriterios, "SHC", listaDeCriteriosSHC);
+    dictionary_put(tablaDeMemoriasConCriterios, "EC", listaDeCriteriosEC);
 
     t_queue *colaDeNew = queue_create();
     t_queue *colaDeReady = queue_create();
-    t_queue *colaDeExecute = queue_create();
-    t_list *finalizados = list_create();
+    t_queue *colaDeFinalizados = queue_create();
 
     GestorConexiones *misConexiones = inicializarConexion();
     conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
 
-    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger);
+    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios);
 
     p_consola_kernel *parametros = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
@@ -73,11 +75,13 @@ int main(void) {
 
     parametros_pcp *parametrosPCP = (parametros_pcp *) malloc(sizeof(parametros_pcp));
 
-    parametrosPCP->quantum = configuracion.quantum;
+    parametrosPCP->quantum = (int *) configuracion.quantum;
     parametrosPCP->colaDeReady = colaDeReady;
     parametrosPCP->mutexColaDeReady = mutexColaDeReady;
+    parametrosPCP->mutexListaFinalizados = mutexListaFinalizados;
     parametrosPCP->cantidadProcesosEnReady = cantidadProcesosEnReady;
     parametrosPCP->logger = logger;
+    parametrosPCP->colaDeFinalizados = colaDeFinalizados;
 
     for (int i = 0; i < configuracion.multiprocesamiento; i++) {
         crearHiloPlanificadorCortoPlazo(parametrosPCP);
@@ -157,7 +161,7 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
                 gestionarRequestKernel(requestParseada, parametros, parametrosPLP);
             }
         } else {
-            log_info(parametros->logger, "No se pudo procesar la request solicitada.\n");
+            log_error(parametros->logger, "No se pudo procesar la request solicitada.");
         }
         //free(leido);
         //free(comandoParseado);
@@ -182,7 +186,6 @@ bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
 
 int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *parametros) {
 
-    GestorConexiones *misConexiones = parametros->conexiones;
     char *criterioConsistencia;
     int fdMemoria;
 
@@ -216,10 +219,6 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
 
 int gestionarRequestKernel(t_comando requestParseada, p_consola_kernel *parametros, parametros_plp *parametrosPLP) {
 
-    GestorConexiones *misConexiones = parametros->conexiones;
-    char *criterioConsistencia;
-    int fdMemoria;
-
     switch (requestParseada.tipoRequest) {
         case DESCRIBE:
             return 0; //gestionarDescribeGlobal();
@@ -235,7 +234,8 @@ int gestionarRequestKernel(t_comando requestParseada, p_consola_kernel *parametr
             //gestionarMetricas();
             break;
         case JOURNAL:
-            return 0;//gestionarJournalKernel();
+            //gestionarJournalKernel();
+            return 0;
         case HELP:
             printf("************ Comandos disponibles ************\n");
             printf("- SELECT [NOMBRE_TABLA] [KEY]\n");
@@ -278,10 +278,41 @@ bool esComandoValidoDeKernel(t_comando comando) {
     }
 }
 
+int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria) {
+    char *request = string_from_format("SELECT %s %s", nombreTabla, key);
+    enviarPaquete(fdMemoria, REQUEST, SELECT, request);
+    free(request);
+    return 0;
+}
+
+int
+gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion, int fdMemoria) {
+    char *request = string_from_format("CREATE %s %s %s %s", tabla, consistencia, cantParticiones, tiempoCompactacion);
+    enviarPaquete(fdMemoria, REQUEST, CREATE, request);
+    free(request);
+    //recibo mensaje de Memoria o directamente fallo yo?
+    return 0;
+}
+
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria) {
+    char *request = string_from_format("INSERT %s %s %s", nombreTabla, key, valor);
+    enviarPaquete(fdMemoria, REQUEST, INSERT, request);
+    free(request);
+    //recibo mensaje de Memoria o directamente fallo yo?
+    return 0;
+}
+
+int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
+    char *request = string_from_format("DROP %s %s", nombreTabla);
+    enviarPaquete(fdMemoria, REQUEST, DROP, request);
+    free(request);
+    //recibo mensaje de Memoria o directamente fallo yo?
+    return 0;
+}
+
 int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP) {
     t_archivoLQL *unLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
     t_log *logger = parametros->logger;
-    GestorConexiones *misConexiones = parametros->conexiones;
     sem_t *semaforo_colaDeNew = parametrosPLP->mutexColaDeNew;
 
     char *linea = NULL;
@@ -313,65 +344,7 @@ int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp
     sem_wait(semaforo_colaDeNew);
     queue_push(parametrosPLP->colaDeNew, unLQL);
     sem_post(semaforo_colaDeNew);
-    //administrarRequestsLQL(archivoLQL, parametros);
     fclose(archivo);
-}
-
-/*void *administrarRequestsLQL(t_archivoLQL archivoLQL, p_consola_kernel *parametros) {
-    t_comando requestParseada;
-    int contadorDeRequest = 0;
-    do {
-        char *unaRequest = queue_pop(
-                archivoLQL.colaDeRequests); //primer elemento de la lista de request, es una request
-        if (strcmp(unaRequest, " ") != 0) {
-            char **comandoParseado = parser(unaRequest); //cada request, es un conjunto de palabras
-            requestParseada = instanciarComando(comandoParseado);
-            free(comandoParseado);
-            free(unaRequest);
-            free(comandoParseado);
-
-            analizarRequest(requestParseada, parametros);
-        }
-    } while (contadorDeRequest > archivoLQL.cantidadDeLineas);
-    printf("Ya analizamos todo lo solicitado para el archivo LQL ingresado.\n");
-}
-*/
-int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria) {
-    //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
-    char *request = string_from_format("SELECT %s %s", nombreTabla, key);
-    enviarPaquete(fdMemoria, REQUEST, SELECT, request);
-    free(request);
-    return 0;
-}
-
-int
-gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion,
-                      int fdMemoria) {
-    //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
-    char *request = string_from_format("CREATE %s %s %s %s", tabla, consistencia, cantParticiones,
-                                       tiempoCompactacion);
-    enviarPaquete(fdMemoria, REQUEST, CREATE, request);
-    free(request);
-    //recibo mensaje de Memoria o directamente fallo yo?
-    return 0;
-}
-
-int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria) {
-    //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
-    char *request = string_from_format("INSERT %s %s %s", nombreTabla, key, valor);
-    enviarPaquete(fdMemoria, REQUEST, INSERT, request);
-    free(request);
-    //recibo mensaje de Memoria o directamente fallo yo?
-    return 0;
-}
-
-int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
-    //acá tengo que sacar el fd de alguna memoria que voy a tener en mi tabla de memorias, que esté libre y que tenga el mismo tipo de Consistencia
-    char *request = string_from_format("DROP %s %s", nombreTabla);
-    enviarPaquete(fdMemoria, REQUEST, DROP, request);
-    free(request);
-    //recibo mensaje de Memoria o directamente fallo yo?
-    return 0;
 }
 
 int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
@@ -387,8 +360,8 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
     if (memoriaEncontrada) {
         int *fdMemoriaSolicitada = (int *) list_get(misConexiones->conexiones,
                                                     numeroMemoria - 1); // hacemos -1 por la ubicación 0
-        t_queue *colaFileDescriptors = dictionary_get(tablaMemoriasConCriterios, criterio);
-        queue_push(colaFileDescriptors, fdMemoriaSolicitada);
+        t_list *listaFileDescriptors = dictionary_get(tablaMemoriasConCriterios, criterio);
+        list_add(listaFileDescriptors, fdMemoriaSolicitada);
         log_info(logger, "La memoria ha sido agregada a la tabla de Memorias conocidas.\n");
         return 0;
     } else {
@@ -401,11 +374,9 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio) {
     if (criterio != NULL) {
         if (existenMemoriasConectadas) {
             //Obtenemos memorias que responden al criterio pedido
-            t_queue *memoriasDelCriterioPedido = dictionary_get(parametros->memoriasConCriterios, criterio);
+            t_list *memoriasDelCriterioPedido = dictionary_get(parametros->memoriasConCriterios, criterio);
             //Que memorias tengo con el criterio X de la request solicitada?
-            //Cual
-            int *fdMemoriaElegida = (int *) queue_pop(memoriasDelCriterioPedido);
-            queue_push(memoriasDelCriterioPedido, fdMemoriaElegida);
+            int *fdMemoriaElegida =  (int*) list_get(memoriasDelCriterioPedido, 0);
             return *fdMemoriaElegida;
         }
         log_warning(parametros->logger, "No existen memorias conectadas para asignar requests.\n");
@@ -475,7 +446,9 @@ char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping
     return direccionesDeMemorias;
 }
 
-/****** PLANIFICACIÓN ******/
+/****************************
+ ****** PLANIFICACIÓN *******
+ ****************************/
 
 pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros) {
     pthread_t *hiloPLP = (pthread_t *) malloc(sizeof(pthread_t));
@@ -516,7 +489,7 @@ bool encolarDirectoNuevoPedido(t_comando requestParseada) {
         case ADD:
         case RUN:
         case METRICS:
-        case JOURNAL:
+        case JOURNAL: //definir si la encolamos o decidimos ejecutarla instantaneamente
         case EXIT:
             return false;
     }
@@ -538,7 +511,7 @@ t_archivoLQL *convertirRequestALQL(t_comando requestParseada) {
         case DESCRIBE:
             string_append(&requestDelLQL, "DESCRIBE");
     }
-    for (int i = 0; i < requestParseada.cantidadParametros; ++i) {
+    for (int i = 0; i < requestParseada.cantidadParametros; i++) {
         string_append(&requestDelLQL, requestParseada.parametros[i]);
     }
 
@@ -556,46 +529,91 @@ pthread_t *crearHiloPlanificadorCortoPlazo(parametros_pcp *parametros) {
     return hiloPCP;
 }
 
-void *planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL* archivoLQL) {
-    int quantumMaximo = (int) paramPlanificacionGeneral->parametrosPCP->quantum;
+void *planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archivoLQL) {
+    p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
+    parametros_plp *parametrosPLP = paramPlanifGeneral->parametrosPLP;
+    int quantumMaximo = (int) paramPlanifGeneral->parametrosPCP->quantum;
     t_archivoLQL *unLQL = archivoLQL;
     t_comando requestParseada;
+    bool requestEsValida;
 
     for (int quantumsConsumidos = 0; quantumsConsumidos < quantumMaximo; quantumsConsumidos++) {
-        int lineaDeEjecucion = 0;
+        int lineaDeEjecucion = 0;//dejamos por si queremos hacer un lineaDeEjecución++
         char *unaRequest = queue_pop(unLQL->colaDeRequests);
         char **comandoParseado = parser(unaRequest);
         if (comandoParseado == NULL) {
             free(comandoParseado);
-            continue;
+            break;
         }
         requestParseada = instanciarComando(comandoParseado);
-        lineaDeEjecucion++;
-        bool requestEsValida = analizarRequest(requestParseada, paramPlanificacionGeneral->parametrosConsola);
+        requestEsValida = analizarRequest(requestParseada, pConsolaKernel);
         if (requestEsValida == true) {
-            //int respuesta = gestionarRequest(requestParseada, parametros);//Al ser valida, comenzamos a encolar
+            if ((diferenciarRequest(requestParseada) == 1)) { //Si es 1 es primitiva
+                gestionarRequestPrimitivas(requestParseada, pConsolaKernel);
+                actualizarCantRequest(archivoLQL, requestParseada); //para métricas
+            } else { //Si es 0 es comando de Kernel
+                gestionarRequestKernel(requestParseada, pConsolaKernel, parametrosPLP);
+            }
         } else {
-            log_warning(paramPlanificacionGeneral->parametrosConsola->logger,
+            log_warning(pConsolaKernel->logger,
                         "No se pudo procesar la request ubicada en la línea %s. Corríjala y vuelvala a ejecutar.",
                         lineaDeEjecucion);
+            sem_wait(paramPlanifGeneral->parametrosPCP->mutexListaFinalizados);
+            list_add(paramPlanifGeneral->parametrosPCP->colaDeFinalizados, unLQL);
+            sem_post(paramPlanifGeneral->parametrosPCP->mutexListaFinalizados);
+            break;
+            //TODO: ADEMAS DEBEMOS SALIR DE LA EJECUCION DE ESTE LQL -CONSULTAR FER
         }
+    }
+    if (requestEsValida == true) {
+        sem_wait(paramPlanifGeneral->parametrosPCP->mutexColaDeReady);
+        queue_push(paramPlanifGeneral->parametrosPCP->colaDeReady, unLQL);
+        sem_post(paramPlanifGeneral->parametrosPCP->mutexColaDeReady);
+        sem_post(parametrosPLP->cantidadProcesosEnReady);
     }
 }
 
-void instanciarPCPs(parametros_pcp *parametrosPCP, p_consola_kernel *parametrosConsola) {
+void actualizarCantRequest(t_archivoLQL *archivoLQL, t_comando requestParseada) {
+    switch (requestParseada.tipoRequest) {
+        case SELECT:
+            archivoLQL->cantidadDeSelectProcesados++;
+        case INSERT:
+            archivoLQL->cantidadDeInsertProcesados++;
+    }
+}
 
+void instanciarPCPs(parametros_pcp *parametrosPCP, parametros_plp *parametrosPLP, p_consola_kernel *parametrosConsola) {
     sem_t *semaforo_cantidadProcesosEnReady = parametrosPCP->cantidadProcesosEnReady;
     sem_t *semaforo_mutexColaDeReady = parametrosPCP->mutexColaDeReady;
 
-    sem_wait(semaforo_cantidadProcesosEnReady);
-    sem_wait(semaforo_mutexColaDeReady);
-    t_archivoLQL *nuevoLQL = queue_pop(parametrosPCP->colaDeReady);
-    sem_post(semaforo_mutexColaDeReady);
+    while (1) {
+        sem_wait(semaforo_cantidadProcesosEnReady);
+        sem_wait(semaforo_mutexColaDeReady);
+        t_archivoLQL *nuevoLQL = queue_pop(parametrosPCP->colaDeReady);
+        sem_post(semaforo_mutexColaDeReady);
 
-    p_planificacion *paramPlanificacionGeneral = (p_planificacion *) malloc(sizeof(p_planificacion));
-    paramPlanificacionGeneral->parametrosConsola = parametrosConsola;
-    paramPlanificacionGeneral->parametrosPCP = parametrosPCP;
+        p_planificacion *paramPlanificacionGeneral = (p_planificacion *) malloc(sizeof(p_planificacion));
+        paramPlanificacionGeneral->parametrosConsola = parametrosConsola;
+        paramPlanificacionGeneral->parametrosPCP = parametrosPCP;
+        paramPlanificacionGeneral->parametrosPLP = parametrosPLP;
 
-    planificarRequest(paramPlanificacionGeneral, nuevoLQL);
+        planificarRequest(paramPlanificacionGeneral, nuevoLQL);
+    }
+}
 
+int diferenciarRequest(t_comando requestParseada) {
+    switch (requestParseada.tipoRequest) {
+        case SELECT:
+        case CREATE:
+        case INSERT:
+        case DROP:
+        case DESCRIBE:
+            return 1;
+        case ADD:
+        case RUN:
+        case METRICS:
+        case JOURNAL:
+        case EXIT:
+            return 0;
+    }
 }

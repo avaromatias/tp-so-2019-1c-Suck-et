@@ -174,9 +174,9 @@ int existeTabla(char *path);
 
 /**
 * @NAME: obtenerMetadata
-* @DESC: Almacena o actualiza la metadata de una tabla en el diccionario de metadatas
+* @DESC: Almacena o actualiza la metadata de una tabla en el diccionario de metadatas y la retorna
 */
-void obtenerMetadata(char *tabla);
+t_metadata *obtenerMetadata(char *tabla);
 
 /**
 * @NAME: calcularParticion

@@ -112,9 +112,11 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *cone
     }
     char* request = string_from_format("SELECT %s %s", nombreTabla, key);
     log_info(logger, "Valor no encontrado en memoria. Se enviará la siguiente request a Lissandra: %s", request);
+    sem_wait(conexionLissandra->semaforo);
     enviarPaquete(conexionLissandra->fd, REQUEST, SELECT, request);
     free(request);
     respuesta = recibirMensajeDeLissandra(conexionLissandra);
+    sem_post(conexionLissandra->semaforo);
     if(respuesta.tipoMensaje == RESPUESTA)   {
         char** componentesSelect = string_split(respuesta.mensaje, ";");
         insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger, conexionLissandra);
@@ -127,9 +129,11 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *cone
 
 t_paquete gestionarCreate(char* nombreTabla, char* tipoConsistencia, char* cantidadParticiones, char* tiempoCompactacion, t_control_conexion* conexionLissandra, t_log* logger)   {
     char* request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones, tiempoCompactacion);
+    sem_wait(conexionLissandra->semaforo);
     enviarPaquete(conexionLissandra->fd, REQUEST, CREATE, request);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
+    sem_post(conexionLissandra->semaforo);
     return respuesta;
 }
 
@@ -137,9 +141,11 @@ t_paquete gestionarDrop(char* nombreTabla, t_control_conexion* conexionLissandra
     char* resultado = drop(nombreTabla, memoria);
     log_info(logger, resultado);
     char* request = string_from_format("DROP %s", nombreTabla);
+    sem_wait(conexionLissandra->semaforo);
     enviarPaquete(conexionLissandra->fd, REQUEST, DROP, request);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
+    sem_post(conexionLissandra->semaforo);
     if(respuesta.tipoMensaje == ERR)  {
         free(respuesta.mensaje);
         respuesta.mensaje = resultado;
@@ -168,10 +174,12 @@ void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, cha
 
 
     log_info(logger, "Se procede a enviar a lissandra la request: ", request);
+    sem_wait(parametrosJournal->conexionLissandra->semaforo);
     enviarPaquete(parametrosJournal->conexionLissandra->fd, REQUEST, INSERT, request);
     free(request);
 
     t_paquete respuesta = recibirMensajeDeLissandra(parametrosJournal->conexionLissandra);
+    sem_post(parametrosJournal->conexionLissandra->semaforo);
     if(respuesta.tipoMensaje == RESPUESTA)   {
         log_info(logger, respuesta.mensaje);
     } else{
@@ -235,9 +243,12 @@ t_paquete gestionarDescribe(char *nombreTabla, t_control_conexion *conexionLissa
     if(nombreTabla != NULL) {
         request = string_from_format("DESCRIBE %s", nombreTabla);
     }
+    sem_wait(conexionLissandra->semaforo);
     enviarPaquete(conexionLissandra->fd, REQUEST, DESCRIBE, request);
     free(request);
-    return recibirMensajeDeLissandra(conexionLissandra);
+    t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
+    sem_post(conexionLissandra->semaforo);
+    return respuesta;
 }
 
 t_paquete gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger) {
@@ -733,8 +744,11 @@ int getCantidadCaracteresByPeso(int pesoString) {
 }
 
 int main(void) {
+    char* nombreArchivoConfiguracion = readline("Escriba el nombre del archivo de configuración que desee cargar (el mismo deberá estar en el mismo directorio que el ejecutable).\n");
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
-	t_configuracion configuracion = cargarConfiguracion("memoria1.cfg", logger);
+    char* nombreArchivoConfiguracionConExtension = string_from_format("%s.cfg", nombreArchivoConfiguracion);
+	t_configuracion configuracion = cargarConfiguracion(nombreArchivoConfiguracionConExtension, logger);
+	free(nombreArchivoConfiguracionConExtension);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
     t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};
@@ -758,33 +772,7 @@ int main(void) {
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra);
     //pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal);
     pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas);
-    t_comando comando;
 
-    while(1){
-		sem_wait(conexionKernel.semaforo);
-		/*if(conexionKernel.fd > 0)	{
-			//t_paquete request = recibirMensaje(&conexionKernel);
-//			logearValorDeSemaforo(&lissandraConectada, logger, "kernel");
-			if(request.mensaje == NULL)
-				continue;
-			else    {
-                char** comandoParseado = parser(request.mensaje);
-                free(request.mensaje);
-                if (comandoParseado == NULL)
-                    continue;
-                comando = instanciarComando(comandoParseado);
-                free(comandoParseado);
-                t_paquete respuesta = gestionarRequest(comando, memoriaPrincipal, &conexionLissandra, logger);
-                if(respuesta == NULL)   {
-                    log_error(logger, "Se desconectó Lissandra. Finalizando el proceso.");
-                    exit(-1);
-                }
-                if(conexionKernel.fd > 0)
-                    enviarPaquete(conexionKernel.fd, REQUEST, respuesta);
-                    sem_post(conexionKernel.semaforo);
-			}
-		}*/
-    }
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
 //    pthread_join(*hiloJournal, NULL);

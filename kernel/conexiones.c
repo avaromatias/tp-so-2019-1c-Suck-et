@@ -19,7 +19,7 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_d
 }
 
 void *atenderConexiones(void *parametrosThread) {
-    parametros_thread_k *parametros = (parametros_thread_k*) parametrosThread;
+    parametros_thread_k *parametros = (parametros_thread_k *) parametrosThread;
     GestorConexiones *unaConexion = parametros->conexion;
     t_log *logger = parametros->logger;
     t_dictionary *tablaDeMemoriasConCriterios = parametros->tablaDeMemoriasConCriterios;
@@ -61,7 +61,7 @@ void *atenderConexiones(void *parametrosThread) {
                             else if (bytesRecibidos == 0) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();
-                                desconexionMemoria(fdConectado, tablaDeMemoriasConCriterios, logger);
+                                //desconexionMemoria(fdConectado, tablaDeMemoriasConCriterios, logger);
                                 desconectarCliente(fdConectado, unaConexion, logger);
                             } else {
                                 switch (header.tipoMensaje) {
@@ -70,7 +70,8 @@ void *atenderConexiones(void *parametrosThread) {
                                         //gestionarRespuesta();//atenderMensajes(header, mensaje, parametros);
                                         break;
                                     case CONEXION_ACEPTADA:
-                                        log_info(logger, "La memoria conectada recientemente ya se encuentra disponible para ser utilizada.\n");
+                                        log_info(logger,
+                                                 "La memoria conectada recientemente ya se encuentra disponible para ser utilizada.\n");
                                         break;
                                         //Componente componente = *((Componente *) mensaje);
                                         //atenderHandshake(header, componente, parametros);
@@ -102,7 +103,7 @@ void *atenderConexiones(void *parametrosThread) {
     }
 }
 
-int conectarseAMemoriaPrincipal(char* ipMemoria, int puertoMemoria, GestorConexiones* misConexiones, t_log* logger) {
+int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger) {
     int fdMemoria = conectarseAServidor(ipMemoria, puertoMemoria, misConexiones, logger);
     if (fdMemoria < 0) {
         log_error(logger, "Hubo un error al intentar conectarse a la Memoria Principal. Cerrando el proceso...");
@@ -113,19 +114,6 @@ int conectarseAMemoriaPrincipal(char* ipMemoria, int puertoMemoria, GestorConexi
     }
     return fdMemoria;
 }
-
-void desconexionMemoria(int fdMemoria, t_dictionary *memConCriterios, t_log *logger) {
-    //TODO ELIMINAMOS LA MEMORIA QUE SE DESCONECTÓ DE NUESTRA TABLA DE MEMORIAS CON CRITERIOS
-    int fdDesconectado = fdMemoria;
-    t_dictionary *tablaDeMemoriasConCriterios = memConCriterios;
-    dictionary_remove_and_destroy(tablaDeMemoriasConCriterios, "SC", fdDesconectado);
-    dictionary_remove_and_destroy(tablaDeMemoriasConCriterios, "SHC", fdDesconectado);
-    dictionary_remove_and_destroy(tablaDeMemoriasConCriterios, "EC", fdDesconectado);
-
-    log_info(logger, "La memoria conectada por el fd %i ha sido eliminada por desconexión.\n", fdDesconectado);
-}
-
-
 
 /*
 void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char *ipMemoria, int puertoMemoria, t_log *logger) {

@@ -65,8 +65,9 @@ typedef struct {
 typedef struct {
     int *quantum;
     t_queue *colaDeReady;
-    t_list *finalizados;
+    t_queue *colaDeFinalizados;
     sem_t *mutexColaDeReady;
+    sem_t *mutexListaFinalizados;
     t_log *logger;
     sem_t *cantidadProcesosEnReady;
 } parametros_pcp;

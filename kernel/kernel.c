@@ -173,7 +173,7 @@ bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
     t_log *logger = parametros->logger;
 
     if (requestParseada.tipoRequest == INVALIDO) {
-        printf("Comando inválido.\n");
+        log_error(logger, "Comando inválido.");
         return false;
     } else {
         if (validarComandosComunes(requestParseada, logger) || validarComandosKernel(requestParseada, logger)) {
@@ -376,14 +376,42 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio) {
             //Obtenemos memorias que responden al criterio pedido
             t_list *memoriasDelCriterioPedido = dictionary_get(parametros->memoriasConCriterios, criterio);
             //Que memorias tengo con el criterio X de la request solicitada?
-            int *fdMemoriaElegida =  (int*) list_get(memoriasDelCriterioPedido, 0);
-            return *fdMemoriaElegida;
+            if (criterio == "SC") {
+                int memoriaAsociadaASC = list_size(memoriasDelCriterioPedido);
+                if (memoriaAsociadaASC == 1) {
+                    int *fdMemoriaElegida = list_get(memoriasDelCriterioPedido, 0);
+                    return *fdMemoriaElegida;
+                } else {
+                    log_error(parametros->logger, "No existe ninguna memoria asociada al criterio SC. \n");
+                    return -1;
+                }
+            } else if (criterio == "SHC") {
+                //FUNCION HASH
+                //int cantidadFDsAsociadosSHC = list_size(memoriasDelCriterioPedido);
+                //if (cantidadFDsAsociadosSHC > 0) {
+
+            } else if (criterio == "EC") {
+                int cantidadFDsAsociadosEC = list_size(memoriasDelCriterioPedido);
+                if (cantidadFDsAsociadosEC > 0) {
+                    int elementoBuscado = (cantidadFDsAsociadosEC -
+                                           (cantidadFDsAsociadosEC -
+                                            1));//Siempre el primero -ya se que tiene poco sentido-
+                    t_list *memoriasDisponibles = list_take_and_remove(memoriasDelCriterioPedido,
+                                                                       elementoBuscado); //Lista nueva
+                    int *fdMemoriaElegida = list_get(memoriasDisponibles, 0);
+                    list_add(memoriasDelCriterioPedido, fdMemoriaElegida);
+
+                    list_destroy(memoriasDisponibles);
+                    return *fdMemoriaElegida;
+                } else {
+                    log_error(parametros->logger, "No existen memorias asociadas al criterio EC.\n");
+                    return -1;
+                }
+            }
+        } else {
+            log_warning(parametros->logger, "No existen memorias conectadas para asignar requests.\n");
+            return -1;
         }
-        log_warning(parametros->logger, "No existen memorias conectadas para asignar requests.\n");
-        return 0;
-    } else {
-        log_warning(parametros->logger,
-                    "Debe abastecer la metadata de Kernel con un Describe general, o de la tabla solicitada.\n");
     }
 }
 
@@ -559,7 +587,7 @@ void *planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archi
                         "No se pudo procesar la request ubicada en la línea %s. Corríjala y vuelvala a ejecutar.",
                         lineaDeEjecucion);
             sem_wait(paramPlanifGeneral->parametrosPCP->mutexListaFinalizados);
-            list_add(paramPlanifGeneral->parametrosPCP->colaDeFinalizados, unLQL);
+            queue_push(paramPlanifGeneral->parametrosPCP->colaDeFinalizados, unLQL);
             sem_post(paramPlanifGeneral->parametrosPCP->mutexListaFinalizados);
             break;
             //TODO: ADEMAS DEBEMOS SALIR DE LA EJECUCION DE ESTE LQL -CONSULTAR FER
@@ -582,7 +610,8 @@ void actualizarCantRequest(t_archivoLQL *archivoLQL, t_comando requestParseada) 
     }
 }
 
-void instanciarPCPs(parametros_pcp *parametrosPCP, parametros_plp *parametrosPLP, p_consola_kernel *parametrosConsola) {
+void
+instanciarPCPs(parametros_pcp *parametrosPCP, parametros_plp *parametrosPLP, p_consola_kernel *parametrosConsola) {
     sem_t *semaforo_cantidadProcesosEnReady = parametrosPCP->cantidadProcesosEnReady;
     sem_t *semaforo_mutexColaDeReady = parametrosPCP->mutexColaDeReady;
 

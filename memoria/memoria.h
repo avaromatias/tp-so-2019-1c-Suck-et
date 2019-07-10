@@ -85,8 +85,9 @@ typedef struct {
     t_memoria* memoria;
     struct t_control_conexion* conexionLissandra;
     t_log* logger;
+    pthread_mutex_t semaforoJournaling;
 } parametros_consola_memoria;
-pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra);
+pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, pthread_mutex_t semaforoJournaling);
 
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
@@ -135,12 +136,13 @@ typedef struct {
     struct t_control_conexion* conexionLissandra;
     t_log* logger;
     int retardo;
+    pthread_mutex_t semaforoJournaling;
 } parametros_hilo_journal;
 
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
 void vaciarMemoria(t_memoria* memoria, t_log* logger);
-pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal);
+pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal, pthread_mutex_t semaforoJournaling);
 int getCantidadCaracteresByPeso(int pesoString);
 
 //gossiping

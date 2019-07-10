@@ -4,7 +4,7 @@
 
 #include "conexiones.h"
 
-pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t semaforoMemoriasConocidas)    {
+pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t semaforoMemoriasConocidas, pthread_mutex_t semaforoJournaling)    {
 
     /*int value;
     sem_getvalue(kernelConectado, &value);
@@ -20,6 +20,7 @@ pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria
     parametros->conexionLissandra = conexionLissandra;
     parametros->memoria = memoria;
     parametros->semaforoMemoriasConocidas = semaforoMemoriasConocidas;
+    parametros->semaforoJournaling = semaforoJournaling;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -181,15 +182,45 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
 
 
 
-    if (header.tipoMensaje == GOSSIPING){
+    //if (header.tipoMensaje == GOSSIPING){
         if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
             printf("Recibi un pedido de mi lista de gossiping de fd: %i, envio la respuesta\n", header.fdRemitente);
+
+
             //enviarPaquete(header.fdRemitente, GOSSIPING,REQUEST ,"DAME_LISTA_GOSSIPING");
-            enviarRespuestaGossiping(memoriasConocidas, header.fdRemitente);
-        }
-    }else{
-        //Es la respuesta al pedido
-        if (header.tipoMensaje == RESPUESTA_GOSSIPING){
+
+
+            //enviarRespuestaGossiping(memoriasConocidas, header.fdRemitente);
+
+            char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
+
+            if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
+                printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, header.fdRemitente);
+                enviarPaquete(header.fdRemitente, GOSSIPING, RESPUESTA_GOSSIPING, memoriasConocidasConcatenadas);
+            } else{
+                printf("Mi lista estaba vacia primera respuesta\n");
+                enviarPaquete(header.fdRemitente, GOSSIPING, RESPUESTA_GOSSIPING, "LISTA_VACIA");
+            }
+
+        }else if (header.tipoRequest == RESPUESTA_GOSSIPING){
+            if (strcmp(mensaje, "LISTA_VACIA") != 0){
+                printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
+                agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
+            } else{
+                printf("Recibi lista vacia\n");
+            }
+
+            char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
+
+            if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
+                printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, header.fdRemitente);
+                enviarPaquete(header.fdRemitente, GOSSIPING, RESPUESTA_GOSSIPING_2, memoriasConocidasConcatenadas);
+            } else{
+                printf("Mi lista estaba vacia\n");
+                enviarPaquete(header.fdRemitente, GOSSIPING, RESPUESTA_GOSSIPING_2, "LISTA_VACIA");
+            }
+
+        }else if (header.tipoRequest == RESPUESTA_GOSSIPING_2){
             if (strcmp(mensaje, "LISTA_VACIA") != 0){
                 printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
                 agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
@@ -197,9 +228,12 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
                 printf("Recibi lista vacia\n");
             }
         }
+    //}else{
+        //Es la respuesta al pedido
 
 
-    }
+
+    //}
     pthread_mutex_unlock(&semaforoMemoriasConocidas);
 
     //free(memoriasConocidas);
@@ -210,6 +244,8 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
 void* atenderRequestKernel(void* parametrosRequest)    {
     parametros_thread_request* parametros = (parametros_thread_request*) parametrosRequest;
 
+
+
     t_paquete resultado = gestionarRequest(parametros->comando, parametros->memoria, parametros->conexionLissandra, parametros->logger);
 
     if(parametros->conexionKernel->fd > 0)  {
@@ -217,7 +253,7 @@ void* atenderRequestKernel(void* parametrosRequest)    {
     }
 }
 
-pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger)   {
+pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t semaforoJournaling)   {
     pthread_t* hiloRequest = (pthread_t*) malloc(sizeof(pthread_t));
 
     parametros_thread_request* parametros = (parametros_thread_request*) malloc(sizeof(parametros_thread_request));
@@ -227,6 +263,7 @@ pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_con
     parametros->conexionKernel = conexionKernel;
     parametros->memoria = memoria;
     parametros->conexionLissandra = conexionLissandra;
+    parametros->semaforoJournaling = semaforoJournaling;
 
     pthread_create(hiloRequest, NULL, &atenderRequestKernel, parametros);
 
@@ -234,44 +271,13 @@ pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_con
 }
 
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros)    {
+
+    //todo wait semaforoJournaling
     char** comandoParseado = parser(mensaje);
     t_comando comando = instanciarComando(comandoParseado);
-    crearHiloRequest(comando, parametros->memoria, parametros->conexionKernel, parametros->conexionLissandra, parametros->logger);
+    crearHiloRequest(comando, parametros->memoria, parametros->conexionKernel, parametros->conexionLissandra, parametros->logger, parametros->semaforoJournaling);
 
-//    char** arrayMensaje = parser(mensaje);
-//
-//    //char** arrayMensaje = parser("SELECT amigues");
-//
-//
-//    if (strcmp(arrayMensaje[0], "SELECT") == 0){
-//        printf("Recibi un select");
-//
-//        //Todo chequear que las queries traigan la cantidad correcta de parámetros
-//        //TODO crear un segmento y una página
-//        //TODO buscar dentro del segmento lo que se pidió ELSE
-//
-//        enviarPaquete(FD_FS, mensaje);
-//        Header *header = (Header*)malloc(sizeof(Header));
-//        recv(FD_CLIENTE, header, sizeof(Header), NULL);
-//        char* respuesta = malloc(header->tamanioMensaje);
-//        recv(FD_CLIENTE, respuesta, header->tamanioMensaje, NULL);
-//        printf("%s", mensaje);
-//
-//    }else if (strcmp(arrayMensaje[0], "INSERT") == 0){
-//        printf("Recibi un insert");
-//    }else if (strcmp(arrayMensaje[0], "CREATE") == 0){
-//        printf("Recibi un create");
-//    }else if (strcmp(arrayMensaje[0], "DESCRIBE") == 0){
-//        printf("Recibi un describe");
-//    }else if (strcmp(arrayMensaje[0], "DROP") == 0){
-//        printf("Recibi un drop");
-//    }else if (strcmp(arrayMensaje[0], "JOURNAL") == 0){
-//        printf("Recibi un journal");
-//    }else{
-//        printf("No entendi tu mensaje bro");
-//    }
-//    printf("\n");
-//    fflush(stdout);
+    //todo post semaforoJournaling
 }
 
 t_paquete recibirMensajeDeLissandra(t_control_conexion *conexion)    {
@@ -311,20 +317,5 @@ void conectarseALissandra(t_control_conexion* conexionLissandra, char* ipLissand
     else{
         log_info(logger, "Conexión con Lissandra establecida.");
         sem_post(conexionLissandra->semaforo);
-    }
-}
-
-bool conectarseANodoMemoria(char* unaIp, char* unPuerto, t_log* logger){
-    log_info(logger, "Intentando conectarse a una memoria seed...");
-    int fdNodoMemoria = crearSocketCliente(unaIp, atoi(unPuerto), logger);
-    if(fdNodoMemoria< 0) {
-        char* mensajeError = string_from_format("Hubo un error al intentar conectarse a la memoria con ip %s y puerto %s . Cerrando el proceso...", unaIp, unPuerto);
-        log_error(logger, mensajeError);
-        return NULL;
-    }
-    else{
-        char* mensajeInfo = string_from_format("Conexion establecida con memoria con ip %s y puerto %s", unaIp, unPuerto);
-        log_info(logger, mensajeInfo);
-        return fdNodoMemoria;
     }
 }

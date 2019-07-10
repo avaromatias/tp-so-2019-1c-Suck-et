@@ -137,9 +137,11 @@ t_paquete gestionarDrop(char* nombreTabla, t_control_conexion* conexionLissandra
     char* resultado = drop(nombreTabla, memoria);
     log_info(logger, resultado);
     char* request = string_from_format("DROP %s", nombreTabla);
+    sem_wait(conexionLissandra->semaforo);
     enviarPaquete(conexionLissandra->fd, REQUEST, DROP, request);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
+    sem_post(conexionLissandra->semaforo);
     if(respuesta.tipoMensaje == ERR)  {
         free(respuesta.mensaje);
         respuesta.mensaje = resultado;
@@ -167,11 +169,13 @@ void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, cha
     t_log* logger = parametrosJournal->logger;
 
 
-    log_info(logger, "Se procede a enviar a lissandra la request: ", request);
+    log_info(logger, request);
+    sem_wait(parametrosJournal->conexionLissandra->semaforo);
     enviarPaquete(parametrosJournal->conexionLissandra->fd, REQUEST, INSERT, request);
     free(request);
 
     t_paquete respuesta = recibirMensajeDeLissandra(parametrosJournal->conexionLissandra);
+    sem_post(parametrosJournal->conexionLissandra->semaforo);
     if(respuesta.tipoMensaje == RESPUESTA)   {
         log_info(logger, respuesta.mensaje);
     } else{
@@ -223,8 +227,9 @@ t_paquete gestionarJournal(t_control_conexion *conexionConLissandra, t_memoria *
     parametrosJournal->conexionLissandra = conexionConLissandra;
     mi_dictionary_iterator(parametrosJournal, memoria->tablaDeSegmentos, &iterarSegmentos);
 
+    //mutex memoria
     vaciarMemoria(memoria, logger);
-
+    //mutex memoria
     t_paquete resultado = {.mensaje = "Se gestionó el journal", .tipoMensaje = RESPUESTA };
 
     return resultado;
@@ -232,12 +237,15 @@ t_paquete gestionarJournal(t_control_conexion *conexionConLissandra, t_memoria *
 
 t_paquete gestionarDescribe(char *nombreTabla, t_control_conexion *conexionLissandra)  {
     char* request = string_from_format("DESCRIBE");
-    if(nombreTabla == NULL) {
-        request = string_from_format("DESCRIBE %s");
+    if(nombreTabla != NULL) {
+        request = string_from_format("DESCRIBE %s", nombreTabla);
     }
+    sem_wait(conexionLissandra->semaforo);
     enviarPaquete(conexionLissandra->fd, REQUEST, DESCRIBE, request);
     free(request);
-    return recibirMensajeDeLissandra(conexionLissandra);
+    t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
+    sem_post(conexionLissandra->semaforo);
+    return respuesta;
 }
 
 t_paquete gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger) {
@@ -267,6 +275,7 @@ void* ejecutarConsola(void* parametrosConsola){
     t_log* logger = parametros->logger;
     t_control_conexion* conexionLissandra = (t_control_conexion*) parametros->conexionLissandra;
     t_comando comando;
+    pthread_mutex_t semaforoJournaling = (pthread_mutex_t)parametros->semaforoJournaling;
 
 
     do {
@@ -274,15 +283,22 @@ void* ejecutarConsola(void* parametrosConsola){
         char** comandoParseado = parser(leido);
         if(comandoParseado == NULL)
             continue;
+
+        //todo wait semaforoJournaling
         comando = instanciarComando(comandoParseado);
         free(comandoParseado);
+        pthread_mutex_lock(&semaforoJournaling);
         if(validarComandosComunes(comando, logger))
-            printf("%s", gestionarRequest(comando, memoria, conexionLissandra, logger).mensaje);
+            log_info(logger, gestionarRequest(comando, memoria, conexionLissandra, logger).mensaje);
+            //printf("%s", gestionarRequest(comando, memoria, conexionLissandra, logger).mensaje);
+
+        //todo post semaforoJournaling
+        pthread_mutex_unlock(&semaforoJournaling);
     } while(comando.tipoRequest != EXIT);
     log_info(logger, "Ya analizamos todo los solicitado");
 }
 
-pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra){
+pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, pthread_mutex_t semaforoJournaling){
 
     pthread_t* hiloConsola = malloc(sizeof(pthread_t));
     parametros_consola_memoria* parametros = (parametros_consola_memoria*) malloc(sizeof(parametros_consola_memoria));
@@ -290,6 +306,7 @@ pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexio
     parametros->logger = logger;
     parametros->memoria = memoria;
     parametros->conexionLissandra = conexionLissandra;
+    parametros->semaforoJournaling = semaforoJournaling;
 
     pthread_create(hiloConsola, NULL, &ejecutarConsola, parametros);
     return hiloConsola;
@@ -301,15 +318,19 @@ void journaling(parametros_hilo_journal* parametros){
     t_log* logger = parametros->logger;
     t_control_conexion* conexionLissandra = parametros->conexionLissandra;
     int retardoJournal = parametros->retardo;
+    pthread_mutex_t semaforoJournaling = parametros->semaforoJournaling;
 
     while (1){
-        sleep(retardoJournal);
+        sleep(15);
+        //sleep(retardoJournal);
+        pthread_mutex_lock(&semaforoJournaling);
         gestionarJournal(conexionLissandra , memoria, logger);
         log_info(logger, "Ha finalizado el Journal\n");
         fflush(stdout);
+        pthread_mutex_unlock(&semaforoJournaling);
     }
 }
-pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, int retardoJournal){
+pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, int retardoJournal, pthread_mutex_t semaforoJournaling){
     pthread_t* hiloJournal = malloc(sizeof(pthread_t));
 
     parametros_hilo_journal* parametros = (parametros_hilo_journal*) malloc(sizeof(parametros_hilo_journal));
@@ -317,6 +338,7 @@ pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexio
     parametros->logger = logger;
     parametros->memoria = memoria;
     parametros->conexionLissandra = conexionLissandra;
+    parametros->semaforoJournaling = semaforoJournaling;
     //retardo Journal
     parametros->retardo = retardoJournal;
 
@@ -368,7 +390,7 @@ void intercambiarListaGossiping(t_list* nodosMemoria, t_list* memoriasConocidas)
             enviarPedidoGossiping(unNodo->fdNodoMemoria);
             //enviarPaquete(unNodo->fdNodoMemoria, GOSSIPING,REQUEST ,"DAME_LISTA_GOSSIPING");
             //A un nodo memoria le envio mi lista de gossiping
-            enviarRespuestaGossiping(memoriasConocidas, unNodo->fdNodoMemoria);
+            //enviarRespuestaGossiping(memoriasConocidas, unNodo->fdNodoMemoria);
         }
     }
     list_iterate(nodosMemoria, enviarPedidoListaGossiping);
@@ -436,7 +458,7 @@ void gossiping(parametros_gossiping* parametros){
         sleep(5);
         pthread_mutex_lock(&semaforoMemoriasConocidas);
         intercambiarListaGossiping(memoria->nodosMemoria, memoria->memoriasConocidas);
-        mostrarMemoriasConocidasAlMomento(memoria->memoriasConocidas, semaforoMemoriasConocidas);
+        //mostrarMemoriasConocidasAlMomento(memoria->memoriasConocidas, semaforoMemoriasConocidas);
         pthread_mutex_unlock(&semaforoMemoriasConocidas);
         //Avisar a Kernel sobre las memorias que conozco
 
@@ -487,7 +509,7 @@ t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dic
     t_pagina* pagina = dictionary_get(tablaDePaginas, key);
     t_pagina* nuevaPagina = (t_pagina*) malloc(sizeof(t_pagina));
     nuevaPagina->marco = pagina->marco;
-    //nuevaPagina->modificada = true;
+    nuevaPagina->modificada = true;
     time_t elTiempoActual;
     long elTiempo;
     elTiempo = (long) time(&elTiempoActual);
@@ -733,16 +755,24 @@ int getCantidadCaracteresByPeso(int pesoString) {
 
 int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
-	t_configuracion configuracion = cargarConfiguracion("memoria1.cfg", logger);
+	t_configuracion configuracion = cargarConfiguracion("memoria.cfg", logger);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
     t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};
+
+    //sem_t* semaforoJournaling = (sem_t*) malloc(sizeof(sem_t));
+
+    //sem_init(semaforoJournaling, 0, 0);
 
     sem_init(conexionKernel.semaforo, 0, 0);
     sem_init(conexionLissandra.semaforo, 0, 0);
 
     pthread_mutex_t semaforoMemoriasConocidas;
     pthread_mutex_init(&semaforoMemoriasConocidas, NULL);
+
+    pthread_mutex_t semaforoJournaling;
+    pthread_mutex_init(&semaforoJournaling, NULL);
+    printf("\nSoy la memoria %i\n", configuracion.puerto);
 
 	conectarseALissandra(&conexionLissandra, configuracion.ipFileSystem, configuracion.puertoFileSystem, logger);
 	int tamanioValue = getTamanioValue(&conexionLissandra, logger);
@@ -751,11 +781,11 @@ int main(void) {
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
     //TODO Agregar "mi ip" al archivo de configuracion para que memorias tenga su propia ip en su lista de gossiping
-    agregarIpMemoria(configuracion.ipFileSystem, string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
+    //agregarIpMemoria(configuracion.ipFileSystem, string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
 
-    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas);
-    pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra);
-    //pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal);
+    pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling);
+    pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra, semaforoJournaling);
+    pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal, semaforoJournaling);
     pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas);
     t_comando comando;
 
@@ -786,7 +816,7 @@ int main(void) {
     }
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
-//    pthread_join(*hiloJournal, NULL);
+    pthread_join(*hiloJournal, NULL);
     pthread_join(*hiloGossiping, NULL);
 
 	return 0;

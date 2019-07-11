@@ -125,7 +125,7 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 }
 
 void crearBinarios(char *nombreTabla, int particiones) {
-    pthread_mutex_lock(&mutexAsignacionBloques);
+    pthread_mutex_lock(mutexAsignacionBloques);
     for (int i = 0; i < particiones; i++) {
         t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
         bloqueA->tabla = concat(1, nombreTabla);
@@ -151,7 +151,7 @@ void crearBinarios(char *nombreTabla, int particiones) {
             free(tamanioString);
         }
     }
-    pthread_mutex_unlock(&mutexAsignacionBloques);
+    pthread_mutex_unlock(mutexAsignacionBloques);
 }
 
 char *obtenerBloquesAsignados(char *nombreTabla, int particion) {
@@ -230,7 +230,7 @@ int obtenerBloqueDisponible(char *nombreTabla, int particion) {
 void retardo() {
     t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
     int tiempoDump = config_get_int_value(archivoConfig, "RETARDO");
-    if (!tiempoDump) {
+    if (tiempoDump < 0) {
         log_error(logger, "El RETARDO no esta seteado en el Archivo de Configuracion.");
     }
     tiempoDump = tiempoDump / 1000;
@@ -644,7 +644,7 @@ void liberarBloques(char **nroBloques) {
 }
 
 void liberarBloque(char *nroBloque) {
-    pthread_mutex_lock(&mutexAsignacionBloques);
+    pthread_mutex_lock(mutexAsignacionBloques);
     vaciarArchivo(obtenerPathBloque(atoi(nroBloque)));
     t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
     bloque->tabla = concat(1, "");
@@ -652,7 +652,7 @@ void liberarBloque(char *nroBloque) {
     free(dictionary_get(bloquesAsignados, nroBloque));
     dictionary_put(bloquesAsignados, nroBloque, bloque);
     bitarray_clean_bit(bitarray, atoi(nroBloque));
-    pthread_mutex_unlock(&mutexAsignacionBloques);
+    pthread_mutex_unlock(mutexAsignacionBloques);
 }
 
 char **filtrarKeyMax(char **listaLineas) {
@@ -791,16 +791,17 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
     int bloque;
     char *bloquesDeParticion = string_duplicate("[");
     while (linea[indice] != '\0' && indice < string_length(linea)) {
-        pthread_mutex_lock(&mutexAsignacionBloques);
+        pthread_mutex_lock(mutexAsignacionBloques);
         bloque = obtenerBloqueDisponible(nombreTabla, particion); // Aca creo que esta obteniendo un bloque disponible distinto al que la particion ya tiene asignado
         if (bloque == -1) {
-            pthread_mutex_unlock(&mutexAsignacionBloques);
+            pthread_mutex_unlock(mutexAsignacionBloques);
             log_error(logger, "No hay bloques disponibles.");
+            deleteFile(nombreArchivo);
             break;
         } else {
             char *bloqueString = string_itoa(bloque);
             dictionary_put(bloquesAsignados, bloqueString, bloqueA); //Tengo mis dudas con respecto a esto: porque el bloque podria ya estar asignado a esa tabla y particion
-            pthread_mutex_unlock(&mutexAsignacionBloques);
+            pthread_mutex_unlock(mutexAsignacionBloques);
             string_append(&bloquesDeParticion, bloqueString);
             string_append(&bloquesDeParticion, ",");
             char *pathBloque = obtenerPathBloque(bloque);
@@ -823,17 +824,21 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
         }
     }
     if(particion == -1) {
-        FILE *fParticion = fopen(nombreArchivo, "w");
-        char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, particion);
-        int cantidadBloquesAsignados = tamanioDeArrayDeStrings(convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
-        int tamanio = ((cantidadBloquesAsignados - 1) * obtenerTamanioBloques(configuracion.puntoMontaje)) + obtenerTamanioBloque(bloque);
-        char *tamanioString = string_itoa(tamanio);
-        char *contenido = generarContenidoParaParticion(tamanioString, bloquesAsignadosAParticion);
-        fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
-        free(contenido);
-        free(bloquesAsignadosAParticion);
-        fclose(fParticion);
-        free(tamanioString);
+        if(existeElArchivo(nombreArchivo)) {
+            FILE *fParticion = fopen(nombreArchivo, "w");
+            char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, particion);
+            int cantidadBloquesAsignados = tamanioDeArrayDeStrings(
+                    convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
+            int tamanio = ((cantidadBloquesAsignados - 1) * obtenerTamanioBloques(configuracion.puntoMontaje)) +
+                          obtenerTamanioBloque(bloque);
+            char *tamanioString = string_itoa(tamanio);
+            char *contenido = generarContenidoParaParticion(tamanioString, bloquesAsignadosAParticion);
+            fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
+            free(contenido);
+            free(bloquesAsignadosAParticion);
+            fclose(fParticion);
+            free(tamanioString);
+        }
     }
 }
 
@@ -916,8 +921,9 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             //6. Obtengo los bloques de los archivos temporales que se están compactando
             char *bloquesTemporalesCompactacion = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
 
-            char **bloques = convertirStringDeBloquesAArray(
-                    concat(5, bloquesParticion, ",", bloquesTemporales, ",", bloquesTemporalesCompactacion));
+            char *todosLosBloques = concat(5, bloquesParticion, ",", bloquesTemporales, ",", bloquesTemporalesCompactacion);
+
+            char **bloques = convertirStringDeBloquesAArray(todosLosBloques);
             char *mayorLinea = string_duplicate(obtenerLineaMasReciente(bloques, key));
 
             //7. Escaneo la memoria temporal de la tabla
@@ -1377,9 +1383,9 @@ void cargarBloquesAsignados(char *path) {
                         t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
                         bloque->tabla = string_duplicate(nombreTabla);
                         bloque->particion = particion;
-                        pthread_mutex_lock(&mutexAsignacionBloques);
+                        pthread_mutex_lock(mutexAsignacionBloques);
                         dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
-                        pthread_mutex_unlock(&mutexAsignacionBloques);
+                        pthread_mutex_unlock(mutexAsignacionBloques);
                     }
                     freeArrayDeStrings(arrayDeBloques);
                     free(nombreArchivo);
@@ -1440,9 +1446,9 @@ void crearDirBloques(char *puntoMontaje) {
             t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
             bloque->tabla = string_new();
             bloque->particion = -1;
-            pthread_mutex_lock(&mutexAsignacionBloques);
+            pthread_mutex_lock(mutexAsignacionBloques);
             dictionary_put(bloquesAsignados, nroBloque, bloque);
-            pthread_mutex_unlock(&mutexAsignacionBloques);
+            pthread_mutex_unlock(mutexAsignacionBloques);
             free(nroBloque);
             if (!existeElArchivo(unArchivoDeBloque)) {
                 pthread_mutex_t *semBloque = (pthread_mutex_t *) obtenerSemaforoPath(unArchivoDeBloque);
@@ -1615,7 +1621,7 @@ int main(void) {
     hilosTablas = dictionary_create();
     bloquesAsignados = dictionary_create();
     mutexAsignacionBloques = malloc(sizeof(pthread_mutex_t));
-    int init = pthread_mutex_init(&mutexAsignacionBloques, NULL);
+    int init = pthread_mutex_init(mutexAsignacionBloques, NULL);
     inicializarLFS(configuracion.puntoMontaje);
 
     log_info(logger, "Puerto Escucha: %i", configuracion.puertoEscucha);

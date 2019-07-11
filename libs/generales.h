@@ -26,9 +26,7 @@ typedef enum {
     METRICS,
     HELP,
     EXIT,
-    INVALIDO,
-    RESPUESTA_GOSSIPING,
-    RESPUESTA_GOSSIPING_2
+    INVALIDO
 } TipoRequest;
 
 typedef struct{

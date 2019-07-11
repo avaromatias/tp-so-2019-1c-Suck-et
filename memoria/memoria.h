@@ -85,13 +85,13 @@ typedef struct {
     t_memoria* memoria;
     struct t_control_conexion* conexionLissandra;
     t_log* logger;
-    pthread_mutex_t semaforoJournaling;
+    pthread_mutex_t* semaforoJournaling;
 } parametros_consola_memoria;
-pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, pthread_mutex_t semaforoJournaling);
+pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, pthread_mutex_t* semaforoJournaling);
 
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
-t_paquete gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger);
+t_paquete gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoJournaling);
 
 t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamanioPagina, t_log* logger);
 
@@ -105,7 +105,7 @@ t_pagina* crearPagina(char* key, t_memoria* memoria);
 char* formatearPagina(char* key, char* value, char* timestamp);
 bool hayMarcosLibres(t_memoria memoria);
 t_marco* getMarcoLibre(t_memoria* memoria);
-t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger,  t_control_conexion* conexionLissandra);
+t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger,  t_control_conexion* conexionLissandra, pthread_mutex_t* semaforoJournaling);
 t_pagina* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria, bool recibiTimestamp);
 t_segmento* crearSegmento(char* nombreTabla, t_memoria* memoria);
 t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dictionary* tablaDePaginas);
@@ -113,8 +113,8 @@ t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria);
 
 //void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString);
 
-t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *conexionLissandra, t_memoria *memoria, t_log *logger);
-t_paquete gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra);
+t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *conexionLissandra, t_memoria *memoria, t_log *logger, pthread_mutex_t* semaforoJournaling);
+t_paquete gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, pthread_mutex_t* semaforoJournaling);
 t_paquete gestionarCreate(char* nombreTabla, char* tipoConsistencia, char* cantidadParticiones, char* tiempoCompactacion, t_control_conexion* conexionLissandra, t_log* logger);
 
 // drop
@@ -136,13 +136,13 @@ typedef struct {
     struct t_control_conexion* conexionLissandra;
     t_log* logger;
     int retardo;
-    pthread_mutex_t semaforoJournaling;
+    pthread_mutex_t* semaforoJournaling;
 } parametros_hilo_journal;
 
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
 void vaciarMemoria(t_memoria* memoria, t_log* logger);
-pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal, pthread_mutex_t semaforoJournaling);
+pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal, pthread_mutex_t* semaforoJournaling);
 int getCantidadCaracteresByPeso(int pesoString);
 
 //gossiping
@@ -152,7 +152,8 @@ typedef struct {
     t_memoria* memoria;
     GestorConexiones* misConexiones;
     t_configuracion archivoDeConfiguracion;
-    pthread_mutex_t semaforoMemoriasConocidas;
+    pthread_mutex_t* semaforoMemoriasConocidas;
+    pthread_mutex_t* semaforoJournaling;
 }parametros_gossiping;
 
 typedef struct {
@@ -161,4 +162,5 @@ typedef struct {
     int fdNodoMemoria;
 }nodoMemoria;
 void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_log* logger);
+pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t* semaforoMemoriasConocidas, pthread_mutex_t* semaforoJournaling);
 #endif /* MEMORIA_H_ */

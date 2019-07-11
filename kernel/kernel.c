@@ -17,8 +17,10 @@ int main(void) {
     sem_t *mutexColaDeReady = (sem_t *) malloc(sizeof(sem_t));
     sem_t *cantidadProcesosEnNew = (sem_t *) malloc(sizeof(sem_t));
     sem_t *cantidadProcesosEnReady = (sem_t *) malloc(sizeof(sem_t));
+    sem_t *mutexListaFinalizados = (sem_t *) malloc(sizeof(sem_t));
     sem_init(mutexColaDeNew, 0, 1);
     sem_init(mutexColaDeReady, 0, 0);
+    sem_init(mutexListaFinalizados, 0, 1);
     sem_init(cantidadProcesosEnNew, 0, 0);
     sem_init(cantidadProcesosEnReady, 0, 0);
 
@@ -34,18 +36,18 @@ int main(void) {
     t_dictionary *metadataTablas = dictionary_create(); //voy a tener el nombreTabla, criterio, particiones y tpo_Compactación
     t_dictionary *tablaDeMemoriasConCriterios = dictionary_create();//tendremos por cada criterio una lista de memorias
 
-    t_queue *colaDeCriteriosSC = queue_create();
-    t_queue *colaDeCriteriosSHC = queue_create();
-    t_queue *colaDeCriteriosEC = queue_create();
+    t_list *listaDeCriteriosSC = list_create();
+    t_list *listaDeCriteriosSHC = list_create();
+    t_list *listaDeCriteriosEC = list_create();
 
     //voy a tener relacion de criterio con un t_list* de FDs
-    dictionary_put(tablaDeMemoriasConCriterios, "SC", colaDeCriteriosSC);
-    dictionary_put(tablaDeMemoriasConCriterios, "SHC", colaDeCriteriosSHC);
-    dictionary_put(tablaDeMemoriasConCriterios, "EC", colaDeCriteriosEC);
+    dictionary_put(tablaDeMemoriasConCriterios, "SC", listaDeCriteriosSC);
+    dictionary_put(tablaDeMemoriasConCriterios, "SHC", listaDeCriteriosSHC);
+    dictionary_put(tablaDeMemoriasConCriterios, "EC", listaDeCriteriosEC);
 
     t_queue *colaDeNew = queue_create();
     t_queue *colaDeReady = queue_create();
-    t_list *finalizados = list_create();
+    t_queue *colaDeFinalizados = queue_create();
 
     GestorConexiones *misConexiones = inicializarConexion();
     conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
@@ -76,9 +78,10 @@ int main(void) {
     parametrosPCP->quantum = (int *) configuracion.quantum;
     parametrosPCP->colaDeReady = colaDeReady;
     parametrosPCP->mutexColaDeReady = mutexColaDeReady;
+    parametrosPCP->mutexListaFinalizados = mutexListaFinalizados;
     parametrosPCP->cantidadProcesosEnReady = cantidadProcesosEnReady;
     parametrosPCP->logger = logger;
-    parametrosPCP->finalizados = finalizados;
+    parametrosPCP->colaDeFinalizados = colaDeFinalizados;
 
     for (int i = 0; i < configuracion.multiprocesamiento; i++) {
         crearHiloPlanificadorCortoPlazo(parametrosPCP);
@@ -170,7 +173,7 @@ bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
     t_log *logger = parametros->logger;
 
     if (requestParseada.tipoRequest == INVALIDO) {
-        printf("Comando inválido.\n");
+        log_error(logger, "Comando inválido.");
         return false;
     } else {
         if (validarComandosComunes(requestParseada, logger) || validarComandosKernel(requestParseada, logger)) {
@@ -182,7 +185,7 @@ bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
 }
 
 int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *parametros) {
-    //GestorConexiones *misConexiones = parametros->conexiones;
+
     char *criterioConsistencia;
     int fdMemoria;
 
@@ -357,8 +360,8 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
     if (memoriaEncontrada) {
         int *fdMemoriaSolicitada = (int *) list_get(misConexiones->conexiones,
                                                     numeroMemoria - 1); // hacemos -1 por la ubicación 0
-        t_queue *colaFileDescriptors = dictionary_get(tablaMemoriasConCriterios, criterio);
-        queue_push(colaFileDescriptors, fdMemoriaSolicitada);
+        t_list *listaFileDescriptors = dictionary_get(tablaMemoriasConCriterios, criterio);
+        list_add(listaFileDescriptors, fdMemoriaSolicitada);
         log_info(logger, "La memoria ha sido agregada a la tabla de Memorias conocidas.\n");
         return 0;
     } else {
@@ -371,18 +374,44 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio) {
     if (criterio != NULL) {
         if (existenMemoriasConectadas) {
             //Obtenemos memorias que responden al criterio pedido
-            t_queue *memoriasDelCriterioPedido = dictionary_get(parametros->memoriasConCriterios, criterio);
+            t_list *memoriasDelCriterioPedido = dictionary_get(parametros->memoriasConCriterios, criterio);
             //Que memorias tengo con el criterio X de la request solicitada?
-            //Cual
-            int *fdMemoriaElegida = (int *) queue_pop(memoriasDelCriterioPedido);
-            queue_push(memoriasDelCriterioPedido, fdMemoriaElegida);
-            return *fdMemoriaElegida;
+            if (criterio == "SC") {
+                int memoriaAsociadaASC = list_size(memoriasDelCriterioPedido);
+                if (memoriaAsociadaASC == 1) {
+                    int *fdMemoriaElegida = list_get(memoriasDelCriterioPedido, 0);
+                    return *fdMemoriaElegida;
+                } else {
+                    log_error(parametros->logger, "No existe ninguna memoria asociada al criterio SC. \n");
+                    return -1;
+                }
+            } else if (criterio == "SHC") {
+                //FUNCION HASH
+                //int cantidadFDsAsociadosSHC = list_size(memoriasDelCriterioPedido);
+                //if (cantidadFDsAsociadosSHC > 0) {
+
+            } else if (criterio == "EC") {
+                int cantidadFDsAsociadosEC = list_size(memoriasDelCriterioPedido);
+                if (cantidadFDsAsociadosEC > 0) {
+                    int elementoBuscado = (cantidadFDsAsociadosEC -
+                                           (cantidadFDsAsociadosEC -
+                                            1));//Siempre el primero -ya se que tiene poco sentido-
+                    t_list *memoriasDisponibles = list_take_and_remove(memoriasDelCriterioPedido,
+                                                                       elementoBuscado); //Lista nueva
+                    int *fdMemoriaElegida = list_get(memoriasDisponibles, 0);
+                    list_add(memoriasDelCriterioPedido, fdMemoriaElegida);
+
+                    list_destroy(memoriasDisponibles);
+                    return *fdMemoriaElegida;
+                } else {
+                    log_error(parametros->logger, "No existen memorias asociadas al criterio EC.\n");
+                    return -1;
+                }
+            }
+        } else {
+            log_warning(parametros->logger, "No existen memorias conectadas para asignar requests.\n");
+            return -1;
         }
-        log_warning(parametros->logger, "No existen memorias conectadas para asignar requests.\n");
-        return 0;
-    } else {
-        log_warning(parametros->logger,
-                    "Debe abastecer la metadata de Kernel con un Describe general, o de la tabla solicitada.\n");
     }
 }
 
@@ -534,22 +563,22 @@ void *planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archi
     int quantumMaximo = (int) paramPlanifGeneral->parametrosPCP->quantum;
     t_archivoLQL *unLQL = archivoLQL;
     t_comando requestParseada;
+    bool requestEsValida;
 
     for (int quantumsConsumidos = 0; quantumsConsumidos < quantumMaximo; quantumsConsumidos++) {
-        int lineaDeEjecucion = 0;
+        int lineaDeEjecucion = 0;//dejamos por si queremos hacer un lineaDeEjecución++
         char *unaRequest = queue_pop(unLQL->colaDeRequests);
         char **comandoParseado = parser(unaRequest);
         if (comandoParseado == NULL) {
             free(comandoParseado);
-            continue;
+            break;
         }
         requestParseada = instanciarComando(comandoParseado);
-        lineaDeEjecucion++;
-        bool requestEsValida = analizarRequest(requestParseada, pConsolaKernel);
+        requestEsValida = analizarRequest(requestParseada, pConsolaKernel);
         if (requestEsValida == true) {
             if ((diferenciarRequest(requestParseada) == 1)) { //Si es 1 es primitiva
                 gestionarRequestPrimitivas(requestParseada, pConsolaKernel);
-                actualizarCantRequest(archivoLQL, requestParseada);
+                actualizarCantRequest(archivoLQL, requestParseada); //para métricas
             } else { //Si es 0 es comando de Kernel
                 gestionarRequestKernel(requestParseada, pConsolaKernel, parametrosPLP);
             }
@@ -557,12 +586,19 @@ void *planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archi
             log_warning(pConsolaKernel->logger,
                         "No se pudo procesar la request ubicada en la línea %s. Corríjala y vuelvala a ejecutar.",
                         lineaDeEjecucion);
+            sem_wait(paramPlanifGeneral->parametrosPCP->mutexListaFinalizados);
+            queue_push(paramPlanifGeneral->parametrosPCP->colaDeFinalizados, unLQL);
+            sem_post(paramPlanifGeneral->parametrosPCP->mutexListaFinalizados);
+            break;
             //TODO: ADEMAS DEBEMOS SALIR DE LA EJECUCION DE ESTE LQL -CONSULTAR FER
         }
     }
-    sem_wait(paramPlanifGeneral->parametrosPCP->mutexColaDeReady);
-    queue_push(paramPlanifGeneral->parametrosPCP->colaDeReady, unLQL);
-    sem_post(paramPlanifGeneral->parametrosPCP->mutexColaDeReady);
+    if (requestEsValida == true) {
+        sem_wait(paramPlanifGeneral->parametrosPCP->mutexColaDeReady);
+        queue_push(paramPlanifGeneral->parametrosPCP->colaDeReady, unLQL);
+        sem_post(paramPlanifGeneral->parametrosPCP->mutexColaDeReady);
+        sem_post(parametrosPLP->cantidadProcesosEnReady);
+    }
 }
 
 void actualizarCantRequest(t_archivoLQL *archivoLQL, t_comando requestParseada) {
@@ -574,7 +610,8 @@ void actualizarCantRequest(t_archivoLQL *archivoLQL, t_comando requestParseada) 
     }
 }
 
-void instanciarPCPs(parametros_pcp *parametrosPCP, parametros_plp *parametrosPLP, p_consola_kernel *parametrosConsola) {
+void
+instanciarPCPs(parametros_pcp *parametrosPCP, parametros_plp *parametrosPLP, p_consola_kernel *parametrosConsola) {
     sem_t *semaforo_cantidadProcesosEnReady = parametrosPCP->cantidadProcesosEnReady;
     sem_t *semaforo_mutexColaDeReady = parametrosPCP->mutexColaDeReady;
 

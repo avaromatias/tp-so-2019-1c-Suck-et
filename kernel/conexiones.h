@@ -6,6 +6,7 @@
 #define KERNEL_CONEXIONES_H
 
 #include <semaphore.h>
+#include <commons/collections/queue.h>
 #include <commons/collections/dictionary.h>
 #include "../libs/sockets.h"
 

@@ -834,9 +834,9 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             char *tamanioString = string_itoa(tamanio);
             char *contenido = generarContenidoParaParticion(tamanioString, bloquesAsignadosAParticion);
             fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
+            fclose(fParticion);
             free(contenido);
             free(bloquesAsignadosAParticion);
-            fclose(fParticion);
             free(tamanioString);
         }
     }
@@ -1349,6 +1349,7 @@ char **obtenerTablas() {
 
 void cargarBloquesAsignados(char *path) {
     char **tablas = obtenerTablas();
+    int temporalesConflictivos = 0;
     for (int i = 0; i < tamanioDeArrayDeStrings(tablas); i++) {
         char *nombreTabla = string_duplicate(tablas[i]);
         t_metadata *meta = obtenerMetadata(nombreTabla);
@@ -1376,6 +1377,19 @@ void cargarBloquesAsignados(char *path) {
                         freeArrayDeStrings(numeroParticion);
                     } else {
                         particion = -1;
+                        if(temporalesConflictivos == 0) {
+                            log_warning(logger, "Se detectó que una compactación no pudo terminar su ejecución correctamente. Se procede a restaurar el File System a un estado consistente.");
+                        }
+                        char *pathArchivo = concat(3, pathTabla, "/", nombreArchivo);
+                        if(!archivoVacio(pathArchivo)) {
+                            char *bloqueTemporal = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo);
+                            char *pathBloque = obtenerPathBloque(atoi(bloqueTemporal));
+                            vaciarArchivo(pathBloque);
+                            //free(bloqueTemporal);
+                            free(pathBloque);
+                        }
+                        deleteFile(pathArchivo);
+                        free(pathArchivo);
                     }
                     char **arrayDeBloques = convertirStringDeBloquesAArray(
                             obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo));
@@ -1393,6 +1407,7 @@ void cargarBloquesAsignados(char *path) {
             }
         }
         free(pathTabla);
+        free(nombreTabla);
     }
 }
 

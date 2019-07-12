@@ -25,6 +25,7 @@
 #include "../libs/consola.h"
 #include "conexiones.h"
 
+//Estructura necesaria para el archivo de configuración
 typedef struct {
     char *ipMemoria;
     int puertoMemoria;
@@ -33,6 +34,13 @@ typedef struct {
     int refreshMetadata;
     int retardoEjecucion;
 } t_configuracion;
+
+//Estructura necesaria para las metadatas de las tablas
+typedef struct {
+    char *consistencia;
+    int particiones;
+    int tiempoCompactacion;
+} t_metadataTablas;
 
 //Estructura necesaria para el manejo de archivosLQL
 typedef struct {
@@ -112,6 +120,8 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria);
 int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros);
 
 int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP);
+
+int gestionarJournalKernel(p_consola_kernel *parametros);
 
 int diferenciarRequest(t_comando requestParseada);
 

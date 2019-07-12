@@ -191,15 +191,25 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
 
     switch (requestParseada.tipoRequest) { //Analizar si cada gestionar va a tener que encolar en NEW, en lugar de enviarPaquete
         case SELECT:
-            criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
-            fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
-            return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], fdMemoria);
+            if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
+                criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
+                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
+                return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], fdMemoria);
+            } else {
+                log_error(parametros->logger, "La tabla no se encuentra dentro de la Metadata conocida.\n");
+                return -1;
+            }
         case INSERT:
-            criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
-            fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
-            return gestionarInsertKernel(requestParseada.parametros[0], requestParseada.parametros[1],
-                                         requestParseada.parametros[2],
-                                         fdMemoria);
+            if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
+                criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
+                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
+                return gestionarInsertKernel(requestParseada.parametros[0], requestParseada.parametros[1],
+                                             requestParseada.parametros[2],
+                                             fdMemoria);
+            } else {
+                log_error(parametros->logger, "La tabla no se encuentra dentro de la Metadata conocida.\n");
+                return -1;
+            }
         case CREATE:
             criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
             fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
@@ -209,20 +219,25 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
                                   requestParseada.parametros[3], fdMemoria);
             return 0;
         case DROP:
-            criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
-            fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
-            return gestionarDropKernel(requestParseada.parametros[0], fdMemoria);
+            if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
+                criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
+                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
+                return gestionarDropKernel(requestParseada.parametros[0], fdMemoria);
+            } else {
+                log_error(parametros->logger, "La tabla no se encuentra dentro de la Metadata conocida.\n");
+                return -1;
+            }
         case DESCRIBE:
             return 0;//gestionarDescribeKernel(); //solamente trabaja con una tabla en particular
+        case JOURNAL:
+            gestionarJournalKernel(parametros);
+            return 0;
     }
 }
 
 int gestionarRequestKernel(t_comando requestParseada, p_consola_kernel *parametros, parametros_plp *parametrosPLP) {
 
     switch (requestParseada.tipoRequest) {
-        case DESCRIBE:
-            //gestionarDescribeGlobal();
-            return 0;
         case ADD:
             printf("Tipo de Request: %s %s %s \n", "ADD", requestParseada.parametros[0], requestParseada.parametros[1]);
             printf("To: %s \n", requestParseada.parametros[3]);
@@ -234,9 +249,6 @@ int gestionarRequestKernel(t_comando requestParseada, p_consola_kernel *parametr
         case METRICS:
             //gestionarMetricas();
             break;
-        case JOURNAL:
-            //gestionarJournalKernel(parametros);
-            return 0;
         case HELP:
             printf("************ Comandos disponibles ************\n");
             printf("- SELECT [NOMBRE_TABLA] [KEY]\n");
@@ -304,18 +316,49 @@ int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemor
 }
 
 int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
-    char *request = string_from_format("DROP %s %s", nombreTabla);
+    char *request = string_from_format("DROP %s", nombreTabla);
     enviarPaquete(fdMemoria, REQUEST, DROP, request);
     free(request);
     //recibo mensaje de Memoria o directamente fallo yo?
     return 0;
 }
 
-/*int gestionarJournalKernel(p_consola_kernel *parametros) {
-    char *request = string_from_format("JOURNAL");
-    enviarPaquete(fdMemoria, REQUEST, JOURNAL, request);
+int gestionarJournalKernel(p_consola_kernel *parametros) {
+    t_list *memoriasSC = dictionary_get(parametros->memoriasConCriterios, "SC");
+    t_list *memoriasSHC = dictionary_get(parametros->memoriasConCriterios, "SHC");
+    int cantMemoriasSHC = list_size(memoriasSHC);
+    t_list *memoriasEC = dictionary_get(parametros->memoriasConCriterios, "EC");
+    int cantMemoriasEC = list_size(memoriasEC);
+    char *request = string_new();
+    string_append(&request, "JOURNAL");
+
+    if ((list_size(memoriasSC)) > 0) {
+        int fdMemoria = (int)list_get(memoriasSC, 0);
+        enviarPaquete(fdMemoria, REQUEST, JOURNAL, request);
+        log_info(parametros->logger, "Se ha enviado Journal a la memoria SC.");
+    } else {
+        log_warning(parametros->logger, "No hay memoria SC asociada para enviarle JOURNAL.");
+    }
+    if (cantMemoriasSHC > 0) {
+        for (int i = 0; i < cantMemoriasSHC; i++) {
+            int fdMemoria = (int)list_get(memoriasSC, i);
+            enviarPaquete(fdMemoria, REQUEST, JOURNAL, request);
+        }
+        log_info(parametros->logger, "Se ha enviado Journal a %s memorias SHC.",cantMemoriasSHC);
+    } else {
+        log_warning(parametros->logger, "No hay memorias SHC asociadas para enviarles JOURNAL.");
+    }
+    if (cantMemoriasEC > 0) {
+        for (int i = 0; i < cantMemoriasSHC; i++) {
+            int fdMemoria = (int)list_get(memoriasSC, i);
+            enviarPaquete(fdMemoria, REQUEST, JOURNAL, request);
+        }
+        log_info(parametros->logger, "Se ha enviado Journal a %s memoria/s EC.",cantMemoriasEC);
+    } else {
+        log_warning(parametros->logger, "No hay memorias EC asociadas para enviarles JOURNAL.");
+    }
     return 0;
-}*///Corregir Journal
+}
 
 int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP) {
     t_archivoLQL *unLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
@@ -526,14 +569,14 @@ bool encolarDirectoNuevoPedido(t_comando requestParseada) {
         case CREATE:
         case INSERT:
         case DROP:
+        case JOURNAL:
             return true;
         case DESCRIBE:
             if ((requestParseada.parametros[0]) != NULL) return true;
             else return false;
         case ADD:
         case RUN:
-        case METRICS:
-        case JOURNAL: //definir si la encolamos o decidimos ejecutarla instantaneamente
+        case METRICS: //definir si la encolamos o decidimos ejecutarla instantaneamente
         case EXIT:
             return false;
     }
@@ -652,12 +695,12 @@ int diferenciarRequest(t_comando requestParseada) {
         case CREATE:
         case INSERT:
         case DROP:
+        case JOURNAL:
         case DESCRIBE:
             return 1;
         case ADD:
         case RUN:
         case METRICS:
-        case JOURNAL:
         case EXIT:
             return 0;
     }

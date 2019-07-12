@@ -221,7 +221,8 @@ int gestionarRequestKernel(t_comando requestParseada, p_consola_kernel *parametr
 
     switch (requestParseada.tipoRequest) {
         case DESCRIBE:
-            return 0; //gestionarDescribeGlobal();
+            //gestionarDescribeGlobal();
+            return 0;
         case ADD:
             printf("Tipo de Request: %s %s %s \n", "ADD", requestParseada.parametros[0], requestParseada.parametros[1]);
             printf("To: %s \n", requestParseada.parametros[3]);
@@ -234,7 +235,7 @@ int gestionarRequestKernel(t_comando requestParseada, p_consola_kernel *parametr
             //gestionarMetricas();
             break;
         case JOURNAL:
-            //gestionarJournalKernel();
+            //gestionarJournalKernel(parametros);
             return 0;
         case HELP:
             printf("************ Comandos disponibles ************\n");
@@ -310,6 +311,12 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
     return 0;
 }
 
+/*int gestionarJournalKernel(p_consola_kernel *parametros) {
+    char *request = string_from_format("JOURNAL");
+    enviarPaquete(fdMemoria, REQUEST, JOURNAL, request);
+    return 0;
+}*///Corregir Journal
+
 int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP) {
     t_archivoLQL *unLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
     t_log *logger = parametros->logger;
@@ -361,9 +368,18 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
         int *fdMemoriaSolicitada = (int *) list_get(misConexiones->conexiones,
                                                     numeroMemoria - 1); // hacemos -1 por la ubicación 0
         t_list *listaFileDescriptors = dictionary_get(tablaMemoriasConCriterios, criterio);
-        list_add(listaFileDescriptors, fdMemoriaSolicitada);
-        log_info(logger, "La memoria ha sido agregada a la tabla de Memorias conocidas.\n");
-        return 0;
+
+        if (criterio == "SC") {
+            int cantMemoriasSC = list_size(listaFileDescriptors);
+            if (cantMemoriasSC >= 1) {
+                log_error(logger, "Ya existe una memoria asignada al criterio SC.");
+                return -1;
+            }
+        } else if ((criterio == "SHC") || (criterio == "EC")) {
+            list_add(listaFileDescriptors, fdMemoriaSolicitada);
+            log_info(logger, "La memoria ha sido agregada a la tabla de Memorias conocidas.\n");
+            return 0;
+        }
     } else {
         log_error(logger, "La memoria solicitada no se encuentra dentro de las memorias conocidas.\n");
         return -1;
@@ -389,7 +405,7 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio) {
                 //FUNCION HASH
                 //int cantidadFDsAsociadosSHC = list_size(memoriasDelCriterioPedido);
                 //if (cantidadFDsAsociadosSHC > 0) {
-
+                //}
             } else if (criterio == "EC") {
                 int cantidadFDsAsociadosEC = list_size(memoriasDelCriterioPedido);
                 if (cantidadFDsAsociadosEC > 0) {
@@ -646,3 +662,4 @@ int diferenciarRequest(t_comando requestParseada) {
             return 0;
     }
 }
+

@@ -50,6 +50,8 @@ int crearSocketServidor(int puerto, t_log* logger)	{
         return 1;
     }
 
+    log_info(logger, "Servidor levantado en el puerto %i", puerto);
+
     return socketDeEscucha;
 }
 
@@ -141,7 +143,8 @@ bool hayNuevoMensaje(GestorConexiones* unaConexion, fd_set* emisores)    {
 int conectarseAServidor(char* ip, int puerto, GestorConexiones* conexion, t_log* logger)  {
     int* fdNuevoServidor = (int*) malloc(sizeof(int));
     *fdNuevoServidor = crearSocketCliente(ip, puerto, logger);
-    list_add(conexion->conexiones, fdNuevoServidor);
+    if(*fdNuevoServidor > 0)
+        list_add(conexion->conexiones, fdNuevoServidor);
     conexion->descriptorMaximo = getFdMaximo(conexion);
 
     return *fdNuevoServidor;

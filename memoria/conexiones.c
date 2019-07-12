@@ -179,9 +179,10 @@ void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthre
     unaMemoria.fd = fdDestinatario;
     t_paquete respuesta = recibirMensajeGossipingMemoria(&unaMemoria);
 
-    if(respuesta.mensaje == NULL){
+    if(respuesta.mensaje == NULL || unaMemoria.fd == 0){
         log_info(logger, "Parece que una memoria se desconectó. Procedo a eliminarla.");
         desconectarCliente(fdDestinatario, misConexiones, logger);
+        eliminarMemoriaConocida(memoria, unNodoMemoria);
         eliminarNodoMemoria(unNodoMemoria, memoria->nodosMemoria);
 
 
@@ -220,16 +221,8 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
     t_log* logger = parametros->logger;
 
 
-
-    //if (header.tipoMensaje == GOSSIPING){
         if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
             printf("Recibi un pedido de mi lista de gossiping de fd: %i, envio la respuesta\n", header.fdRemitente);
-
-
-            //enviarPaquete(header.fdRemitente, GOSSIPING,REQUEST ,"DAME_LISTA_GOSSIPING");
-
-
-            //enviarRespuestaGossiping(memoriasConocidas, header.fdRemitente);
 
             char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
 
@@ -248,36 +241,8 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
             } else{
                 printf("Recibi lista vacia como respuesta 2\n");
             }
-
-           /* char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
-
-            if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
-                printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, header.fdRemitente);
-                enviarPaquete(header.fdRemitente, GOSSIPING, RESPUESTA_GOSSIPING_2, memoriasConocidasConcatenadas);
-            } else{
-                printf("Mi lista estaba vacia\n");
-                enviarPaquete(header.fdRemitente, GOSSIPING, RESPUESTA_GOSSIPING_2, "LISTA_VACIA");
-            }*/
-
-        }/*else if (header.tipoRequest == RESPUESTA_GOSSIPING_2){
-            if (strcmp(mensaje, "LISTA_VACIA") != 0){
-                printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
-                agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
-            } else{
-                printf("Recibi lista vacia\n");
-            }
-        }*/
-    //}else{
-        //Es la respuesta al pedido
-
-
-
-    //}
+    }
     pthread_mutex_unlock(semaforoMemoriasConocidas);
-
-    //free(memoriasConocidas);
-    //free(memoria);
-
 }
 
 void* atenderRequestKernel(void* parametrosRequest)    {

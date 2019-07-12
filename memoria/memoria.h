@@ -167,4 +167,5 @@ void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memo
 pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t* semaforoMemoriasConocidas, pthread_mutex_t* semaforoJournaling);
 
 void eliminarNodoMemoria(nodoMemoria* unNodoMemoria, t_list* nodosMemoria);
+void eliminarMemoriaConocida(t_memoria* memoria, nodoMemoria* unNodoMemoria);
 #endif /* MEMORIA_H_ */

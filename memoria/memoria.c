@@ -386,7 +386,23 @@ void mostrarMemoriasConocidasAlMomento(t_list* memoriasConocidas, pthread_mutex_
     //pthread_mutex_unlock(&semaforoMemoriasConocidas);
 
 }
-//void list_remove_and_destroy_element(t_list *, int index, void(*element_destroyer)(void*));
+void eliminarMemoriaConocida(t_memoria* memoria, nodoMemoria* unNodoMemoria){
+    t_list* memoriasConocidas = memoria->memoriasConocidas;
+
+    char* ipNodo = string_new();
+
+    //Agregar direccion ip:puerto de memoria conocida a la lista
+    string_append(&ipNodo, (char*)unNodoMemoria->ipNodoMemoria);
+    string_append(&ipNodo, ":");
+    string_append(&ipNodo, string_itoa(unNodoMemoria->puertoNodoMemoria));
+    bool _esNodoMemoria(void* elemento){
+        return (strcmp(ipNodo, (char*) elemento) == 0);
+        //nodo->
+    }
+    list_remove_by_condition(memoriasConocidas, _esNodoMemoria);
+
+
+}
 void eliminarNodoMemoria(nodoMemoria* unNodoMemoria, t_list* nodosMemoria){
 
     bool mismoNodo(void* elemento){

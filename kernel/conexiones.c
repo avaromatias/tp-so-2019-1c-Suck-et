@@ -46,6 +46,7 @@ void *atenderConexiones(void *parametrosThread) {
                         case 0:
                             // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                             // nombre_maravillosa_funcion();
+                            eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios);
                             desconectarCliente(fdConectado, unaConexion, logger);
                             break;
                             // recibí algún mensaje
@@ -130,3 +131,25 @@ void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char *ipMe
 }*/
 
 
+eliminarFileDescriptorDeTablasDeMemorias(int fdConectado, t_dictionary* tablaDeMemoriasConCriterios){
+
+    bool _mismoFd(void* elemento){
+        return fdConectado == (int) elemento;
+    }
+
+    if (dictionary_has_key(tablaDeMemoriasConCriterios, "SC")){
+        t_list* listaSC = dictionary_get(tablaDeMemoriasConCriterios, "SC");
+        list_remove_by_condition(listaSC, _mismoFd);
+    }
+    if (dictionary_has_key(tablaDeMemoriasConCriterios, "SHC")){
+        t_list* listaSHC = dictionary_get(tablaDeMemoriasConCriterios, "SHC");
+        list_remove_by_condition(listaSHC , _mismoFd);
+    }
+
+    if (dictionary_has_key(tablaDeMemoriasConCriterios, "EC")){
+        t_list* listaEC = dictionary_get(tablaDeMemoriasConCriterios, "EC");
+        list_remove_by_condition(listaEC , _mismoFd);
+    }
+
+
+}

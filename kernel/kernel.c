@@ -280,7 +280,7 @@ int gestionarRequestKernel(t_comando requestParseada, p_consola_kernel *parametr
 bool validarComandosKernel(t_comando comando, t_log *logger) {
     bool esValido = esComandoValidoDeKernel(comando);
 
-    if (!esValido)
+//    if (!esValido)
         //log_warning(logger, "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.");
 
         return esValido;
@@ -409,6 +409,7 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
     t_log *logger = parametros->logger;
     int numeroMemoria = atoi(parametrosDeRequest[1]);
     char *criterio = parametrosDeRequest[3];
+    string_to_upper(criterio);
     GestorConexiones *misConexiones = parametros->conexiones;
     t_dictionary *tablaMemoriasConCriterios = parametros->memoriasConCriterios;
 
@@ -419,13 +420,14 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
                                                     numeroMemoria - 1); // hacemos -1 por la ubicación 0
         t_list *listaFileDescriptors = dictionary_get(tablaMemoriasConCriterios, criterio);
 
-        if (criterio == "SC") {
+        if (strcmp("SC", criterio) == 0) {
             int cantMemoriasSC = list_size(listaFileDescriptors);
             if (cantMemoriasSC >= 1) {
                 log_error(logger, "Ya existe una memoria asignada al criterio SC.");
                 return -1;
-            }
-        } else if ((criterio == "SHC") || (criterio == "EC")) {
+            } else
+                list_add(listaFileDescriptors, fdMemoriaSolicitada);
+        } else if (strcmp("SHC", criterio) == 0 || strcmp("EC", criterio) == 0) {
             list_add(listaFileDescriptors, fdMemoriaSolicitada);
             log_info(logger, "La memoria ha sido agregada a la tabla de Memorias conocidas.\n");
             return 0;
@@ -439,10 +441,11 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
 int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int key) {
     if (criterio != NULL) {
         if (existenMemoriasConectadas) {
+            string_to_upper(criterio);
             //Obtenemos memorias que responden al criterio pedido
             t_list *memoriasDelCriterioPedido = dictionary_get(parametros->memoriasConCriterios, criterio);
             //Que memorias tengo con el criterio X de la request solicitada?
-            if (criterio == "SC") {
+            if (strcmp("SC", criterio) == 0) {
                 int memoriaAsociadaASC = list_size(memoriasDelCriterioPedido);
                 if (memoriaAsociadaASC == 1) {
                     int *fdMemoriaElegida = list_get(memoriasDelCriterioPedido, 0);
@@ -451,7 +454,7 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
                     log_error(parametros->logger, "No existe ninguna memoria asociada al criterio SC. \n");
                     return -1;
                 }
-            } else if (criterio == "SHC") {
+            } else if (strcmp("SHC", criterio) == 0) {
 
                 //FUNCION HASH
                 int indice;
@@ -472,7 +475,7 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
 
 
                 }
-            } else if (criterio == "EC") {
+            } else if (strcmp("EC", criterio) == 0) {
                 int cantidadFDsAsociadosEC = list_size(memoriasDelCriterioPedido);
                 if (cantidadFDsAsociadosEC > 0) {
                     int elementoBuscado = (cantidadFDsAsociadosEC -
@@ -583,7 +586,6 @@ void *sincronizacionPLP(void *parametrosPLP) {
         queue_push(parametros_PLP->colaDeReady, unLQL);
         sem_post(parametros_PLP->cantidadProcesosEnReady);
         sem_post(semaforo_colaDeReady);
-        sem_post(parametros_PLP->cantidadProcesosEnReady);
     }
 }
 
@@ -691,11 +693,6 @@ void instanciarPCPs(p_planificacion* paramPlanificacionGeneral) {
         sem_wait(semaforo_mutexColaDeReady);
         t_archivoLQL *nuevoLQL = (t_archivoLQL*) queue_pop(parametrosPCP->colaDeReady);
         sem_post(semaforo_mutexColaDeReady);
-
-        p_planificacion *paramPlanificacionGeneral = (p_planificacion *) malloc(sizeof(p_planificacion));
-        paramPlanificacionGeneral->parametrosConsola = paramPlanificacionGeneral->parametrosConsola;
-        paramPlanificacionGeneral->parametrosPCP = paramPlanificacionGeneral->parametrosPCP;
-        paramPlanificacionGeneral->parametrosPLP = paramPlanificacionGeneral->parametrosPLP;
 
         planificarRequest(paramPlanificacionGeneral, nuevoLQL);
     }

@@ -54,6 +54,7 @@ void* atenderConexiones(void* parametrosThread)    {
                             // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                             // nombre_maravillosa_funcion();
                             desconectarCliente(fdConectado, unaConexion, logger);
+                            //eliminarNodoMemoria(fdConectado, parametros->memoria);
                             break;
                             // recibí algún mensaje
                         default: ; // esto es lo más raro que vi pero tuve que hacerlo
@@ -169,36 +170,45 @@ void enviarRespuestaGossiping(t_list* memoriasConocidas, int fdRemitente){
     }
 }
 
-void enviarPedidoGossiping(int fdDestinatario, t_list* memoriasConocidas, pthread_mutex_t* semaforoMemoriasConocidas, t_log* logger){
+void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas, t_log* logger, GestorConexiones* misConexiones){
 
+    int fdDestinatario = unNodoMemoria->fdNodoMemoria;
     enviarPaquete(fdDestinatario, GOSSIPING, REQUEST, "DAME_LISTA_GOSSIPING");
     //Capturo la respuesta del gossiping y luego envio mi lista de gossiping
     t_control_conexion unaMemoria = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};
     unaMemoria.fd = fdDestinatario;
-    t_paquete respuesta = recibirMensajeDeLissandra(&unaMemoria);
+    t_paquete respuesta = recibirMensajeGossipingMemoria(&unaMemoria);
 
-    if (respuesta.tipoMensaje== RESPUESTA_GOSSIPING){
+    if(respuesta.mensaje == NULL || unaMemoria.fd == 0){
+        log_info(logger, "Parece que una memoria se desconectó. Procedo a eliminarla.");
+        desconectarCliente(fdDestinatario, misConexiones, logger);
+        eliminarMemoriaConocida(memoria, unNodoMemoria);
+        eliminarNodoMemoria(unNodoMemoria, memoria->nodosMemoria);
+
+
+    }else if (respuesta.tipoMensaje== RESPUESTA_GOSSIPING){
+
         if (strcmp(respuesta.mensaje, "LISTA_VACIA") != 0){
             log_info(logger, string_from_format(("Del header %i recibi %s como respuesta al gossiping\n", unaMemoria.fd, respuesta.mensaje)));
-            printf("Del header %i recibi %s como respuesta al gossiping\n", unaMemoria.fd, respuesta.mensaje);
-            agregarMemoriasRecibidas(respuesta.mensaje, memoriasConocidas, logger);
+            //printf("Del header %i recibi %s como respuesta al gossiping\n", unaMemoria.fd, respuesta.mensaje);
+            agregarMemoriasRecibidas(respuesta.mensaje, memoria->memoriasConocidas, logger);
         } else{
-            printf("Recibi lista vacia\n");
+            log_info(logger, "Recibi lista vacia como respuesta al gossiping");
+            //printf("Recibi lista vacia\n");
         }
 
-        char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
+        char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoria->memoriasConocidas);
 
         if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
-            printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, unaMemoria.fd);
+            //printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, unaMemoria.fd);
+            log_info(logger, string_from_format("Envio las memorias que conozco %s", memoriasConocidasConcatenadas));
             enviarPaquete(unaMemoria.fd, RESPUESTA_GOSSIPING_2, INVALIDO, memoriasConocidasConcatenadas);
         } else{
-            printf("Mi lista estaba vacia\n");
+            log_info(logger, "Mi lista vacia");
             enviarPaquete(unaMemoria.fd, RESPUESTA_GOSSIPING_2, INVALIDO, "LISTA_VACIA");
         }
 
-    }else{
-
-    }
+        }
 
 
 }
@@ -211,16 +221,8 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
     t_log* logger = parametros->logger;
 
 
-
-    //if (header.tipoMensaje == GOSSIPING){
         if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
             printf("Recibi un pedido de mi lista de gossiping de fd: %i, envio la respuesta\n", header.fdRemitente);
-
-
-            //enviarPaquete(header.fdRemitente, GOSSIPING,REQUEST ,"DAME_LISTA_GOSSIPING");
-
-
-            //enviarRespuestaGossiping(memoriasConocidas, header.fdRemitente);
 
             char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
 
@@ -239,36 +241,8 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
             } else{
                 printf("Recibi lista vacia como respuesta 2\n");
             }
-
-           /* char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
-
-            if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
-                printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, header.fdRemitente);
-                enviarPaquete(header.fdRemitente, GOSSIPING, RESPUESTA_GOSSIPING_2, memoriasConocidasConcatenadas);
-            } else{
-                printf("Mi lista estaba vacia\n");
-                enviarPaquete(header.fdRemitente, GOSSIPING, RESPUESTA_GOSSIPING_2, "LISTA_VACIA");
-            }*/
-
-        }/*else if (header.tipoRequest == RESPUESTA_GOSSIPING_2){
-            if (strcmp(mensaje, "LISTA_VACIA") != 0){
-                printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
-                agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
-            } else{
-                printf("Recibi lista vacia\n");
-            }
-        }*/
-    //}else{
-        //Es la respuesta al pedido
-
-
-
-    //}
+    }
     pthread_mutex_unlock(semaforoMemoriasConocidas);
-
-    //free(memoriasConocidas);
-    //free(memoria);
-
 }
 
 void* atenderRequestKernel(void* parametrosRequest)    {
@@ -328,6 +302,33 @@ t_paquete recibirMensajeDeLissandra(t_control_conexion *conexion)    {
         bytesRecibidos = recv(conexion->fd, respuesta, header.tamanioMensaje, MSG_WAITALL);
         if(bytesRecibidos == 0) {
             exit(-1);
+            conexion->fd = 0;
+            paquete.mensaje = NULL;
+        }
+        else    {
+            //sem_post(conexion->semaforo);
+            paquete.mensaje = respuesta;
+        }
+    }
+    return paquete;
+}
+
+t_paquete recibirMensajeGossipingMemoria(t_control_conexion *conexion)    {
+    Header header;
+    //sem_wait(conexion->semaforo);
+    t_paquete paquete;
+    int bytesRecibidos = recv(conexion->fd, &header, sizeof(Header), MSG_WAITALL);
+    if(bytesRecibidos == 0) {
+        //exit(-1);
+        conexion->fd = 0;
+    }
+    else    {
+        header = deserializarHeader(&header);
+        paquete.tipoMensaje = header.tipoMensaje;
+        char* respuesta = (char*) malloc(header.tamanioMensaje);
+        bytesRecibidos = recv(conexion->fd, respuesta, header.tamanioMensaje, MSG_WAITALL);
+        if(bytesRecibidos == 0) {
+            //exit(-1);
             conexion->fd = 0;
             paquete.mensaje = NULL;
         }

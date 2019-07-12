@@ -78,6 +78,7 @@ typedef struct {
     sem_t *mutexListaFinalizados;
     t_log *logger;
     sem_t *cantidadProcesosEnReady;
+    pthread_mutex_t* mutexJournal
 } parametros_pcp;
 
 //Estructura hibrida necesaria para planificacion

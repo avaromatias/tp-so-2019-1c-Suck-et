@@ -20,10 +20,11 @@ typedef struct	{
     t_log* logger;
     GestorConexiones* conexion;
     t_dictionary *tablaDeMemoriasConCriterios;
+    pthread_mutex_t* mutexJournal;
 } parametros_thread_k;
 
 //Conexión con Memoria
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCrits);
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCrits, pthread_mutex_t* mutexJournal);
 void* atenderConexiones(void* parametrosThread);
 void atenderMensajes(Header header, char* mensaje);
 void confirmarHandshake(Header header, parametros_thread parametros);

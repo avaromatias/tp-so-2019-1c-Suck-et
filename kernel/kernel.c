@@ -446,9 +446,14 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio) {
                 }
             } else if (criterio == "SHC") {
                 //FUNCION HASH
-                //int cantidadFDsAsociadosSHC = list_size(memoriasDelCriterioPedido);
-                //if (cantidadFDsAsociadosSHC > 0) {
-                //}
+                int cantidadFDsAsociadosSHC = list_size(memoriasDelCriterioPedido);
+
+                if (cantidadFDsAsociadosSHC > 0) {
+                    //int indice
+                    //Si llego una key
+                    //indice = key % cantidadFDsAsociadosSHC
+                    //else indice = timestamp % cantidadFDsAsociadosSHC
+                }
             } else if (criterio == "EC") {
                 int cantidadFDsAsociadosEC = list_size(memoriasDelCriterioPedido);
                 if (cantidadFDsAsociadosEC > 0) {

@@ -4,7 +4,7 @@
 
 #include "conexiones.h"
 
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCrits) {
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCrits, pthread_mutex_t* mutexJournal) {
     pthread_t *hiloConexiones = malloc(sizeof(pthread_t));
 
     parametros_thread_k *parametros = (parametros_thread_k *) malloc(sizeof(parametros_thread_k));
@@ -12,6 +12,7 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_d
     parametros->tablaDeMemoriasConCriterios = tablaDeMemoriasConCrits;
     parametros->conexion = unaConexion;
     parametros->logger = logger;
+    parametros->mutexJournal = mutexJournal;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -23,6 +24,7 @@ void *atenderConexiones(void *parametrosThread) {
     GestorConexiones *unaConexion = parametros->conexion;
     t_log *logger = parametros->logger;
     t_dictionary *tablaDeMemoriasConCriterios = parametros->tablaDeMemoriasConCriterios;
+    pthread_mutex_t* mutexJournal = parametros->mutexJournal;
 
     fd_set emisores;
 
@@ -46,7 +48,7 @@ void *atenderConexiones(void *parametrosThread) {
                         case 0:
                             // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                             // nombre_maravillosa_funcion();
-                            eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios);
+                            eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
                             desconectarCliente(fdConectado, unaConexion, logger);
                             break;
                             // recibí algún mensaje
@@ -63,6 +65,7 @@ void *atenderConexiones(void *parametrosThread) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();
                                 //desconexionMemoria(fdConectado, tablaDeMemoriasConCriterios, logger);
+                                eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
                                 desconectarCliente(fdConectado, unaConexion, logger);
                             } else {
                                 switch (header.tipoMensaje) {
@@ -131,25 +134,31 @@ void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char *ipMe
 }*/
 
 
-eliminarFileDescriptorDeTablasDeMemorias(int fdConectado, t_dictionary* tablaDeMemoriasConCriterios){
+void eliminarFileDescriptorDeTablasDeMemorias(int fdConectado, t_dictionary* tablaDeMemoriasConCriterios, pthread_mutex_t* mutexJournal){
 
     bool _mismoFd(void* elemento){
         return fdConectado == (int) elemento;
     }
 
-    if (dictionary_has_key(tablaDeMemoriasConCriterios, "SC")){
-        t_list* listaSC = dictionary_get(tablaDeMemoriasConCriterios, "SC");
-        list_remove_by_condition(listaSC, _mismoFd);
-    }
-    if (dictionary_has_key(tablaDeMemoriasConCriterios, "SHC")){
-        t_list* listaSHC = dictionary_get(tablaDeMemoriasConCriterios, "SHC");
-        list_remove_by_condition(listaSHC , _mismoFd);
+    void enviarJournal(void* elemento){
+        enviarPaquete((int) elemento, REQUEST, JOURNAL, "JOURNAL");
     }
 
-    if (dictionary_has_key(tablaDeMemoriasConCriterios, "EC")){
-        t_list* listaEC = dictionary_get(tablaDeMemoriasConCriterios, "EC");
-        list_remove_by_condition(listaEC , _mismoFd);
+    pthread_mutex_lock(mutexJournal);
+    char** criterios;
+    criterios[0] = "SC";
+    criterios[1] = "SHC";
+    criterios[2] = "EC";
+    int contador = 0;
+    while(criterios[contador] != NULL){
+        if (dictionary_has_key(tablaDeMemoriasConCriterios, criterios[contador])){
+            t_list* listaCriterio= dictionary_get(tablaDeMemoriasConCriterios, criterios[contador]);
+            list_remove_by_condition(listaCriterio, _mismoFd);
+            list_iterate(listaCriterio, enviarJournal);
+
+        }
     }
+    pthread_mutex_unlock(mutexJournal);
 
 
 }

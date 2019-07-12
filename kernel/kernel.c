@@ -13,6 +13,8 @@ int main(void) {
     t_log *logger = log_create("../kernel.log", "kernel", true, LOG_LEVEL_INFO);
     log_info(logger, "Iniciando el proceso Kernel");
 
+    pthread_mutex_t* mutexJournal = malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(mutexJournal, NULL);
     sem_t *mutexColaDeNew = (sem_t *) malloc(sizeof(sem_t));
     sem_t *mutexColaDeReady = (sem_t *) malloc(sizeof(sem_t));
     sem_t *cantidadProcesosEnNew = (sem_t *) malloc(sizeof(sem_t));
@@ -52,7 +54,7 @@ int main(void) {
     GestorConexiones *misConexiones = inicializarConexion();
     conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
 
-    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios);
+    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, mutexJournal);
 
     p_consola_kernel *parametros = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
@@ -82,6 +84,7 @@ int main(void) {
     parametrosPCP->cantidadProcesosEnReady = cantidadProcesosEnReady;
     parametrosPCP->logger = logger;
     parametrosPCP->colaDeFinalizados = colaDeFinalizados;
+    parametrosPCP->mutexJournal = mutexJournal;
 
     for (int i = 0; i < configuracion.multiprocesamiento; i++) {
         crearHiloPlanificadorCortoPlazo(parametrosPCP);
@@ -281,11 +284,10 @@ bool validarComandosKernel(t_comando comando, t_log *logger) {
 bool esComandoValidoDeKernel(t_comando comando) {
     switch (comando.tipoRequest) {
         case ADD:
-            return (esString(comando.parametros[0]) && esString(comando.parametros[2]) &&
-                    esString(comando.parametros[3]) && esEntero(comando.parametros[1])) &&
-                   (comando.cantidadParametros == 4);
+            return (comando.cantidadParametros == 4) && (esString(comando.parametros[0]) && esString(comando.parametros[2]) &&
+                    esString(comando.parametros[3]) && esEntero(comando.parametros[1]));
         case RUN:
-            return (esString(comando.parametros[0]) && comando.cantidadParametros == 1);
+            return (comando.cantidadParametros == 1 && esString(comando.parametros[0]));
         case METRICS:
             return (comando.cantidadParametros == 0);
     }
@@ -690,11 +692,14 @@ instanciarPCPs(parametros_pcp *parametrosPCP, parametros_plp *parametrosPLP, p_c
     sem_t *semaforo_cantidadProcesosEnReady = parametrosPCP->cantidadProcesosEnReady;
     sem_t *semaforo_mutexColaDeReady = parametrosPCP->mutexColaDeReady;
 
+    pthread_mutex_t* mutexJournal = parametrosPCP->mutexJournal;
     while (1) {
         sem_wait(semaforo_cantidadProcesosEnReady);
         sem_wait(semaforo_mutexColaDeReady);
         t_archivoLQL *nuevoLQL = queue_pop(parametrosPCP->colaDeReady);
+
         sem_post(semaforo_mutexColaDeReady);
+
 
         p_planificacion *paramPlanificacionGeneral = (p_planificacion *) malloc(sizeof(p_planificacion));
         paramPlanificacionGeneral->parametrosConsola = parametrosConsola;

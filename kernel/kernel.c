@@ -198,7 +198,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
         case SELECT:
             if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
                 criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
-                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
+                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, atoi(requestParseada.parametros[2]));
                 return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], fdMemoria);
             } else {
                 log_error(parametros->logger, "La tabla no se encuentra dentro de la Metadata conocida.\n");
@@ -207,7 +207,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
         case INSERT:
             if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
                 criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
-                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
+                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, atoi(requestParseada.parametros[2]));
                 return gestionarInsertKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                              requestParseada.parametros[2],
                                              fdMemoria);
@@ -217,8 +217,8 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
             }
         case CREATE:
             criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
-            fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
-            dictionary_put(parametros->metadataTablas, requestParseada.parametros[0], requestParseada.parametros[1]);
+            fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, NULL);
+            dictionary_put(parametros->metadataTablas, requestParseada.parametros[0], atoi(requestParseada.parametros[1]));
             gestionarCreateKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                   requestParseada.parametros[2],
                                   requestParseada.parametros[3], fdMemoria);
@@ -226,7 +226,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
         case DROP:
             if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
                 criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
-                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia);
+                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, NULL);
                 return gestionarDropKernel(requestParseada.parametros[0], fdMemoria);
             } else {
                 log_error(parametros->logger, "La tabla no se encuentra dentro de la Metadata conocida.\n");
@@ -434,7 +434,7 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
     }
 }
 
-int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio) {
+int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int key) {
     if (criterio != NULL) {
         if (existenMemoriasConectadas) {
             //Obtenemos memorias que responden al criterio pedido
@@ -450,14 +450,25 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio) {
                     return -1;
                 }
             } else if (criterio == "SHC") {
+
                 //FUNCION HASH
+                int indice;
                 int cantidadFDsAsociadosSHC = list_size(memoriasDelCriterioPedido);
 
                 if (cantidadFDsAsociadosSHC > 0) {
-                    //int indice
-                    //Si llego una key
-                    //indice = key % cantidadFDsAsociadosSHC
-                    //else indice = timestamp % cantidadFDsAsociadosSHC
+                    if (key != NULL){
+                        indice = key % cantidadFDsAsociadosSHC;
+                    }else{
+                        long tiempo;
+                        time_t tiempoActual;
+                        tiempo = (long) time(&tiempoActual);
+
+                        indice = tiempo % cantidadFDsAsociadosSHC;
+                    }
+                    int *fdMemoriaElegida = list_get(memoriasDelCriterioPedido, indice);
+                    return *fdMemoriaElegida;
+
+
                 }
             } else if (criterio == "EC") {
                 int cantidadFDsAsociadosEC = list_size(memoriasDelCriterioPedido);

@@ -142,16 +142,16 @@ char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
 
 bool encolarDirectoNuevoPedido(t_comando requestParseada);
 
-t_archivoLQL *convertirRequestALQL(t_comando requestParseada);
+t_archivoLQL *convertirRequestALQL(t_comando* requestParseada);
 
 pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros);
 
-pthread_t *crearHiloPlanificadorCortoPlazo(parametros_pcp *parametros);
+pthread_t *crearHiloPlanificadorCortoPlazo(p_planificacion *parametros);
 
 void *sincronizacionPLP(void *parametrosPLP);
 
-void instanciarPCPs(parametros_pcp *parametrosPCP, parametros_plp *parametrosPLP, p_consola_kernel *parametrosConsola);
+void instanciarPCPs(p_planificacion*);
 
-void *planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL);
+void planificarRequest(p_planificacion* paramPlanificacionGeneral, t_archivoLQL *archivoLQL);
 
 #endif /* KERNEL_H_ */

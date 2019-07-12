@@ -133,7 +133,7 @@ bool existenMemoriasConectadas(GestorConexiones *misConexiones);
 
 char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas);
 
-int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio);
+int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int key);
 
 char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
 

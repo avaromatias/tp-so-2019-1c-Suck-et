@@ -386,19 +386,25 @@ void mostrarMemoriasConocidasAlMomento(t_list* memoriasConocidas, pthread_mutex_
     //pthread_mutex_unlock(&semaforoMemoriasConocidas);
 
 }
+//void list_remove_and_destroy_element(t_list *, int index, void(*element_destroyer)(void*));
+void eliminarNodoMemoria(nodoMemoria* unNodoMemoria, t_list* nodosMemoria){
 
-void intercambiarListaGossiping(t_list* nodosMemoria, t_list* memoriasConocidas, pthread_mutex_t* semaforoMemoriasConocidas, t_log* logger){
+    bool mismoNodo(void* elemento){
+        nodoMemoria* nodo = (nodoMemoria*) elemento;
+        return  nodo->fdNodoMemoria == unNodoMemoria->fdNodoMemoria;
+    }
+    list_remove_by_condition(nodosMemoria, mismoNodo);
+
+    free(unNodoMemoria);
+}
+void intercambiarListaGossiping(t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas, t_log* logger, GestorConexiones* misConexiones){
     void enviarPedidoListaGossiping(void* elemento){
         if (elemento != NULL){
             nodoMemoria* unNodo = (nodoMemoria*)elemento;
-            //A un nodo memoria le pido su lista de gossiping
-            enviarPedidoGossiping(unNodo->fdNodoMemoria, memoriasConocidas, semaforoMemoriasConocidas, logger);
-            //enviarPaquete(unNodo->fdNodoMemoria, GOSSIPING,REQUEST ,"DAME_LISTA_GOSSIPING");
-            //A un nodo memoria le envio mi lista de gossiping
-            //enviarRespuestaGossiping(memoriasConocidas, unNodo->fdNodoMemoria);
+            enviarPedidoGossiping(unNodo, memoria, semaforoMemoriasConocidas, logger, misConexiones);
         }
     }
-    list_iterate(nodosMemoria, enviarPedidoListaGossiping);
+    list_iterate(memoria->nodosMemoria, enviarPedidoListaGossiping);
 }
 
 void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** puertoSeeds, t_log* logger, t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas){
@@ -417,7 +423,6 @@ void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** 
         string_append(&ipNuevaMemoria, puertoSeeds[i]);
         //Si el valor que voy a agregar ya pertenece a la lista
 
-        //Inner function JAPISHH
         bool _sonMismoString(void* elemento){
             if (elemento != NULL){
                 return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
@@ -465,7 +470,7 @@ void gossiping(parametros_gossiping* parametros){
         pthread_mutex_unlock(parametros->semaforoJournaling);
         pthread_mutex_lock(semaforoMemoriasConocidas);
 
-        intercambiarListaGossiping(memoria->nodosMemoria, memoria->memoriasConocidas, semaforoMemoriasConocidas, logger);
+        intercambiarListaGossiping(memoria, semaforoMemoriasConocidas, logger, misConexiones);
         //mostrarMemoriasConocidasAlMomento(memoria->memoriasConocidas, semaforoMemoriasConocidas);
         pthread_mutex_unlock(semaforoMemoriasConocidas);
         //Avisar a Kernel sobre las memorias que conozco

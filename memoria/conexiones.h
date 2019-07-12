@@ -58,7 +58,9 @@ void conectarseALissandra(t_control_conexion* conexionLissandra, char* ipLissand
 //Gossiping
 char* concatenarMemoriasConocidas(t_list* memoriasConocidas);
 void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas, t_log* logger);
-void enviarPedidoGossiping(int fdDestinatario, t_list* memoriasConocidas, pthread_mutex_t* semaforoMemoriasConocidas, t_log* logger);
+//void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas, t_log* logger, GestorConexiones* misConexiones);
+
+t_paquete recibirMensajeGossipingMemoria(t_control_conexion *conexion);
 
 
 #endif //MEMORIA_CONEXIONES_H

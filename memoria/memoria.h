@@ -27,6 +27,7 @@
 #include <inttypes.h>
 
 typedef struct t_memoria_d t_memoria;
+typedef struct t_nodoMemoria nodoMemoria;
 
 #include "conexiones.h"
 
@@ -156,11 +157,14 @@ typedef struct {
     pthread_mutex_t* semaforoJournaling;
 }parametros_gossiping;
 
-typedef struct {
+struct t_nodoMemoria{
     char* ipNodoMemoria;
     int puertoNodoMemoria;
     int fdNodoMemoria;
-}nodoMemoria;
+};
+
 void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_log* logger);
 pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t* semaforoMemoriasConocidas, pthread_mutex_t* semaforoJournaling);
+
+void eliminarNodoMemoria(nodoMemoria* unNodoMemoria, t_list* nodosMemoria);
 #endif /* MEMORIA_H_ */

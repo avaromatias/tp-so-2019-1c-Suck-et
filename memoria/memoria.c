@@ -436,19 +436,17 @@ void intercambiarListaGossiping(t_memoria* memoria, pthread_mutex_t* semaforoMem
 void conectarYAgregarNuevaMemoria(char* ipNuevaMemoria, GestorConexiones* misConexiones, t_log* logger, t_memoria* memoria){
     int fdNodoMemoria;
 
-    char** direccionIp = string_split(ipNuevaMemoria, ":");
+
     bool _sonMismoString(void* elemento){
         if (elemento != NULL){
             return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
-        }else{
-            return false;
         }
-
     }
 
 
     if(!list_any_satisfy(memoria->memoriasConocidas, _sonMismoString)){
-        fdNodoMemoria = conectarseAServidor(direccionIp, atoi(direccionIp), misConexiones, logger );
+        char** direccionIp = string_split(ipNuevaMemoria, ":");
+        fdNodoMemoria = conectarseAServidor(direccionIp[0], atoi(direccionIp[1]), misConexiones, logger );
         if (fdNodoMemoria != NULL && fdNodoMemoria >0){
             log_info(logger, "Nueva conexion establecida con la memoria %s:%s", direccionIp[0], direccionIp[1]);
 
@@ -465,7 +463,7 @@ void conectarYAgregarNuevaMemoria(char* ipNuevaMemoria, GestorConexiones* misCon
 
 void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** puertoSeeds, t_log* logger, t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas){
     int i = 0;
-    t_list* memoriasConocidas = (t_list*) memoria->memoriasConocidas;
+    //t_list* memoriasConocidas = (t_list*) memoria->memoriasConocidas;
 
     while (ipSeeds[i] != NULL && puertoSeeds[i] != NULL){
 

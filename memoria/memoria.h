@@ -169,5 +169,5 @@ pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memo
 void eliminarNodoMemoria(int fdNodoMemoria, t_list* nodosMemoria);
 void eliminarMemoriaConocida(t_memoria* memoria, nodoMemoria* unNodoMemoria);
 bool esNodoMemoria(int fdConectado, t_list* nodosMemoria);
-void conectarYAgregarNuevaMemoria(char* ipNuevaMemoria, GestorConexiones* misConexiones, t_log* logger, t_list* memoriasConocidas);
+void conectarYAgregarNuevaMemoria(char* ipNuevaMemoria, GestorConexiones* misConexiones, t_log* logger, t_memoria* memoria);
 #endif /* MEMORIA_H_ */

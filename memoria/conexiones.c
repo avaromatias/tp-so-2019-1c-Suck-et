@@ -171,13 +171,13 @@ char* concatenarMemoriasConocidas(t_list* memoriasConocidas){
     return respuesta;
 }
 
-void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas, t_log* logger){
-    char** memorias = string_split(memoriasRecibidas, ";");
+void agregarMemoriasRecibidas(char* memoriasRecibidas, GestorConexiones* misConexiones, t_memoria* memoria, t_log* logger){
+    char** memoriasNuevas = string_split(memoriasRecibidas, ";");
     int i = 0;
-    while (memorias[i] != NULL){
-        char** unaIpSpliteada = string_split(memorias[i], ":");
+    while (memoriasNuevas[i] != NULL){
+        //char** unaIpSpliteada = string_split(memoriasNuevas[i], ":");
 
-        conectarYAgregarNuevaMemoria(memorias[i], memoriasConocidas, logger);
+        conectarYAgregarNuevaMemoria(memoriasNuevas[i], misConexiones, logger, memoria);
         //agregarIpMemoria(unaIpSpliteada[0], unaIpSpliteada[1], memoriasConocidas, logger);
         i++;
     }
@@ -218,7 +218,7 @@ void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthre
         if (strcmp(respuesta.mensaje, "LISTA_VACIA") != 0){
             log_info(logger, string_from_format(("Del header %i recibi %s como respuesta al gossiping\n", unaMemoria.fd, respuesta.mensaje)));
             //printf("Del header %i recibi %s como respuesta al gossiping\n", unaMemoria.fd, respuesta.mensaje);
-            agregarMemoriasRecibidas(respuesta.mensaje, memoria->memoriasConocidas, logger);
+            agregarMemoriasRecibidas(respuesta.mensaje,misConexiones, memoria, logger);
         } else{
             log_info(logger, "Recibi lista vacia como respuesta al gossiping");
             //printf("Recibi lista vacia\n");
@@ -246,6 +246,7 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
     t_memoria* memoria = (t_memoria*)parametros->memoria;
     t_list* memoriasConocidas = (t_list*)memoria->memoriasConocidas;
     t_log* logger = parametros->logger;
+    GestorConexiones* misConexiones = parametros->conexion;
 
 
         if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
@@ -264,7 +265,7 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
         }else if (header.tipoMensaje == RESPUESTA_GOSSIPING_2){
             if (strcmp(mensaje, "LISTA_VACIA") != 0){
                 printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
-                agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
+                agregarMemoriasRecibidas(mensaje, misConexiones, logger, memoria);
             } else{
                 printf("Recibi lista vacia como respuesta 2\n");
             }

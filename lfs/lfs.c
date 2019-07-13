@@ -32,6 +32,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
 
     if (!existenTodasLasClavesObligatorias(archivoConfig, configuracion)) {
         log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
+        printf("Alguna de las claves obligatorias no están setteadas en el archivo de configuración.\n");
         exit(1); // settear algún código de error para cuando falte alguna key
     } else {
         configuracion.puertoEscucha = config_get_int_value(archivoConfig, "PUERTO_ESCUCHA");
@@ -229,21 +230,29 @@ int obtenerBloqueDisponible(char *nombreTabla, int particion) {
 
 void retardo() {
     t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
-    int tiempoDump = config_get_int_value(archivoConfig, "RETARDO");
-    if (tiempoDump < 0) {
-        log_error(logger, "El RETARDO no esta seteado en el Archivo de Configuracion.");
+    if(config_has_property(archivoConfig,"RETARDO")) {
+        int tiempoDump = config_get_int_value(archivoConfig, "RETARDO");
+        if (tiempoDump < 0) {
+            log_error(logger, "El RETARDO no esta seteado en el Archivo de Configuracion.");
+            printf("El RETARDO no esta seteado en el Archivo de Configuracion.\n");
+            return;
+        }
+        tiempoDump = tiempoDump / 1000;
+        sleep(tiempoDump);
     }
-    tiempoDump = tiempoDump / 1000;
-    sleep(tiempoDump);
     config_destroy(archivoConfig);
+    return;
 }
 
 void lfsDump() {
     while (1) {
         t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
+        if(config_has_property(archivoConfig,"TIEMPO_DUMP")){
         int tiempoDump = config_get_int_value(archivoConfig, "TIEMPO_DUMP");
         if (!tiempoDump) {
             log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
+            printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
+            continue;
         }
         tiempoDump = tiempoDump / 1000;
         sleep(tiempoDump);
@@ -281,6 +290,12 @@ void lfsDump() {
 
             dictionary_iterator(memTable, dumpTabla);
 
+        }
+    }
+        else{
+            log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
+            printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
+            continue;
         }
     }
 }
@@ -713,8 +728,7 @@ void validarValor(char *valor, t_response *retorno) {
         return retorno;
     } else if (validarTamanioValor(valor) != 0) {
         retorno->tipoRespuesta = ERR;
-        retorno->valor = concat(3, "El valor no puede ser mayor a ",
-                                string_from_format("%i", configuracion.tamanioValue), " bytes.");
+        retorno->valor = concat(3, "El valor no puede ser mayor a ",string_from_format("%i", configuracion.tamanioValue), " bytes.");
         return retorno;
     }
     return retorno;
@@ -805,6 +819,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
         if (bloque == -1) {
             pthread_mutex_unlock(mutexAsignacionBloques);
             log_error(logger, "No hay bloques disponibles.");
+            printf("No hay bloques disponibles.\n");
             deleteFile(nombreArchivo);
             break;
         } else {
@@ -1235,7 +1250,7 @@ t_metadata *obtenerMetadata(char *tabla) {
     t_config *config = abrirArchivoConfiguracion(metadataPath, logger);
 
     if (config == NULL) {
-        log_error(logger, "No se pudo obtener el archivo Metadata.");
+        log_error(logger, "No se pudo obtener el archivo Metadata de la tabla %s", tabla);
         exit(1);
     }
 
@@ -1582,7 +1597,7 @@ void *atenderConexiones(void *parametrosThread) {
                     switch (bytesRecibidos) {
                         // hubo un error al recibir los datos
                         case -1:
-                            log_warning(logger, "Hubo un error al recibir el header proveniente del socket %i",
+                            log_error(logger, "Hubo un error al recibir el header proveniente del socket %i",
                                         fdConectado);
                             break;
                             // se desconectó
@@ -1599,7 +1614,7 @@ void *atenderConexiones(void *parametrosThread) {
                             void *mensaje = (void *) malloc(pesoMensaje);
                             bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
                             if (bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
-                                log_warning(logger, "Hubo un error al recibir el mensaje proveniente del socket %i",
+                                log_error(logger, "Hubo un error al recibir el mensaje proveniente del socket %i",
                                             fdConectado);
                             else if (bytesRecibidos == 0) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien

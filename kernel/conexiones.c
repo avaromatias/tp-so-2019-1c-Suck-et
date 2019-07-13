@@ -4,7 +4,8 @@
 
 #include "conexiones.h"
 
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCrits, pthread_mutex_t* mutexJournal) {
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCrits,
+                               pthread_mutex_t *mutexJournal) {
     pthread_t *hiloConexiones = malloc(sizeof(pthread_t));
 
     parametros_thread_k *parametros = (parametros_thread_k *) malloc(sizeof(parametros_thread_k));
@@ -24,7 +25,7 @@ void *atenderConexiones(void *parametrosThread) {
     GestorConexiones *unaConexion = parametros->conexion;
     t_log *logger = parametros->logger;
     t_dictionary *tablaDeMemoriasConCriterios = parametros->tablaDeMemoriasConCriterios;
-    pthread_mutex_t* mutexJournal = parametros->mutexJournal;
+    pthread_mutex_t *mutexJournal = parametros->mutexJournal;
 
     fd_set emisores;
 
@@ -48,7 +49,8 @@ void *atenderConexiones(void *parametrosThread) {
                         case 0:
                             // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                             // nombre_maravillosa_funcion();
-                            desconexionMemoria(fdConectado, unaConexion, tablaDeMemoriasConCriterios, logger, mutexJournal);
+                            desconexionMemoria(fdConectado, unaConexion, tablaDeMemoriasConCriterios, logger,
+                                               mutexJournal);
                             break;
                             // recibí algún mensaje
                         default:; // esto es lo más raro que vi pero tuve que hacerlo
@@ -63,12 +65,13 @@ void *atenderConexiones(void *parametrosThread) {
                             else if (bytesRecibidos == 0) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();
-                                desconexionMemoria(fdConectado, unaConexion, tablaDeMemoriasConCriterios, logger, mutexJournal);
+                                desconexionMemoria(fdConectado, unaConexion, tablaDeMemoriasConCriterios, logger,
+                                                   mutexJournal);
                             } else {
                                 switch (header.tipoMensaje) {
 
                                     case RESPUESTA:
-                                        gestionarRespuesta(header.fdRemitente, header.tipoRequest, mensaje, logger);
+                                        gestionarRespuesta(header.fdRemitente, parametros->tablaDeMemoriasConCriterios, header.tipoRequest, mensaje, logger);
                                         break;
                                     case CONEXION_ACEPTADA:
                                         log_info(logger,
@@ -118,59 +121,61 @@ int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexi
     return fdMemoria;
 }
 
-void gestionarRespuesta(int fdMemoria, TipoRequest tipoRequest, char *mensaje, t_log *logger) {
+void gestionarRespuesta(int fdMemoria, t_dictionary *metadataTab, TipoRequest tipoRequest, char *mensaje, t_log *logger) {
     int fdMemoriaEmisora = fdMemoria;
+    t_dictionary *metadataTablas = metadataTab;
     switch (tipoRequest) {
         case SELECT:
             //incrementoCantidadSelects procesados para metricas;
-            log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente.", fdMemoriaEmisora);
             break;
         case INSERT:
             //incrementoCantidadInserts procesados para metricas;
-            log_info(logger, "El INSERT enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            log_info(logger, "El INSERT enviado a la memoria %i fue procesado correctamente.", fdMemoriaEmisora);
             break;
         case CREATE:
             //incrementoCantidadCreates procesados para metricas;
-            log_info(logger, "El CREATE enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            log_info(logger, "El CREATE enviado a la memoria %i fue procesado correctamente.", fdMemoriaEmisora);
             break;
         case DROP:
-            log_info(logger, "El DROP enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            log_info(logger, "El DROP enviado a la memoria %i fue procesado correctamente.", fdMemoriaEmisora);
             break;
         case DESCRIBE:
-            //actualizo metadataTablas
-            log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            actualizarMetadata(metadataTablas, mensaje, logger);
+            log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.", fdMemoriaEmisora);
             break;
     }
 }
 
-void enviarJournal(int fdMemoria){
+void enviarJournal(int fdMemoria) {
     enviarPaquete(fdMemoria, REQUEST, JOURNAL, "JOURNAL");
 }
 
-void eliminarFileDescriptorDeTablasDeMemorias(int fdConectado, t_dictionary* tablaDeMemoriasConCriterios, pthread_mutex_t* mutexJournal){
+void eliminarFileDescriptorDeTablasDeMemorias(int fdConectado, t_dictionary *tablaDeMemoriasConCriterios,
+                                              pthread_mutex_t *mutexJournal) {
 
-    bool _mismoFd(void* elemento){
+    bool _mismoFd(void *elemento) {
         return fdConectado == (int) elemento;
     }
 
     pthread_mutex_lock(mutexJournal);
-    char** criterios;
+    char **criterios;
     criterios[0] = "SC";
     criterios[1] = "SHC";
     criterios[2] = "EC";
     int contador = 0;
-    while(criterios[contador] != NULL){
-        if (dictionary_has_key(tablaDeMemoriasConCriterios, criterios[contador])){
-            t_list* listaCriterio= dictionary_get(tablaDeMemoriasConCriterios, criterios[contador]);
+    while (criterios[contador] != NULL) {
+        if (dictionary_has_key(tablaDeMemoriasConCriterios, criterios[contador])) {
+            t_list *listaCriterio = dictionary_get(tablaDeMemoriasConCriterios, criterios[contador]);
             list_remove_by_condition(listaCriterio, _mismoFd);
-            list_iterate(listaCriterio, (void*)&enviarJournal);
+            list_iterate(listaCriterio, (void *) &enviarJournal);
         }
     }
     pthread_mutex_unlock(mutexJournal);
 }
 
-void desconexionMemoria(int fdConectado, GestorConexiones *unaConexion, t_dictionary* tablaDeMemoriasConCriterios,
-                        t_log *logger, pthread_mutex_t* mutexJournal){
+void desconexionMemoria(int fdConectado, GestorConexiones *unaConexion, t_dictionary *tablaDeMemoriasConCriterios,
+                        t_log *logger, pthread_mutex_t *mutexJournal) {
     eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
     desconectarCliente(fdConectado, unaConexion, logger);
 }
@@ -191,4 +196,46 @@ char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping
         memoria++;
     }
     return direccionesDeMemorias;
+}
+
+void actualizarMetadata(t_dictionary *metadata, char *mensaje, t_log *logger) {
+    t_dictionary *metadataTablas = metadata;
+    char **tablaARenovar;
+    char **consistenciaTabla;
+    char **tablasDelDescribe;
+    char *dataLissandra;
+    char* nombreTabla;
+    char* consistencia;
+    dataLissandra = mensaje;
+
+    if ((dataLissandra != NULL)) {
+        int cantTablasActualizadas;
+        tablasDelDescribe = string_split(dataLissandra, "-----------------\n");
+        int cantidadDeTablasActualizar = tamanioDeArrayDeStrings(tablasDelDescribe);
+
+        for (int i = 0; i < cantidadDeTablasActualizar; i++) {
+            char **infoTabla = string_split(tablasDelDescribe[i], "\n");
+
+            if (string_contains(infoTabla[0], "TABLE=")) {
+                tablaARenovar = string_split(infoTabla[0], "=");
+                nombreTabla = tablaARenovar[1]; //El 0 es el TABLE
+            } else {
+                log_warning(logger, "No existe tabla %s a ejecutar", nombreTabla);
+                break;
+            }
+            if (string_contains(infoTabla[1], "CONSISTENCY=")) {
+                consistenciaTabla = string_split(infoTabla[1], "=");
+                consistencia = consistenciaTabla[1]; //El 0 es el CONSISTENCY
+            } else {
+                log_warning(logger, "La tabla %s no posee consistencia.", infoTabla[0]);
+                break;
+            }
+            dictionary_put(metadataTablas, nombreTabla, consistencia);
+            cantTablasActualizadas++;
+        }
+        log_info(logger, "Cantidad de Tablas actualizadas %i", cantTablasActualizadas);
+    } else {
+        log_error(logger, "La información recibida por Lissandra es NULA.\n");
+        exit(-1);
+    }
 }

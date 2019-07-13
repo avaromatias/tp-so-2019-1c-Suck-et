@@ -4,7 +4,7 @@
 
 #include "conexiones.h"
 
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCrits) {
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCrits, pthread_mutex_t* mutexJournal) {
     pthread_t *hiloConexiones = malloc(sizeof(pthread_t));
 
     parametros_thread_k *parametros = (parametros_thread_k *) malloc(sizeof(parametros_thread_k));
@@ -12,6 +12,7 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_d
     parametros->tablaDeMemoriasConCriterios = tablaDeMemoriasConCrits;
     parametros->conexion = unaConexion;
     parametros->logger = logger;
+    parametros->mutexJournal = mutexJournal;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -23,6 +24,7 @@ void *atenderConexiones(void *parametrosThread) {
     GestorConexiones *unaConexion = parametros->conexion;
     t_log *logger = parametros->logger;
     t_dictionary *tablaDeMemoriasConCriterios = parametros->tablaDeMemoriasConCriterios;
+    pthread_mutex_t* mutexJournal = parametros->mutexJournal;
 
     fd_set emisores;
 
@@ -46,8 +48,7 @@ void *atenderConexiones(void *parametrosThread) {
                         case 0:
                             // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                             // nombre_maravillosa_funcion();
-                            eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios);
-                            desconectarCliente(fdConectado, unaConexion, logger);
+                            desconexionMemoria(fdConectado, unaConexion, tablaDeMemoriasConCriterios, logger, mutexJournal);
                             break;
                             // recibí algún mensaje
                         default:; // esto es lo más raro que vi pero tuve que hacerlo
@@ -62,13 +63,12 @@ void *atenderConexiones(void *parametrosThread) {
                             else if (bytesRecibidos == 0) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();
-                                //desconexionMemoria(fdConectado, tablaDeMemoriasConCriterios, logger);
-                                desconectarCliente(fdConectado, unaConexion, logger);
+                                desconexionMemoria(fdConectado, unaConexion, tablaDeMemoriasConCriterios, logger, mutexJournal);
                             } else {
                                 switch (header.tipoMensaje) {
 
                                     case RESPUESTA:
-                                        //gestionarRespuesta();//atenderMensajes(header, mensaje, parametros);
+                                        gestionarRespuesta(header.fdRemitente, header.tipoRequest, mensaje, logger);
                                         break;
                                     case CONEXION_ACEPTADA:
                                         log_info(logger,
@@ -116,40 +116,59 @@ int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexi
     return fdMemoria;
 }
 
-/*
-void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char *ipMemoria, int puertoMemoria, t_log *logger) {
-    log_info(logger, "Intentando conectarse a Memoria Principal.");
-    memoriaConocida->fdMemoria = crearSocketCliente(ipMemoria, puertoMemoria, logger);
-    if (memoriaConocida->fdMemoria < 0) {
-        log_error(logger, "Hubo un error al intentar conectarse con la Memoria Principal. Se va a cerrar el proceso.");
-        exit(-1);
-    } else {
-        log_info(logger, "Conexión con Memoria Principal establecida");
-        enviarPaquete(memoriaConocida.fdMemoria, HANDSHAKE, NULL);
-        memoriaConocida->utilizacion = 1;
+void gestionarRespuesta(int fdMemoria, TipoRequest tipoRequest, char *mensaje, t_log *logger) {
+    int fdMemoriaEmisora = fdMemoria;
+    switch (tipoRequest) {
+        case SELECT:
+            //incrementoCantidadSelects procesados para metricas;
+            log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            break;
+        case INSERT:
+            //incrementoCantidadInserts procesados para metricas;
+            log_info(logger, "El INSERT enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            break;
+        case CREATE:
+            //incrementoCantidadCreates procesados para metricas;
+            log_info(logger, "El CREATE enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            break;
+        case DROP:
+            log_info(logger, "El DROP enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            break;
+        case DESCRIBE:
+            //actualizo metadataTablas
+            log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            break;
     }
-}*/
+}
 
+void enviarJournal(int fdMemoria){
+    enviarPaquete(fdMemoria, REQUEST, JOURNAL, "JOURNAL");
+}
 
-eliminarFileDescriptorDeTablasDeMemorias(int fdConectado, t_dictionary* tablaDeMemoriasConCriterios){
+void eliminarFileDescriptorDeTablasDeMemorias(int fdConectado, t_dictionary* tablaDeMemoriasConCriterios, pthread_mutex_t* mutexJournal){
 
     bool _mismoFd(void* elemento){
         return fdConectado == (int) elemento;
     }
 
-    if (dictionary_has_key(tablaDeMemoriasConCriterios, "SC")){
-        t_list* listaSC = dictionary_get(tablaDeMemoriasConCriterios, "SC");
-        list_remove_by_condition(listaSC, _mismoFd);
+    pthread_mutex_lock(mutexJournal);
+    char** criterios;
+    criterios[0] = "SC";
+    criterios[1] = "SHC";
+    criterios[2] = "EC";
+    int contador = 0;
+    while(criterios[contador] != NULL){
+        if (dictionary_has_key(tablaDeMemoriasConCriterios, criterios[contador])){
+            t_list* listaCriterio= dictionary_get(tablaDeMemoriasConCriterios, criterios[contador]);
+            list_remove_by_condition(listaCriterio, _mismoFd);
+            list_iterate(listaCriterio, (void*)&enviarJournal);
+        }
     }
-    if (dictionary_has_key(tablaDeMemoriasConCriterios, "SHC")){
-        t_list* listaSHC = dictionary_get(tablaDeMemoriasConCriterios, "SHC");
-        list_remove_by_condition(listaSHC , _mismoFd);
-    }
+    pthread_mutex_unlock(mutexJournal);
+}
 
-    if (dictionary_has_key(tablaDeMemoriasConCriterios, "EC")){
-        t_list* listaEC = dictionary_get(tablaDeMemoriasConCriterios, "EC");
-        list_remove_by_condition(listaEC , _mismoFd);
-    }
-
-
+void desconexionMemoria(int fdConectado, GestorConexiones *unaConexion, t_dictionary* tablaDeMemoriasConCriterios,
+                        t_log *logger, pthread_mutex_t* mutexJournal){
+    eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
+    desconectarCliente(fdConectado, unaConexion, logger);
 }

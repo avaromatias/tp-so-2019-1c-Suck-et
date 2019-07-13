@@ -715,3 +715,100 @@ int diferenciarRequest(t_comando requestParseada) {
     }
 }
 
+
+
+//METRICAS
+
+/*long tiempoHaceTreintaSegundos(){
+    long tiempo;
+    time_t tiempoActual;
+    tiempo = (long) time(&tiempoActual);
+
+    return tiempo - 30*10000000;
+}
+float convertirMicroSegundosASegundos(long microsegundos){
+    return microsegundos/1000000;
+}*/
+
+/*
+    Read Latency / 30s: El tiempo promedio que tarda un SELECT en ejecutarse en los últimos 30 segundos.
+    Write Latency / 30s: El tiempo promedio que tarda un INSERT en ejecutarse en los últimos 30 segundos.
+    Reads / 30s: Cantidad de SELECT ejecutados en los últimos 30 segundos.
+    Writes / 30s: Cantidad de INSERT ejecutados en los últimos 30 segundos.
+    Memory Load (por cada memoria):  Cantidad de INSERT / SELECT que se ejecutaron en esa memoria respecto de las operaciones totales.
+
+ */
+
+
+/*t_list* filtrarRequestUltimosTreintaSegundosSegunCriterio(t_list* listaRequestsDeAlgunCriterio, char* tipoRequest){
+    long hacetreintasegundos = tiempoHaceTreintaSegundos();
+    t_estadistica_request* nodoEstadistica;
+    bool seEjecutoEnLosUltimosTreintaSegundos(void* elemento){
+        if (elemento != NULL){
+            nodoEstadistica = (t_estadistica_request*) elemento;
+            return nodoEstadistica->inicioRequest > tiempoHaceTreintaSegundos && strcmp(nodoEstadistica->tipoRequest, tipoRequest);
+        }else{
+            return false;
+        }
+
+    };
+    return list_filter(listaRequestsDeAlgunCriterio, seEjecutoEnLosUltimosTreintaSegundos);
+}
+int obtenerLatenciaSegunTipoDeRequest(t_list* listaRequestsDeAlgunCriterio, char* tipoRequest){
+
+    if (!list_is_empty(listaRequestsDeAlgunCriterio)){
+
+        long hacetreintasegundos = tiempoHaceTreintaSegundos();
+        t_list* filtrados = filtrarRequestUltimosTreintaSegundosSegunCriterio(listaRequestsDeAlgunCriterio, tipoRequest);
+
+        int latenciaTotal = 0;
+        void sumarDuraciones(void* elemento){
+            t_estadistica_request* nodoEstadistica;
+            if (elemento != NULL){
+                nodoEstadistica = (t_estadistica_request*) elemento;
+                latenciaTotal+= nodoEstadistica->duracionEnSegundos;
+            }
+        }
+        list_iterate(filtrados, sumarDuraciones);
+        return latenciaTotal/list_size(filtrados);
+    }else{
+        return 0;
+    }
+
+
+}
+
+int cantidadDeRequestsEjecutadasEnLosUltimosTreintaSegundos(t_list* listaRequests, char* tipoRequest){
+    if (!list_is_empty(listaRequests)){
+        t_list* filtrados = filtrarRequestUltimosTreintaSegundosSegunCriterio(listaRequests, tipoRequest);
+        return list_size(filtrados);
+    }else{
+        return 0;
+    }
+}
+
+int obtenerOperacionesTotales(t_list* listaRequests){
+    return list_size(listaRequests);
+}
+//Tambien se puede generar una lista a partir de las de cada criterio y trabajar todo como una sola lista
+//Devuelte un porcentaje
+int memoryLoad(t_list* listaRequestSC, t_list* listaRequestSHC, t_list* listaRequestEC, int fdMemoria){
+    int operacionesSobreMemoria= 0;
+    t_estadistica_request * nodoEstadisticas;
+
+    void sumarOperacionesSobreMemoria(void* elemento){
+        if (elemento != NULL){
+            nodoEstadisticas = (t_estadistica_request*)elemento;
+            if (nodoEstadisticas->fdMemoria == fdMemoria){
+                operacionesSobreMemoria++;
+            }
+        }
+    }
+    list_iterate(listaRequestEC, sumarOperacionesSobreMemoria);
+    list_iterate(listaRequestSC, sumarOperacionesSobreMemoria);
+    list_iterate(listaRequestSHC, sumarOperacionesSobreMemoria);
+     return (operacionesSobreMemoria / (list_size(listaRequestEC) + list_size(listaRequestSC) + list_size(listaRequestSHC)))*100;
+}
+*/
+
+

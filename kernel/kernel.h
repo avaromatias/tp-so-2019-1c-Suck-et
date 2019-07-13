@@ -177,4 +177,16 @@ void instanciarPCPs(p_planificacion *);
 
 void planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL);
 
+//Estructuras de las metricas
+typedef struct {
+    int fdMemoria;
+    //char* criteroAsociado;
+    long inicioRequest;
+    long finRequets;
+    long duracionEnSegundos;
+    char* tipoRequest;
+}t_estadistica_request;
+
+
+
 #endif /* KERNEL_H_ */

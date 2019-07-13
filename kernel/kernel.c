@@ -467,14 +467,14 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
 
 int seleccionarMemoriaParaDescribe(p_consola_kernel *parametros) {
     GestorConexiones *misConexiones = parametros->conexiones;
-    int fdMemoria;
+    int* fdMemoria;
 
     int tamanioListaConexiones = list_size(parametros->conexiones->conexiones);
 
-    int numeroMemoriaElegida = rand() % (tamanioListaConexiones + 1);//me devuelve un numero entre 0 y tamListaConex
-    fdMemoria = list_get(misConexiones->conexiones, numeroMemoriaElegida);
+    int numeroMemoriaElegida = rand() % (tamanioListaConexiones);//me devuelve un numero entre 0 y tamListaConex
+    fdMemoria = (int*) list_get(misConexiones->conexiones, numeroMemoriaElegida);
 
-    return fdMemoria;
+    return *fdMemoria;
 }
 
 int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int key) {
@@ -488,7 +488,7 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
             if (strcmp("SC", criterio) == 0) {
                 int memoriaAsociadaASC = list_size(memoriasDelCriterioPedido);
                 if (memoriaAsociadaASC == 1) {
-                    int *fdMemoriaElegida = list_get(memoriasDelCriterioPedido, 0);
+                    int *fdMemoriaElegida = (int*) list_get(memoriasDelCriterioPedido, 0);
                     return *fdMemoriaElegida;
                 } else {
                     log_error(logger, "No existe ninguna memoria asociada al criterio SC.\n");

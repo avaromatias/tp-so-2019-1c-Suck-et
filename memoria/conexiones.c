@@ -99,7 +99,8 @@ void* atenderConexiones(void* parametrosThread)    {
                             else	{
                                 switch(header.tipoMensaje)  {
                                     case HANDSHAKE: ;
-                                        Componente componente = *((Componente*) mensaje);
+                                        char* componenteStr = (char*) mensaje;
+                                        Componente componente = (Componente) atoi(componenteStr);
                                         atenderHandshake(header, componente, parametros);
                                         break;
                                     case REQUEST: ;
@@ -140,10 +141,10 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
     if(componente == KERNEL) {
         if (parametros->conexionKernel->fd == 0) {
             parametros->conexionKernel->fd = header.fdRemitente;
-            enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, INVALIDO, NULL);
+            enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, INVALIDO, "Conexión aceptada.");
             sem_post(parametros->conexionKernel->semaforo);
         } else {
-            enviarPaquete(header.fdRemitente, CONEXION_RECHAZADA, INVALIDO, NULL);
+            enviarPaquete(header.fdRemitente, CONEXION_RECHAZADA, INVALIDO, "Conexión rechazada.");
             cerrarSocket(header.fdRemitente, parametros->logger);
         }
     }

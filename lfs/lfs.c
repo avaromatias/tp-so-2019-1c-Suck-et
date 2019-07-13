@@ -204,8 +204,11 @@ int estaDisponibleElBloqueParaTabla(int i, char *nombreTabla, int particion) {
     int bloqueLibre = estaLibreElBloque(i) == 1;
     if (bloquesAsignados->elements_amount > 0) {
         t_bloqueAsignado *bloque = dictionary_get(bloquesAsignados, (char *) string_from_format("%i", i));
-        if (strcmp(bloque->tabla, "") == 0 ||
-            (strcmp(bloque->tabla, nombreTabla) == 0 && bloque->particion == particion)) {
+        if(bloque->tabla) {
+            if (strcmp(bloque->tabla, nombreTabla) == 0 && bloque->particion == particion) {
+                bloqueDisponible = 1;
+            }
+        } else {
             bloqueDisponible = 1;
         }
     }

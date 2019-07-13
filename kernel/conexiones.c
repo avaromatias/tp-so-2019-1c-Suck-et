@@ -122,7 +122,7 @@ int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexi
 }
 
 void gestionarRespuesta(int fdMemoria, t_dictionary *metadataTab, TipoRequest tipoRequest, char *mensaje, t_log *logger) {
-    t_dictionary *metadataTablas;
+    t_dictionary *metadataTablas = metadataTab;
     int fdMemoriaEmisora = fdMemoria;
     switch (tipoRequest) {
         case SELECT:
@@ -152,10 +152,10 @@ void enviarJournal(int fdMemoria) {
 }
 
 void borrarFdDeListaDeFdsConectados(int fdADesconectar, t_dictionary *tablaDeMemoriasConCriterios, char *criterio) {
-    t_list *listaDeMemoriasConectadasACriterio = dictionary_get(tablaDeMemoriasConCriterios, "EC");
-    dictionary_remove(tablaDeMemoriasConCriterios, "EC");
+    t_list *listaDeMemoriasConectadasACriterio = dictionary_get(tablaDeMemoriasConCriterios, criterio);
+    dictionary_remove(tablaDeMemoriasConCriterios, criterio);
     list_remove(listaDeMemoriasConectadasACriterio, fdADesconectar);
-    dictionary_put(tablaDeMemoriasConCriterios, "EC", listaDeMemoriasConectadasACriterio);
+    dictionary_put(tablaDeMemoriasConCriterios, criterio, listaDeMemoriasConectadasACriterio);
 }
 
 void eliminarFileDescriptorDeTablasDeMemorias(int fdDesconectado, t_dictionary *tablaDeMemoriasConCriterios,

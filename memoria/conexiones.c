@@ -217,7 +217,17 @@ void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthre
         if (strcmp(respuesta.mensaje, "LISTA_VACIA") != 0){
             log_info(logger, string_from_format(("Del header %i recibi %s como respuesta al gossiping\n", unaMemoria.fd, respuesta.mensaje)));
             //printf("Del header %i recibi %s como respuesta al gossiping\n", unaMemoria.fd, respuesta.mensaje);
-            agregarMemoriasRecibidas(respuesta.mensaje, memoria->memoriasConocidas, logger);
+            char** listaIp = string_split(respuesta.mensaje, ";");
+            int i = 0;
+
+            pthread_mutex_lock(semaforoMemoriasConocidas);
+            while(listaIp[i] != NULL){
+                gestionarGossiping(misConexiones, listaIp[i], logger, memoria, semaforoMemoriasConocidas);
+                i++;
+            }
+            pthread_mutex_unlock(semaforoMemoriasConocidas);
+
+            //agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
         } else{
             log_info(logger, "Recibi lista vacia como respuesta al gossiping");
             //printf("Recibi lista vacia\n");
@@ -241,10 +251,10 @@ void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthre
 void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros){
 
     pthread_mutex_t* semaforoMemoriasConocidas = (pthread_mutex_t*)parametros->semaforoMemoriasConocidas;
-    pthread_mutex_lock(semaforoMemoriasConocidas);
     t_memoria* memoria = (t_memoria*)parametros->memoria;
     t_list* memoriasConocidas = (t_list*)memoria->memoriasConocidas;
     t_log* logger = parametros->logger;
+    GestorConexiones* misConexiones = parametros->conexion;
 
 
         if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
@@ -263,12 +273,21 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
         }else if (header.tipoMensaje == RESPUESTA_GOSSIPING_2){
             if (strcmp(mensaje, "LISTA_VACIA") != 0){
                 printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
-                agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
+                char** listaIp = string_split(mensaje, ";");
+                int i = 0;
+
+                pthread_mutex_lock(semaforoMemoriasConocidas);
+                while(listaIp[i] != NULL){
+                    gestionarGossiping(misConexiones, listaIp[i], logger, memoria, semaforoMemoriasConocidas);
+                    i++;
+                }
+                pthread_mutex_unlock(semaforoMemoriasConocidas);
+
+                //agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
             } else{
                 printf("Recibi lista vacia como respuesta 2\n");
             }
     }
-    pthread_mutex_unlock(semaforoMemoriasConocidas);
 }
 
 void* atenderRequestKernel(void* parametrosRequest)    {

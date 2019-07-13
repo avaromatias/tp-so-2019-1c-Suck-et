@@ -74,8 +74,12 @@ char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
 }
 
 char *obtenerPathBloque(int numberoBloque) {
+    char *unArchivoDeBloque = concat(1, configuracion.puntoMontaje);
+    if (!string_ends_with(configuracion.puntoMontaje, "/")) {
+        unArchivoDeBloque = concat(2, unArchivoDeBloque, "/");
+    }
     char *nroDeBloque = string_from_format("%i", numberoBloque);
-    char *unArchivoDeBloque = concat(4, configuracion.puntoMontaje, "Bloques/", nroDeBloque, ".bin");
+    unArchivoDeBloque = concat(4, unArchivoDeBloque, "Bloques/", nroDeBloque, ".bin");
     free(nroDeBloque);
     return unArchivoDeBloque;
 }
@@ -204,11 +208,8 @@ int estaDisponibleElBloqueParaTabla(int i, char *nombreTabla, int particion) {
     int bloqueLibre = estaLibreElBloque(i) == 1;
     if (bloquesAsignados->elements_amount > 0) {
         t_bloqueAsignado *bloque = dictionary_get(bloquesAsignados, (char *) string_from_format("%i", i));
-        if(bloque->tabla) {
-            if (strcmp(bloque->tabla, nombreTabla) == 0 && bloque->particion == particion) {
-                bloqueDisponible = 1;
-            }
-        } else {
+        if (strcmp(bloque->tabla, "") == 0 ||
+            (strcmp(bloque->tabla, nombreTabla) == 0 && bloque->particion == particion)) {
             bloqueDisponible = 1;
         }
     }
@@ -361,8 +362,12 @@ int borrarContenidoDeDirectorio(char *dirPath) {
         int puntoEncontrado = 0;
         int puntoPuntoEncontrado = 0;
         while ((dir = readdir(d)) != NULL) {
-            char *nombreTabla = string_duplicate(dir->d_name);
-            char *pathArchivo = concat(3, dirPath, "/", nombreTabla);
+            char *nombreTabla = string_new();
+            nombreTabla = string_duplicate(dir->d_name);
+            char *pathArchivo = string_new();
+            string_append(&pathArchivo, dirPath);
+            string_append(&pathArchivo, "/");
+            string_append(&pathArchivo, nombreTabla);
             if (strcmp(dir->d_name, ".") == 0) {
                 puntoEncontrado = 1;
             }
@@ -370,7 +375,7 @@ int borrarContenidoDeDirectorio(char *dirPath) {
                 puntoPuntoEncontrado = 1;
             }
             if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
-                if (string_ends_with(dir->d_name, ".bin")) {
+                if (string_contains(dir->d_name, ".bin")) {
                     t_config *archivoConfig = abrirArchivoConfiguracion(pathArchivo, logger);
                     char **blocks = config_get_array_value(archivoConfig, "BLOCKS");
                     liberarBloques(blocks);
@@ -384,23 +389,25 @@ int borrarContenidoDeDirectorio(char *dirPath) {
             free(nombreTabla);
         }
         if (puntoEncontrado) {
-            char *pathArchivo = concat(2, dirPath, "/.");
+            char *pathArchivo = string_new();
+            string_append(&pathArchivo, dirPath);
+            string_append(&pathArchivo, "/.");
+            free(pathArchivo);
             if (deleteFile(pathArchivo) != 0) {
-                free(pathArchivo);
                 return 0;
             }
-            free(pathArchivo);
         }
         if (puntoPuntoEncontrado) {
-            char *pathArchivo = concat(2, dirPath, "/..");
+            char *pathArchivo = string_new();
+            string_append(&pathArchivo, dirPath);
+            string_append(&pathArchivo, "/..");
+            free(pathArchivo);
             if (deleteFile(pathArchivo) != 0) {
-                free(pathArchivo);
                 return 0;
             }
-            free(pathArchivo);
         }
+        closedir(d);
     }
-    closedir(d);
     free(dirPath);
     return 1;
 }
@@ -541,11 +548,14 @@ char **obtenerLineasDeBloques(char **bloques) {
                 }
             }
         }
-        free(blockPath);
+//        if(tamanioDeArrayDeStrings(palabras)) freeArrayDeStrings(palabras);
+        vaciarString(&blockPath);
         fclose(binarioBloque);
     }
     if (!string_is_empty(stringDeLineas)) {
         stringDeLineas = string_substring_until(stringDeLineas, strlen(stringDeLineas) - 1);
+
+        if (blockPath != NULL) free(blockPath);
     } else {
         char **bloquesVacios;
         bloquesVacios[0] = NULL;
@@ -575,11 +585,10 @@ void compactacion(void *parametrosThread) {
             char *bloquesTemp = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
             char *bloquesTotales = string_new();
             if (!string_is_empty(bloquesBin)) {
-                string_append(&bloquesTotales, bloquesBin);
+                bloquesTotales = concat(1, bloquesBin);
             }
             if (!string_is_empty(bloquesTemp)) {
-                string_append(&bloquesTotales, ",");
-                string_append(&bloquesTotales, bloquesTemp);
+                bloquesTotales = concat(3, bloquesTotales, ",", bloquesTemp);
             }
             char **bloques = string_split(bloquesTotales, ",");
             char **lineas = obtenerLineasDeBloques(bloques);
@@ -590,33 +599,20 @@ void compactacion(void *parametrosThread) {
                 liberarBloques(bloques);
                 for (int j = 0; j < tamanioDeArrayDeStrings(lineasMaximas); j++) {
                     char **linea = desarmarLinea(lineasMaximas[j]);
-                    char *key = string_duplicate(linea[1]);
-                    char *valor = string_duplicate(linea[2]);
-                    char *timestampString = string_duplicate(linea[0]);
-                    lfsInsertCompactacion(nombreTabla, key, valor, (time_t) strtol(timestampString, NULL, 10));
-                    freeArrayDeStrings(linea);
-                    free(key);
-                    free(valor);
-                    free(timestampString);
+                    lfsInsertCompactacion(nombreTabla, string_duplicate(linea[1]), string_duplicate(linea[2]),
+                                          (time_t) strtol(string_duplicate(linea[0]), NULL, 10));
                 }
                 eliminarArchivosSegunExtension(nombreTabla, ".tmpc");
                 eliminarArchivosSegunExtension(nombreTabla, ".bin");
                 t_metadata *meta = obtenerMetadata(nombreTabla);
                 crearBinarios(nombreTabla, meta->partitions);
-                pthread_mutex_unlock(sem);
                 end2=clock();
                 total+=(double)(end2-start2);
-                freeArrayDeStrings(lineasMaximas);
+                pthread_mutex_unlock(sem);
             }
-            free(bloquesBin);
-            free(bloquesTemp);
-            free(bloquesTotales);
-            freeArrayDeStrings(bloques);
-            freeArrayDeStrings(lineas);
         }
         log_info(logger,"La tabla %s estuvo bloqueada por %f segundos.",nombreTabla,(double)(total/CLOCKS_PER_SEC));
     }
-    free(nombreTabla);
 }
 
 void eliminarArchivosSegunExtension(char *nombreTabla, char *extension) {
@@ -653,22 +649,18 @@ void liberarBloques(char **nroBloques) {
     for (int i = 0; i < tamanioDeArrayDeStrings(nroBloques); i++) {
         liberarBloque(nroBloques[i]);
     }
+    freeArrayDeStrings(nroBloques);
 }
 
 void liberarBloque(char *nroBloque) {
     pthread_mutex_lock(mutexAsignacionBloques);
-    char *pathBloque = obtenerPathBloque(atoi(nroBloque));
-    vaciarArchivo(pathBloque);
+    vaciarArchivo(obtenerPathBloque(atoi(nroBloque)));
     t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-    if(bloque->tabla){
-        free(bloque->tabla);
-    }
-    bloque->tabla = (char *) NULL;
+    bloque->tabla = concat(1, "");
     bloque->particion = -1;
     free(dictionary_get(bloquesAsignados, nroBloque));
     dictionary_put(bloquesAsignados, nroBloque, bloque);
     bitarray_clean_bit(bitarray, atoi(nroBloque));
-    free(pathBloque);
     pthread_mutex_unlock(mutexAsignacionBloques);
 }
 
@@ -879,12 +871,10 @@ int renombrarTemporales(char *nombreTabla) {
                     seRenombraron = 1;
                 }
                 pthread_mutex_unlock(semTmp);
+                free(nombreArchivo);
             }
-            free(nombreArchivo);
         }
     }
-    closedir(d);
-    free(pathTabla);
     return seRenombraron;
 }
 
@@ -962,10 +952,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                             if (mayorTimestampMem > mayorTimestampBlock) {
                                 mayorLinea = elemento;
                             }
-                            freeArrayDeStrings(lineaPartida);
-                            freeArrayDeStrings(lineaPartida2);
                         }
-                        free(elemento);
                     }
                 }
             }
@@ -974,38 +961,18 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             if (strcmp(mayorLinea, "") != 0) {
                 retorno->tipoRespuesta = RESPUESTA;
                 retorno->valor = concat(1, mayorLinea);
-                free(nombreArchivoParticion);
-                free(bloquesParticion);
-                free(bloquesTemporales);
-                free(bloquesTemporalesCompactacion);
-                free(todosLosBloques);
-                freeArrayDeStrings(bloques);
                 return retorno;
             } else {
                 retorno->tipoRespuesta = ERR;
                 retorno->valor = concat(1, "No se encontro ningun valor con esa key.");
-                free(nombreArchivoParticion);
-                free(bloquesParticion);
-                free(bloquesTemporales);
-                free(bloquesTemporalesCompactacion);
-                free(todosLosBloques);
-                freeArrayDeStrings(bloques);
                 free(mayorLinea);
                 return retorno;
             }
-            free(nombreArchivoParticion);
-            free(bloquesParticion);
-            free(bloquesTemporales);
-            free(bloquesTemporalesCompactacion);
-            free(todosLosBloques);
-            freeArrayDeStrings(bloques);
-            free(mayorLinea);
         } else {
             retorno->tipoRespuesta = ERR;
             retorno->valor = concat(3, "No existe la Metadata de la Tabla ", nombreTabla, ".");
             return retorno;
         }
-        free(path);
     } else {
         retorno->tipoRespuesta = ERR;
         retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".");
@@ -1022,7 +989,7 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
     char seek;
     char str[2];
     str[1] = '\0';
-    char **palabras = (char **) NULL;
+    char **palabras = NULL;
     char *mayorLinea = string_new();
     int mayorTimestamp = 0;
     int tamanioArray = tamanioDeArrayDeStrings(bloques);
@@ -1036,7 +1003,6 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
 
         while (!feof(binarioBloque)) {
             if (!lineaContinuaEnOtroArchivo) {
-                if (palabras != NULL && seek != EOF) freeArrayDeStrings(palabras);
                 vaciarString(&linea);
             }
             vaciarString(&keyEncontrado);
@@ -1061,6 +1027,7 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
                 }
             }
         }
+        if (palabras != NULL) freeArrayDeStrings(palabras);
         vaciarString(&blockPath);
         fclose(binarioBloque);
         pthread_mutex_unlock(semBloque);
@@ -1120,7 +1087,7 @@ char **convertirStringDeBloquesAArray(char *bloques) {
 
 char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext) {
     int nroTemporal = 0;
-    char *bloques;
+    char *bloques = string_new();
     char *archivoTemporalPath;
     char *nombreArchivoTemporal = string_new();
     if (strcmp(ext, ".tmp") == 0 || strcmp(ext, ".tmpc") == 0) {
@@ -1130,20 +1097,15 @@ char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext) {
     string_append(&nombreArchivoTemporal, ext);
     archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
     while (existeElArchivo(archivoTemporalPath)) {
-        free(archivoTemporalPath);
-        char *bloquesTemporal = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivoTemporal);
-        bloques = concat(2, bloquesTemporal, ",");
+        bloques = concat(3, bloques, obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivoTemporal), ",");
         nroTemporal++;
         vaciarString(&nombreArchivoTemporal);
         if (strcmp(ext, ".tmp") == 0 || strcmp(ext, ".tmpc") == 0) {
             string_append(&nombreArchivoTemporal, nombreTabla);
         }
-        char *nroTemporalString = string_itoa(nroTemporal);
-        string_append(&nombreArchivoTemporal, nroTemporalString);
+        string_append(&nombreArchivoTemporal, string_itoa(nroTemporal));
         string_append(&nombreArchivoTemporal, ext);
         archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
-        free(bloquesTemporal);
-        free(nroTemporalString);
     }
     if (!string_is_empty(bloques)) {
         bloques = string_substring_until(bloques, strlen(bloques) - 1);
@@ -1158,7 +1120,7 @@ void ejecutarConsola() {
         char *leido = readline("Lissandra@suck-ets:~$ ");
         char **comandoParseado = parser(leido);
         if (comandoParseado == NULL) {
-            freeArrayDeStrings(comandoParseado);
+            free(comandoParseado);
             continue;
         }
         comando = instanciarComando(comandoParseado);
@@ -1176,7 +1138,7 @@ void ejecutarConsola() {
             }
             free(retorno);
         }
-        freeArrayDeStrings(comandoParseado);
+
     } while (comando.tipoRequest != EXIT);
     printf("Ya se analizo todo lo solicitado.\n");
 }
@@ -1438,8 +1400,8 @@ void cargarBloquesAsignados(char *path) {
                         deleteFile(pathArchivo);
                         free(pathArchivo);
                     }
-                    char *bloquesAsignadosArchivo = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo);
-                    char **arrayDeBloques = convertirStringDeBloquesAArray(bloquesAsignadosArchivo);
+                    char **arrayDeBloques = convertirStringDeBloquesAArray(
+                            obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo));
                     for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
                         t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
                         bloque->tabla = string_duplicate(nombreTabla);
@@ -1448,17 +1410,14 @@ void cargarBloquesAsignados(char *path) {
                         dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
                         pthread_mutex_unlock(mutexAsignacionBloques);
                     }
-                    free(bloquesAsignadosArchivo);
                     freeArrayDeStrings(arrayDeBloques);
                     free(nombreArchivo);
                 }
             }
-            closedir(d);
         }
         free(pathTabla);
         free(nombreTabla);
     }
-    freeArrayDeStrings(tablas);
 }
 
 int obtenerCantidadBloques(char *puntoMontaje) {
@@ -1509,7 +1468,7 @@ void crearDirBloques(char *puntoMontaje) {
             char *nroBloque = string_itoa(i);
             char *unArchivoDeBloque = concat(4, nombreArchivo, "/", nroBloque, ".bin");
             t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-            bloque->tabla = (char *) NULL;
+            bloque->tabla = string_new();
             bloque->particion = -1;
             pthread_mutex_lock(mutexAsignacionBloques);
             dictionary_put(bloquesAsignados, nroBloque, bloque);

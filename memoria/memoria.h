@@ -166,6 +166,7 @@ struct t_nodoMemoria{
 void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_log* logger);
 pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t* semaforoMemoriasConocidas, pthread_mutex_t* semaforoJournaling);
 
-void eliminarNodoMemoria(nodoMemoria* unNodoMemoria, t_list* nodosMemoria);
+void eliminarNodoMemoria(int fdNodoMemoria, t_list* nodosMemoria);
 void eliminarMemoriaConocida(t_memoria* memoria, nodoMemoria* unNodoMemoria);
+bool esNodoMemoria(int fdConectado, t_list* nodosMemoria);
 #endif /* MEMORIA_H_ */

@@ -31,6 +31,7 @@ void* atenderConexiones(void* parametrosThread)    {
     parametros_thread_memoria* parametros = (parametros_thread_memoria*) parametrosThread;
     GestorConexiones* unaConexion = parametros->conexion;
     t_log* logger = parametros->logger;
+    t_memoria* memoria = parametros->memoria;
 
     fd_set emisores;
 
@@ -53,7 +54,21 @@ void* atenderConexiones(void* parametrosThread)    {
                         case 0:
                             // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                             // nombre_maravillosa_funcion();
+
+                            if (esNodoMemoria(fdConectado, memoria->nodosMemoria)){
+
+                                nodoMemoria* nodo;
+                                bool mismoNodo(void* elemento){
+                                    nodo = (nodoMemoria*) elemento;
+                                    return fdConectado == nodo->fdNodoMemoria;
+                                }
+                                nodoMemoria* unNodoMemoria = (nodoMemoria*) list_find(memoria->nodosMemoria, mismoNodo);
+                                eliminarMemoriaConocida(memoria, unNodoMemoria);
+                                eliminarNodoMemoria(fdConectado, memoria->nodosMemoria);
+                            }
                             desconectarCliente(fdConectado, unaConexion, logger);
+
+
                             //eliminarNodoMemoria(fdConectado, parametros->memoria);
                             break;
                             // recibí algún mensaje
@@ -68,6 +83,17 @@ void* atenderConexiones(void* parametrosThread)    {
                             else if(bytesRecibidos == 0)	{
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();
+                                if (esNodoMemoria(fdConectado, memoria->nodosMemoria)){
+
+                                    nodoMemoria* nodo;
+                                    bool mismoNodo(void* elemento){
+                                        nodo = (nodoMemoria*) elemento;
+                                        return fdConectado == nodo->fdNodoMemoria;
+                                    }
+                                    nodoMemoria* unNodoMemoria = (nodoMemoria*) list_find(memoria->nodosMemoria, mismoNodo);
+                                    eliminarMemoriaConocida(memoria, unNodoMemoria);
+                                    eliminarNodoMemoria(fdConectado, memoria->nodosMemoria);
+                                }
                                 desconectarCliente(fdConectado, unaConexion, logger);
                             }
                             else	{
@@ -183,7 +209,7 @@ void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthre
         log_info(logger, "Parece que una memoria se desconectó. Procedo a eliminarla.");
         desconectarCliente(fdDestinatario, misConexiones, logger);
         eliminarMemoriaConocida(memoria, unNodoMemoria);
-        eliminarNodoMemoria(unNodoMemoria, memoria->nodosMemoria);
+        eliminarNodoMemoria(unNodoMemoria->fdNodoMemoria, memoria->nodosMemoria);
 
 
     }else if (respuesta.tipoMensaje== RESPUESTA_GOSSIPING){

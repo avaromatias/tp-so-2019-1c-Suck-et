@@ -403,15 +403,25 @@ void eliminarMemoriaConocida(t_memoria* memoria, nodoMemoria* unNodoMemoria){
 
 
 }
-void eliminarNodoMemoria(nodoMemoria* unNodoMemoria, t_list* nodosMemoria){
-
+void eliminarNodoMemoria(int fdNodoMemoria, t_list* nodosMemoria){
+    nodoMemoria* nodo;
     bool mismoNodo(void* elemento){
-        nodoMemoria* nodo = (nodoMemoria*) elemento;
-        return  nodo->fdNodoMemoria == unNodoMemoria->fdNodoMemoria;
+        nodo = (nodoMemoria*) elemento;
+        return  fdNodoMemoria == nodo->fdNodoMemoria;
     }
     list_remove_by_condition(nodosMemoria, mismoNodo);
 
-    free(unNodoMemoria);
+    free(nodo);
+}
+bool esNodoMemoria(int fdConectado, t_list* nodosMemoria){
+    nodoMemoria* nodo;
+    bool mismoNodo(void* elemento){
+        nodo = (nodoMemoria*) elemento;
+        return fdConectado == nodo->fdNodoMemoria;
+    }
+    return list_any_satisfy(nodosMemoria, mismoNodo);
+    //free(nodo);
+
 }
 void intercambiarListaGossiping(t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas, t_log* logger, GestorConexiones* misConexiones){
     void enviarPedidoListaGossiping(void* elemento){
@@ -816,7 +826,7 @@ int main(void) {
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling);
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra, semaforoJournaling);
-    pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal, semaforoJournaling);
+    //pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal, semaforoJournaling);
     pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling);
     t_comando comando;
 
@@ -847,7 +857,7 @@ int main(void) {
     }
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
-    pthread_join(*hiloJournal, NULL);
+    //pthread_join(*hiloJournal, NULL);
     pthread_join(*hiloGossiping, NULL);
 
 	return 0;

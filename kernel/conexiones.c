@@ -70,7 +70,7 @@ void *atenderConexiones(void *parametrosThread) {
                             } else {
                                 switch (header.tipoMensaje) {
                                     case RESPUESTA:
-                                        gestionarRespuesta(header.fdRemitente, header.tipoRequest, mensaje, logger);
+                                        gestionarRespuesta(header.fdRemitente, parametros->tablaDeMemoriasConCriterios, header.tipoRequest, mensaje, logger);
                                         break;
                                     case CONEXION_ACEPTADA:
                                         //atenderHandshake(header, componente, parametros);
@@ -78,7 +78,7 @@ void *atenderConexiones(void *parametrosThread) {
                                                  "La memoria conectada recientemente ya se encuentra disponible para ser utilizada.\n");
                                         break;
                                         //Componente componente = *((Componente *) mensaje);
-                                        atenderHandshake(header, componente, parametros);
+                                        //atenderHandshake(header, componente, parametros);
                                     case CONEXION_RECHAZADA:
                                         break;
                                     case GOSSIPING:
@@ -121,7 +121,8 @@ int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexi
     return fdMemoria;
 }
 
-void gestionarRespuesta(int fdMemoria, TipoRequest tipoRequest, char *mensaje, t_log *logger) {
+void gestionarRespuesta(int fdMemoria, t_dictionary *metadataTab, TipoRequest tipoRequest, char *mensaje, t_log *logger) {
+    t_dictionary *metadataTablas;
     int fdMemoriaEmisora = fdMemoria;
     switch (tipoRequest) {
         case SELECT:
@@ -140,7 +141,7 @@ void gestionarRespuesta(int fdMemoria, TipoRequest tipoRequest, char *mensaje, t
             log_info(logger, "El DROP enviado a la memoria %i fue procesado correctamente.", fdMemoriaEmisora);
             break;
         case DESCRIBE:
-            //actualizo metadataTablas
+            actualizarMetadata(metadataTablas, mensaje, logger);
             log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.", fdMemoriaEmisora);
             break;
     }
@@ -176,9 +177,8 @@ void eliminarFileDescriptorDeTablasDeMemorias(int fdDesconectado, t_dictionary *
     }
 }
 
-void
-desconexionMemoria(int fdConectado, GestorConexiones *unaConexion, t_dictionary *tablaDeMemoriasConCriterios,
-                   t_log *logger, pthread_mutex_t *mutexJournal) {
+void desconexionMemoria(int fdConectado, GestorConexiones *unaConexion, t_dictionary *tablaDeMemoriasConCriterios,
+                        t_log *logger, pthread_mutex_t *mutexJournal) {
     eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
     desconectarCliente(fdConectado, unaConexion, logger);
 }
@@ -199,4 +199,46 @@ char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping
         memoria++;
     }
     return direccionesDeMemorias;
+}
+
+void actualizarMetadata(t_dictionary *metadata, char *mensaje, t_log *logger) {
+    t_dictionary *metadataTablas = metadata;
+    char **tablaARenovar;
+    char **consistenciaTabla;
+    char **tablasDelDescribe;
+    char *dataLissandra;
+    char *nombreTabla;
+    char *consistencia;
+    dataLissandra = mensaje;
+
+    if ((dataLissandra != NULL)) {
+        int cantTablasActualizadas;
+        tablasDelDescribe = string_split(dataLissandra, "-----------------\n");
+        int cantidadDeTablasActualizar = tamanioDeArrayDeStrings(tablasDelDescribe);
+
+        for (int i = 0; i < cantidadDeTablasActualizar; i++) {
+            char **infoTabla = string_split(tablasDelDescribe[i], "\n");
+
+            if (string_contains(infoTabla[0], "TABLE=")) {
+                tablaARenovar = string_split(infoTabla[0], "=");
+                nombreTabla = tablaARenovar[1]; //El 0 es el TABLE
+            } else {
+                log_warning(logger, "No existe tabla %s a ejecutar", nombreTabla);
+                break;
+            }
+            if (string_contains(infoTabla[1], "CONSISTENCY=")) {
+                consistenciaTabla = string_split(infoTabla[1], "=");
+                consistencia = consistenciaTabla[1]; //El 0 es el CONSISTENCY
+            } else {
+                log_warning(logger, "La tabla %s no posee consistencia.", infoTabla[0]);
+                break;
+            }
+            dictionary_put(metadataTablas, nombreTabla, consistencia);
+            cantTablasActualizadas++;
+        }
+        log_info(logger, "Cantidad de Tablas actualizadas %i", cantTablasActualizadas);
+    } else {
+        log_error(logger, "La información recibida por Lissandra es NULA.\n");
+        exit(-1);
+    }
 }

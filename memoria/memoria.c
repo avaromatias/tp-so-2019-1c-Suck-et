@@ -492,6 +492,7 @@ void gossiping(parametros_gossiping* parametros){
         gestionarGossiping(misConexiones, configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria, semaforoMemoriasConocidas);
 
 
+
         pthread_mutex_lock(parametros->semaforoJournaling);
         pthread_mutex_unlock(parametros->semaforoJournaling);
         //pthread_mutex_lock(semaforoMemoriasConocidas);
@@ -550,10 +551,12 @@ t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dic
     t_pagina* nuevaPagina = (t_pagina*) malloc(sizeof(t_pagina));
     nuevaPagina->marco = pagina->marco;
     nuevaPagina->modificada = true;
+    nuevaPagina->key = pagina->key;
     time_t elTiempoActual;
     long elTiempo;
     elTiempo = (long) time(&elTiempoActual);
     nuevaPagina->ultimaVezUsada = elTiempo;
+    //pagina->
     free(pagina);
     strncpy(nuevaPagina->marco->base, nuevoValor, tamanioPagina - 1);
     strcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0");
@@ -644,6 +647,7 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
         if(dictionary_has_key(segmento->tablaDePaginas, key))   {
             log_info(logger, "La key %s ya existe en la tabla %s. Se procede a modificar su valor.", key, nombreTabla);
             pagina = reemplazarPagina(key, contenidoPagina, memoria->tamanioPagina, segmento->tablaDePaginas);
+            fflush(stdout);
         }   else if(hayMarcosLibres(*memoria))   {
             log_info(logger, "La key %s no existe en la tabla %s. Se procede a insertarla.", key, nombreTabla);
             pagina = insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria, recibiTimestamp);
@@ -826,12 +830,12 @@ int main(void) {
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling);
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra, semaforoJournaling);
-    //pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal, semaforoJournaling);
+    pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal, semaforoJournaling);
     pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling);
 
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
-    //pthread_join(*hiloJournal, NULL);
+    pthread_join(*hiloJournal, NULL);
     pthread_join(*hiloGossiping, NULL);
 
 	return 0;

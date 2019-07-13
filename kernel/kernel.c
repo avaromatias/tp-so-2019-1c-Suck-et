@@ -185,9 +185,7 @@ bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
         log_error(logger, "Comando inválido.");
         return false;
     } else {
-        if ((validarComandosKernel(requestParseada, logger)) == true) {
-            return true;
-        } else if ((validarComandosComunes(requestParseada, logger))) {
+        if (validarComandosKernel(requestParseada, logger) || validarComandosComunes(requestParseada, logger)) {
             return true;
         } else {
             return false;
@@ -199,7 +197,6 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
 
     char *criterioConsistencia;
     int fdMemoria;
-    t_log *logger = parametros->logger;
 
     switch (requestParseada.tipoRequest) { //Analizar si cada gestionar va a tener que encolar en NEW, en lugar de enviarPaquete
         case SELECT:
@@ -209,37 +206,27 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
                 fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, key);
                 return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], fdMemoria);
             } else {
-                log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
+                log_error(parametros->logger, "La tabla no se encuentra dentro de la Metadata conocida.");
                 return -1;
             }
         case INSERT:
-            if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
+            //if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
                 criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
-                if (criterioConsistencia != NULL) {
-                    int key = atoi(requestParseada.parametros[2]);
-                    fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, key);
-                    return gestionarInsertKernel(requestParseada.parametros[0], requestParseada.parametros[1],
-                                                 requestParseada.parametros[2],
-                                                 fdMemoria);
-                } else {
-                    log_error(logger, "El criterio es nulo, no se puede analizar.");
-                    return -1;
-                }
-            } else {
-                log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
+                int key = atoi(requestParseada.parametros[2]);
+                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, key);
+                return gestionarInsertKernel(requestParseada.parametros[0], requestParseada.parametros[1],
+                                             requestParseada.parametros[2],
+                                             fdMemoria);
+            /*} else {
+                log_error(parametros->logger, "La tabla no se encuentra dentro de la Metadata conocida.\n");
                 return -1;
-            }
+            }*/
         case CREATE:
             criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
-            if (criterioConsistencia != NULL) {
-                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, NULL);
-                return gestionarCreateKernel(requestParseada.parametros[0], requestParseada.parametros[1],
-                                             requestParseada.parametros[2],
-                                             requestParseada.parametros[3], fdMemoria);
-            } else {
-                log_error(logger, "El criterio es nulo, no se puede analizar.");
-                return -1;
-            }
+            fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, NULL);
+            return gestionarCreateKernel(requestParseada.parametros[0], requestParseada.parametros[1],
+                                         requestParseada.parametros[2],
+                                         requestParseada.parametros[3], fdMemoria);
         case DROP:
             if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
                 criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
@@ -329,8 +316,6 @@ bool esComandoValidoDeKernel(t_comando comando) {
             return (comando.cantidadParametros == 1 && esString(comando.parametros[0]));
         case METRICS:
             return (comando.cantidadParametros == 0);
-        default:
-            return false;
     }
 }
 
@@ -374,12 +359,12 @@ int gestionarJournalKernel(p_consola_kernel *parametros) {
 int extensionCorrecta(char *direccionAbsoluta) {
     direccionAbsoluta = strrchr(direccionAbsoluta, '.'); //
 
-    if (direccionAbsoluta != NULL) {
+    if(direccionAbsoluta != NULL) {
         return (strcmp(direccionAbsoluta, ".lql"));
     }
 }
 
-t_archivoLQL *crearLQL() {
+t_archivoLQL* crearLQL()    {
     t_archivoLQL *unLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
     unLQL->colaDeRequests = queue_create();
     unLQL->cantidadDeLineas = 0;
@@ -389,47 +374,44 @@ t_archivoLQL *crearLQL() {
 }
 
 int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP) {
-    t_archivoLQL *unLQL = crearLQL();
+    t_archivoLQL* unLQL = crearLQL();
     t_comando *requestParseada = (t_comando *) malloc(sizeof(t_comando));
     t_log *logger = parametros->logger;
 
+    if(extensionCorrecta(pathArchivo) == 0) {
 
-    if (extensionCorrecta(archivoAEjecutar) == 0) {
-        if (extensionCorrecta(pathArchivo) == 0) {
+        sem_t *semaforo_colaDeNew = parametrosPLP->mutexColaDeNew;
 
-            sem_t *semaforo_colaDeNew = parametrosPLP->mutexColaDeNew;
+        char *linea = NULL;
+        int lineaLeida = 0;
+        int caracter, contador;
 
-            char *linea = NULL;
-            int lineaLeida = 0;
-            int caracter, contador;
+        if (sePuedeLeerElArchivo(pathArchivo)) {
+            FILE *archivo = fopen(pathArchivo, "r");
+            int tamanioArchivo = getFileSize(archivo);
+            char* textoDelArchivo = (char*) malloc(tamanioArchivo + 1);
 
-            if (sePuedeLeerElArchivo(pathArchivo)) {
-                FILE *archivo = fopen(pathArchivo, "r");
-                int tamanioArchivo = getFileSize(archivo);
-                char *textoDelArchivo = (char *) malloc(tamanioArchivo + 1);
+            fread(textoDelArchivo, 1, tamanioArchivo, archivo);
+            fclose(archivo);
 
-                fread(textoDelArchivo, 1, tamanioArchivo, archivo);
-                fclose(archivo);
-
-                textoDelArchivo[tamanioArchivo] = 0;
-                char **lineas = string_split(textoDelArchivo, "\n");
-                int cantidadRequests = tamanioDeArrayDeStrings(lineas);
-                for (int i = 0; i < cantidadRequests; i++) {
-                    char **lineaParseada = parser(lineas[i]);
-                    *requestParseada = instanciarComando(lineaParseada);
-                    queue_push(unLQL->colaDeRequests, requestParseada);
-                }
-                unLQL->cantidadDeLineas = queue_size(unLQL->colaDeRequests);
-                sem_wait(semaforo_colaDeNew);
-                queue_push(parametrosPLP->colaDeNew, unLQL);
-                sem_post(parametrosPLP->cantidadProcesosEnNew);
-                sem_post(semaforo_colaDeNew);
-            } else {
-                log_error(logger, "El archivo solicitado es incorrecto. Verifique su entrada.");
+            textoDelArchivo[tamanioArchivo] = 0;
+            char** lineas = string_split(textoDelArchivo, "\n");
+            int cantidadRequests = tamanioDeArrayDeStrings(lineas);
+            for(int i = 0; i < cantidadRequests; i++)   {
+                char **lineaParseada = parser(lineas[i]);
+                *requestParseada = instanciarComando(lineaParseada);
+                queue_push(unLQL->colaDeRequests, requestParseada);
             }
+            unLQL->cantidadDeLineas = queue_size(unLQL->colaDeRequests);
+            sem_wait(semaforo_colaDeNew);
+            queue_push(parametrosPLP->colaDeNew, unLQL);
+            sem_post(parametrosPLP->cantidadProcesosEnNew);
+            sem_post(semaforo_colaDeNew);
         } else {
-            log_error(logger, "La extensión del archivo no parece ser la indicada. Verifique ingresar un archivo .LQL");
+            log_error(logger, "El archivo solicitado es incorrecto. Verifique su entrada.");
         }
+    } else {
+        log_error(logger, "La extensión del archivo no parece ser la indicada. Verifique ingresar un archivo .LQL");
     }
 }
 
@@ -551,38 +533,32 @@ char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas) {
     //buscaremos el criterio de cada uno de las request ingresadas
     char *criterioPedido;
     char *tabla;
-    if (criterio != NULL) {
-        switch (requestParseada.tipoRequest) { //Cada case va a tener que buscar en el diccionario la tabla, para obtener el criterio
-            case SELECT:
-                tabla = requestParseada.parametros[0];
-                criterioPedido = (char *) dictionary_get(metadataTablas, tabla);//buscar en metadataTablasConocidas
-                return criterioPedido;
-            case INSERT:
+    switch (requestParseada.tipoRequest) { //Cada case va a tener que buscar en el diccionario la tabla, para obtener el criterio
+        case SELECT:
+            tabla = requestParseada.parametros[0];
+            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);//buscar en metadataTablasConocidas
+            return criterioPedido;
+        case INSERT:
+            tabla = requestParseada.parametros[0];
+            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
+            return criterioPedido;
+        case CREATE:
+            criterioPedido = requestParseada.parametros[1];
+            return criterioPedido;
+        case DROP:
+            tabla = requestParseada.parametros[0];
+            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
+            return criterioPedido;
+        case DESCRIBE:
+            if (requestParseada.cantidadParametros > 0) {
                 tabla = requestParseada.parametros[0];
                 criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
                 return criterioPedido;
-            case CREATE:
-                criterioPedido = requestParseada.parametros[1];
-                return criterioPedido;
-            case DROP:
-                tabla = requestParseada.parametros[0];
-                criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
-                return criterioPedido;
-            case DESCRIBE:
-                if (requestParseada.cantidadParametros > 0) {
-                    tabla = requestParseada.parametros[0];
-                    criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
-                    return criterioPedido;
-                }
-            case ADD:
-                tabla = requestParseada.parametros[3];
-                criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
-                return criterioPedido;
-            default:;
-        }
-    } else {
-        criterioPedido = "NC"
-        return criterioPedido;
+            }
+        case ADD:
+            tabla = requestParseada.parametros[3];
+            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
+            return criterioPedido;
     }
 }
 
@@ -738,3 +714,101 @@ int diferenciarRequest(t_comando requestParseada) {
             return 0;
     }
 }
+
+
+
+//METRICAS
+
+/*long tiempoHaceTreintaSegundos(){
+    long tiempo;
+    time_t tiempoActual;
+    tiempo = (long) time(&tiempoActual);
+
+    return tiempo - 30*10000000;
+}
+float convertirMicroSegundosASegundos(long microsegundos){
+    return microsegundos/1000000;
+}*/
+
+/*
+    Read Latency / 30s: El tiempo promedio que tarda un SELECT en ejecutarse en los últimos 30 segundos.
+    Write Latency / 30s: El tiempo promedio que tarda un INSERT en ejecutarse en los últimos 30 segundos.
+    Reads / 30s: Cantidad de SELECT ejecutados en los últimos 30 segundos.
+    Writes / 30s: Cantidad de INSERT ejecutados en los últimos 30 segundos.
+    Memory Load (por cada memoria):  Cantidad de INSERT / SELECT que se ejecutaron en esa memoria respecto de las operaciones totales.
+
+ */
+
+
+/*t_list* filtrarRequestUltimosTreintaSegundosSegunCriterio(t_list* listaRequestsDeAlgunCriterio, char* tipoRequest){
+    long hacetreintasegundos = tiempoHaceTreintaSegundos();
+    t_estadistica_request* nodoEstadistica;
+    bool seEjecutoEnLosUltimosTreintaSegundos(void* elemento){
+        if (elemento != NULL){
+            nodoEstadistica = (t_estadistica_request*) elemento;
+            return nodoEstadistica->inicioRequest > tiempoHaceTreintaSegundos && strcmp(nodoEstadistica->tipoRequest, tipoRequest);
+        }else{
+            return false;
+        }
+
+    };
+    return list_filter(listaRequestsDeAlgunCriterio, seEjecutoEnLosUltimosTreintaSegundos);
+}
+int obtenerLatenciaSegunTipoDeRequest(t_list* listaRequestsDeAlgunCriterio, char* tipoRequest){
+
+    if (!list_is_empty(listaRequestsDeAlgunCriterio)){
+
+        long hacetreintasegundos = tiempoHaceTreintaSegundos();
+        t_list* filtrados = filtrarRequestUltimosTreintaSegundosSegunCriterio(listaRequestsDeAlgunCriterio, tipoRequest);
+
+        int latenciaTotal = 0;
+        void sumarDuraciones(void* elemento){
+            t_estadistica_request* nodoEstadistica;
+            if (elemento != NULL){
+                nodoEstadistica = (t_estadistica_request*) elemento;
+                latenciaTotal+= nodoEstadistica->duracionEnSegundos;
+            }
+        }
+        list_iterate(filtrados, sumarDuraciones);
+        return latenciaTotal/list_size(filtrados);
+    }else{
+        return 0;
+    }
+
+
+}
+
+int cantidadDeRequestsEjecutadasEnLosUltimosTreintaSegundos(t_list* listaRequests, char* tipoRequest){
+    if (!list_is_empty(listaRequests)){
+        t_list* filtrados = filtrarRequestUltimosTreintaSegundosSegunCriterio(listaRequests, tipoRequest);
+        return list_size(filtrados);
+    }else{
+        return 0;
+    }
+}
+
+int obtenerOperacionesTotales(t_list* listaRequests){
+    return list_size(listaRequests);
+}
+//Tambien se puede generar una lista a partir de las de cada criterio y trabajar todo como una sola lista
+//Devuelte un porcentaje
+int memoryLoad(t_list* listaRequestSC, t_list* listaRequestSHC, t_list* listaRequestEC, int fdMemoria){
+    int operacionesSobreMemoria= 0;
+    t_estadistica_request * nodoEstadisticas;
+
+    void sumarOperacionesSobreMemoria(void* elemento){
+        if (elemento != NULL){
+            nodoEstadisticas = (t_estadistica_request*)elemento;
+            if (nodoEstadisticas->fdMemoria == fdMemoria){
+                operacionesSobreMemoria++;
+            }
+        }
+    }
+    list_iterate(listaRequestEC, sumarOperacionesSobreMemoria);
+    list_iterate(listaRequestSC, sumarOperacionesSobreMemoria);
+    list_iterate(listaRequestSHC, sumarOperacionesSobreMemoria);
+     return (operacionesSobreMemoria / (list_size(listaRequestEC) + list_size(listaRequestSC) + list_size(listaRequestSHC)))*100;
+}
+*/
+
+

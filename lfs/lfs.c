@@ -918,6 +918,8 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
     if (existeTabla(nombreTabla) == 0) {
         if (dictionary_has_key(tablasEnUso, nombreTabla)) {
             pthread_mutex_t *semaforoTabla = dictionary_get(tablasEnUso, nombreTabla);
+            pthread_mutex_lock(semaforoTabla);
+            pthread_mutex_unlock(semaforoTabla);
         } else {
             pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
             int init = pthread_mutex_init(semaforoTabla, NULL);
@@ -926,6 +928,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             pthread_mutex_lock(semaforoTabla);
             pthread_mutex_unlock(semaforoTabla);
         }
+
         char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
         if (existeElArchivo(path)) {
 
@@ -945,7 +948,16 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             //6. Obtengo los bloques de los archivos temporales que se están compactando
             char *bloquesTemporalesCompactacion = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
 
-            char *todosLosBloques = concat(5, bloquesParticion, ",", bloquesTemporales, ",", bloquesTemporalesCompactacion);
+            char *todosLosBloques = string_new();
+            string_append(&todosLosBloques,bloquesParticion);
+            if(!string_is_empty(bloquesTemporales)){
+                string_append(&todosLosBloques,",");
+                string_append(&todosLosBloques,bloquesTemporales);
+            }
+            if(!string_is_empty(bloquesTemporalesCompactacion)){
+                string_append(&todosLosBloques,",");
+                string_append(&todosLosBloques,bloquesTemporalesCompactacion);
+            }
 
             char **bloques = convertirStringDeBloquesAArray(todosLosBloques);
             char *mayorLinea = string_duplicate(obtenerLineaMasReciente(bloques, key));
@@ -963,8 +975,12 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                             char **lineaPartida = desarmarLinea(elemento);
                             char **lineaPartida2 = desarmarLinea(mayorLinea);
                             int mayorTimestampMem = atoi(lineaPartida[0]);
+                            if (lineaPartida2[0]) {
                             int mayorTimestampBlock = atoi(lineaPartida2[0]);
                             if (mayorTimestampMem > mayorTimestampBlock) {
+                                mayorLinea = elemento;
+                            }
+                        }else{
                                 mayorLinea = elemento;
                             }
                         }
@@ -1154,6 +1170,8 @@ void ejecutarConsola() {
             printf("%s", retorno->valor);
             free(retorno->valor);
             free(retorno);
+        } else {
+            printf("Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n");
         }
         free(request);
 

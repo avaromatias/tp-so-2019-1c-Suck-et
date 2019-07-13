@@ -13,7 +13,7 @@ int main(void) {
     t_log *logger = log_create("../kernel.log", "kernel", true, LOG_LEVEL_INFO);
     log_info(logger, "Iniciando el proceso Kernel");
 
-    pthread_mutex_t* mutexJournal = malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_t *mutexJournal = malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutexJournal, NULL);
     sem_t *mutexColaDeNew = (sem_t *) malloc(sizeof(sem_t));
     sem_t *mutexColaDeReady = (sem_t *) malloc(sizeof(sem_t));
@@ -144,7 +144,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
 }
 
 void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion, parametros_plp *parametrosPLP) {
-    t_comando* requestParseada = (t_comando*) malloc(sizeof(t_comando));
+    t_comando *requestParseada = (t_comando *) malloc(sizeof(t_comando));
     bool requestEsValida, seEncola;
     sem_t *semaforo_colaDeNew = parametrosPLP->mutexColaDeNew;
 
@@ -201,16 +201,18 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
         case SELECT:
             if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
                 criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
-                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, atoi(requestParseada.parametros[2]));
+                int key = atoi(requestParseada.parametros[2]);
+                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, key);
                 return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], fdMemoria);
             } else {
-                log_error(parametros->logger, "La tabla no se encuentra dentro de la Metadata conocida.\n");
+                log_error(parametros->logger, "La tabla no se encuentra dentro de la Metadata conocida.");
                 return -1;
             }
         case INSERT:
             if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
                 criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
-                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, atoi(requestParseada.parametros[2]));
+                int key = atoi(requestParseada.parametros[2]);
+                fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, key);
                 return gestionarInsertKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                              requestParseada.parametros[2],
                                              fdMemoria);
@@ -221,11 +223,9 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
         case CREATE:
             criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
             fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, NULL);
-            dictionary_put(parametros->metadataTablas, requestParseada.parametros[0], atoi(requestParseada.parametros[1]));
-            gestionarCreateKernel(requestParseada.parametros[0], requestParseada.parametros[1],
-                                  requestParseada.parametros[2],
-                                  requestParseada.parametros[3], fdMemoria);
-            return 0;
+            return gestionarCreateKernel(requestParseada.parametros[0], requestParseada.parametros[1],
+                                         requestParseada.parametros[2],
+                                         requestParseada.parametros[3], fdMemoria);
         case DROP:
             if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
                 criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
@@ -236,18 +236,34 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
                 return -1;
             }
         case DESCRIBE:
-            if(requestParseada.cantidadParametros == 1) {
+            if (requestParseada.cantidadParametros == 1) {
                 //Estamos hablando del Describe de una tabla en particular
-                //gestionarDescribeTablaKernel(requestParseada.parametros[0], fdMemoria);
+                if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
+                    criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
+                    fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, NULL);
+                    return gestionarDescribeTablaKernel(requestParseada.parametros[0], fdMemoria);
+                }
             } else {
-                //gestionarDescribeGlobalKernel();
+                fdMemoria = seleccionarMemoriaParaDescribe(parametros);
+                return gestionarDescribeGlobalKernel(fdMemoria);
             }
-            //gestionarDescribeKernel();
-            return 0;//solamente trabaja con una tabla en particular
         case JOURNAL:
-            gestionarJournalKernel(parametros);
-            return 0;
+            return gestionarJournalKernel(parametros);
     }
+}
+
+int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria) {
+    char *request = string_from_format("DESCRIBE %s", nombreTabla);
+    enviarPaquete(fdMemoria, REQUEST, DESCRIBE, request);
+    free(request);
+    return 0;
+}
+
+int gestionarDescribeGlobalKernel(int fdMemoria) {
+    char *request = "DESCRIBE";
+    enviarPaquete(fdMemoria, REQUEST, DESCRIBE, request);
+    free(request);
+    return 0;
 }
 
 int gestionarRequestKernel(t_comando requestParseada, p_consola_kernel *parametros, parametros_plp *parametrosPLP) {
@@ -286,17 +302,14 @@ int gestionarRequestKernel(t_comando requestParseada, p_consola_kernel *parametr
 
 bool validarComandosKernel(t_comando comando, t_log *logger) {
     bool esValido = esComandoValidoDeKernel(comando);
-
-//    if (!esValido)
-        //log_warning(logger, "Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.");
-
-        return esValido;
+    return esValido;
 }
 
 bool esComandoValidoDeKernel(t_comando comando) {
     switch (comando.tipoRequest) {
         case ADD:
-            return (comando.cantidadParametros == 4) && (esString(comando.parametros[0]) && esString(comando.parametros[2]) &&
+            return (comando.cantidadParametros == 4) &&
+                   (esString(comando.parametros[0]) && esString(comando.parametros[2]) &&
                     esString(comando.parametros[3]) && esEntero(comando.parametros[1]));
         case RUN:
             return (comando.cantidadParametros == 1 && esString(comando.parametros[0]));
@@ -317,7 +330,6 @@ gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, ch
     char *request = string_from_format("CREATE %s %s %s %s", tabla, consistencia, cantParticiones, tiempoCompactacion);
     enviarPaquete(fdMemoria, REQUEST, CREATE, request);
     free(request);
-    //recibo mensaje de Memoria o directamente fallo yo?
     return 0;
 }
 
@@ -325,7 +337,6 @@ int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemor
     char *request = string_from_format("INSERT %s %s %s", nombreTabla, key, valor);
     enviarPaquete(fdMemoria, REQUEST, INSERT, request);
     free(request);
-    //recibo mensaje de Memoria o directamente fallo yo?
     return 0;
 }
 
@@ -333,55 +344,74 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
     char *request = string_from_format("DROP %s", nombreTabla);
     enviarPaquete(fdMemoria, REQUEST, DROP, request);
     free(request);
-    //recibo mensaje de Memoria o directamente fallo yo?
     return 0;
 }
 
 int gestionarJournalKernel(p_consola_kernel *parametros) {
     GestorConexiones *memoriasConectadas = parametros->conexiones;
 
-    list_iterate(memoriasConectadas->conexiones,&enviarJournal);
+    list_iterate(memoriasConectadas->conexiones, &enviarJournal);
 
     return 0;
 }
 
-//int gestionarDescribe()
+int extensionCorrecta(char *direccionAbsoluta) {
+    direccionAbsoluta = strrchr(direccionAbsoluta, '.'); //
+
+    if(direccionAbsoluta != NULL) {
+        return (strcmp(direccionAbsoluta, ".lql"));
+    }
+}
 
 int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP) {
     t_archivoLQL *unLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
+    t_comando *requestParseada = (t_comando *) malloc(sizeof(t_comando));
     t_log *logger = parametros->logger;
-    sem_t *semaforo_colaDeNew = parametrosPLP->mutexColaDeNew;
 
-    char *linea = NULL;
-    int lineaLeida = 0;
-    int caracter, contador;
+    if(extensionCorrecta(pathArchivo) == 0) {
 
-    FILE *archivo = fopen(pathArchivo, "r");
-    caracter = fgetc(archivo);
+        sem_t *semaforo_colaDeNew = parametrosPLP->mutexColaDeNew;
 
-    if (!sePuedeLeerElArchivo(pathArchivo)) {
-        log_error(logger, "El PATH recibido es inválido.\n");
-    }
-    while (!feof(archivo)) {
-        linea = (char *) realloc(NULL, sizeof(char));
-        contador = 0;
-        while (caracter != '\n') {
-            linea[contador] = caracter;
-            contador++;
-            linea = (char *) realloc(linea, (contador + 1) * sizeof(char));
+        char *linea = NULL;
+        int lineaLeida = 0;
+        int caracter, contador;
+
+        FILE *archivo = fopen(pathArchivo, "r");
+        if (archivo != NULL) {
             caracter = fgetc(archivo);
+
+            if (!sePuedeLeerElArchivo(pathArchivo)) {
+                log_error(logger, "El PATH recibido es inválido.\n");
+            }
+            while (!feof(archivo)) {
+                linea = (char *) realloc(NULL, sizeof(char));
+                contador = 0;
+                while (caracter != '\n') {
+                    linea[contador] = caracter;
+                    contador++;
+                    linea = (char *) realloc(linea, (contador + 1) * sizeof(char));
+                    caracter = fgetc(archivo);
+                }
+                linea = (char *) realloc(linea, (contador + 2) * sizeof(char)); //agrego el \n por las dudas
+                linea[contador] = caracter;
+
+                char **lineaParseada = parser(linea);
+                *requestParseada = instanciarComando(lineaParseada);
+                //Asignamos la linea al primer elemento de la cola de request
+                queue_push(unLQL->colaDeRequests, requestParseada);
+                lineaLeida++;
+            }
+            unLQL->cantidadDeLineas = queue_size(unLQL->colaDeRequests);
+            sem_wait(semaforo_colaDeNew);
+            queue_push(parametrosPLP->colaDeNew, unLQL);
+            sem_post(semaforo_colaDeNew);
+            fclose(archivo);
+        } else {
+            log_error(logger, "El archivo solicitado es incorrecto. Verifique su entrada.");
         }
-        linea = (char *) realloc(linea, (contador + 2) * sizeof(char)); //agrego el \n por las dudas
-        linea[contador] = caracter;
-        //Asignamos la linea al primer elemento de la cola de request
-        queue_push(unLQL->colaDeRequests, linea);
-        lineaLeida++;
+    } else {
+        log_error(logger, "La extensión del archivo no parece ser la indicada. Verifique ingresar un archivo .LQL");
     }
-    unLQL->cantidadDeLineas = queue_size(unLQL->colaDeRequests);
-    sem_wait(semaforo_colaDeNew);
-    queue_push(parametrosPLP->colaDeNew, unLQL);
-    sem_post(semaforo_colaDeNew);
-    fclose(archivo);
 }
 
 int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
@@ -418,6 +448,18 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
     }
 }
 
+int seleccionarMemoriaParaDescribe(p_consola_kernel *parametros) {
+    GestorConexiones *misConexiones = parametros->conexiones;
+    int fdMemoria;
+
+    int tamanioListaConexiones = list_size(parametros->conexiones->conexiones);
+
+    int numeroMemoriaElegida = rand() % (tamanioListaConexiones + 1);//me devuelve un numero entre 0 y tamListaConex
+    fdMemoria = (int*) list_get(misConexiones, numeroMemoriaElegida);
+
+    return fdMemoria;
+}
+
 int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int key) {
     if (criterio != NULL) {
         if (existenMemoriasConectadas) {
@@ -440,9 +482,9 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
                 int cantidadFDsAsociadosSHC = list_size(memoriasDelCriterioPedido);
 
                 if (cantidadFDsAsociadosSHC > 0) {
-                    if (key != NULL){
+                    if (key != NULL) {
                         indice = key % cantidadFDsAsociadosSHC;
-                    }else {
+                    } else {
                         long tiempo;
                         time_t tiempoActual;
                         tiempo = (long) time(&tiempoActual);
@@ -514,27 +556,7 @@ char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas) {
             tabla = requestParseada.parametros[3];
             criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
             return criterioPedido;
-        default:
-            return "NC";
     }
-}
-
-char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping
-    datosConexionMemoria = "192.168.0.52:8001;192.168.0.45:8003;192.168.0.99:13002;";
-    string_trim(&datosConexionMemoria);
-    if (string_is_empty(datosConexionMemoria))
-        return NULL;
-    char **direcciones = string_split(datosConexionMemoria, ";");
-    //"192.168.0.52:8001""192.168.0.45:8003""192.168.0.99:13002"
-    int cantidadDireccionesRecibidas = tamanioDeArrayDeStrings(direcciones);//3
-    char **direccionesDeMemorias = (char **) malloc(sizeof(char *) * cantidadDireccionesRecibidas);
-    int memoria = 0;
-
-    while (memoria < cantidadDireccionesRecibidas) {
-        direccionesDeMemorias[memoria] = direcciones[memoria];
-        memoria++;
-    }
-    return direccionesDeMemorias;
 }
 
 /****************************
@@ -558,7 +580,7 @@ void *sincronizacionPLP(void *parametrosPLP) {
     while (1) {
         sem_wait(parametros_PLP->cantidadProcesosEnNew);
         sem_wait(semaforo_colaDeNew);
-        t_archivoLQL *unLQL = (t_archivoLQL*) queue_pop(parametros_PLP->colaDeNew);
+        t_archivoLQL *unLQL = (t_archivoLQL *) queue_pop(parametros_PLP->colaDeNew);
         sem_post(semaforo_colaDeNew);
         sem_wait(semaforo_colaDeReady);
         queue_push(parametros_PLP->colaDeReady, unLQL);
@@ -574,10 +596,8 @@ bool encolarDirectoNuevoPedido(t_comando requestParseada) {
         case INSERT:
         case DROP:
         case JOURNAL:
-            return true;
         case DESCRIBE:
-            if ((requestParseada.parametros[0]) != NULL) return true;
-            else return false;
+            return true;
         case ADD:
         case RUN:
         case METRICS: //definir si la encolamos o decidimos ejecutarla instantaneamente
@@ -586,7 +606,7 @@ bool encolarDirectoNuevoPedido(t_comando requestParseada) {
     }
 }
 
-t_archivoLQL *convertirRequestALQL(t_comando* requestParseada) {
+t_archivoLQL *convertirRequestALQL(t_comando *requestParseada) {
     t_archivoLQL *unLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
 
     unLQL->colaDeRequests = queue_create();
@@ -599,7 +619,7 @@ t_archivoLQL *convertirRequestALQL(t_comando* requestParseada) {
     return unLQL;
 }
 
-pthread_t *crearHiloPlanificadorCortoPlazo(p_planificacion* parametros) {
+pthread_t *crearHiloPlanificadorCortoPlazo(p_planificacion *parametros) {
     pthread_t *hiloPCP = (pthread_t *) malloc(sizeof(pthread_t));
 
     pthread_create(hiloPCP, NULL, &instanciarPCPs, parametros);
@@ -607,7 +627,7 @@ pthread_t *crearHiloPlanificadorCortoPlazo(p_planificacion* parametros) {
     return hiloPCP;
 }
 
-void planificarRequest(p_planificacion* paramPlanifGeneral, t_archivoLQL *archivoLQL) {
+void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archivoLQL) {
     p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
     parametros_plp *parametrosPLP = paramPlanifGeneral->parametrosPLP;
     int quantumMaximo = (int) paramPlanifGeneral->parametrosPCP->quantum;
@@ -616,8 +636,8 @@ void planificarRequest(p_planificacion* paramPlanifGeneral, t_archivoLQL *archiv
 
     for (int quantumsConsumidos = 0; quantumsConsumidos < quantumMaximo; quantumsConsumidos++) {
         int lineaDeEjecucion = 0;//dejamos por si queremos hacer un lineaDeEjecución++
-        t_comando* comando = (t_comando*) queue_pop(unLQL->colaDeRequests);
-        if(comando == NULL)
+        t_comando *comando = (t_comando *) queue_pop(unLQL->colaDeRequests);
+        if (comando == NULL)
             break;
         requestEsValida = analizarRequest(*comando, pConsolaKernel);
         if (requestEsValida == true) {
@@ -643,7 +663,7 @@ void planificarRequest(p_planificacion* paramPlanifGeneral, t_archivoLQL *archiv
         queue_push(paramPlanifGeneral->parametrosPCP->colaDeReady, unLQL);
         sem_post(parametrosPLP->cantidadProcesosEnReady);
         sem_post(paramPlanifGeneral->parametrosPCP->mutexColaDeReady);
-    } else{
+    } else {
         sem_wait(paramPlanifGeneral->parametrosPCP->mutexListaFinalizados);
         queue_push(paramPlanifGeneral->parametrosPCP->colaDeFinalizados, unLQL);
         sem_post(paramPlanifGeneral->parametrosPCP->mutexListaFinalizados);
@@ -659,16 +679,16 @@ void actualizarCantRequest(t_archivoLQL *archivoLQL, t_comando requestParseada) 
     }
 }
 
-void instanciarPCPs(p_planificacion* paramPlanificacionGeneral) {
-    parametros_pcp* parametrosPCP = (parametros_pcp*)paramPlanificacionGeneral->parametrosPCP;
+void instanciarPCPs(p_planificacion *paramPlanificacionGeneral) {
+    parametros_pcp *parametrosPCP = (parametros_pcp *) paramPlanificacionGeneral->parametrosPCP;
     sem_t *semaforo_cantidadProcesosEnReady = parametrosPCP->cantidadProcesosEnReady;
     sem_t *semaforo_mutexColaDeReady = parametrosPCP->mutexColaDeReady;
 
-    pthread_mutex_t* mutexJournal = parametrosPCP->mutexJournal;
+    pthread_mutex_t *mutexJournal = parametrosPCP->mutexJournal;
     while (1) {
         sem_wait(semaforo_cantidadProcesosEnReady);
         sem_wait(semaforo_mutexColaDeReady);
-        t_archivoLQL *nuevoLQL = (t_archivoLQL*) queue_pop(parametrosPCP->colaDeReady);
+        t_archivoLQL *nuevoLQL = (t_archivoLQL *) queue_pop(parametrosPCP->colaDeReady);
         sem_post(semaforo_mutexColaDeReady);
 
         planificarRequest(paramPlanificacionGeneral, nuevoLQL);

@@ -78,6 +78,8 @@ void *atenderConexiones(void *parametrosThread) {
                                         //atenderHandshake(header, componente, parametros);
                                     case CONEXION_RECHAZADA:
                                         break;
+                                    case GOSSIPING:
+                                        //char **direccionesNuevasMemorias = obtenerDatosDeConexion();
                                     case ERR:
                                         break;
                                 }
@@ -171,4 +173,22 @@ void desconexionMemoria(int fdConectado, GestorConexiones *unaConexion, t_dictio
                         t_log *logger, pthread_mutex_t* mutexJournal){
     eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
     desconectarCliente(fdConectado, unaConexion, logger);
+}
+
+char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping
+    datosConexionMemoria = "192.168.0.52:8001;192.168.0.45:8003;192.168.0.99:13002;";
+    string_trim(&datosConexionMemoria);
+    if (string_is_empty(datosConexionMemoria))
+        return NULL;
+    char **direcciones = string_split(datosConexionMemoria, ";");
+    //"192.168.0.52:8001""192.168.0.45:8003""192.168.0.99:13002"
+    int cantidadDireccionesRecibidas = tamanioDeArrayDeStrings(direcciones);//3
+    char **direccionesDeMemorias = (char **) malloc(sizeof(char *) * cantidadDireccionesRecibidas);
+    int memoria = 0;
+
+    while (memoria < cantidadDireccionesRecibidas) {
+        direccionesDeMemorias[memoria] = direcciones[memoria];
+        memoria++;
+    }
+    return direccionesDeMemorias;
 }

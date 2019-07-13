@@ -75,12 +75,8 @@ char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
 }
 
 char *obtenerPathBloque(int numberoBloque) {
-    char *unArchivoDeBloque = concat(1, configuracion.puntoMontaje);
-    if (!string_ends_with(configuracion.puntoMontaje, "/")) {
-        unArchivoDeBloque = concat(2, unArchivoDeBloque, "/");
-    }
-    char *nroDeBloque = string_from_format("%i", numberoBloque);
-    unArchivoDeBloque = concat(4, unArchivoDeBloque, "Bloques/", nroDeBloque, ".bin");
+    char *nroDeBloque = string_itoa(numberoBloque);
+    char *unArchivoDeBloque = concat(4, configuracion.puntoMontaje, "Bloques/", nroDeBloque, ".bin");
     free(nroDeBloque);
     return unArchivoDeBloque;
 }
@@ -324,7 +320,7 @@ t_response *lfsDescribeAll() {
         retorno->valor = string_duplicate(respuesta);
         free(respuesta);
     }
-    free(tablas);
+    freeArrayDeStrings(tablas);
     return retorno;
 }
 
@@ -670,13 +666,15 @@ void liberarBloques(char **nroBloques) {
 
 void liberarBloque(char *nroBloque) {
     pthread_mutex_lock(mutexAsignacionBloques);
-    vaciarArchivo(obtenerPathBloque(atoi(nroBloque)));
-    t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-    bloque->tabla = concat(1, "");
-    bloque->particion = -1;
+    char *bloquePath = obtenerPathBloque(atoi(nroBloque));
+    vaciarArchivo(bloquePath);
     free(dictionary_get(bloquesAsignados, nroBloque));
+    t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+    bloque->tabla = string_new();
+    bloque->particion = -1;
     dictionary_put(bloquesAsignados, nroBloque, bloque);
     bitarray_clean_bit(bitarray, atoi(nroBloque));
+    free(bloquePath);
     pthread_mutex_unlock(mutexAsignacionBloques);
 }
 
@@ -800,15 +798,17 @@ void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, time_t tim
         int particion = calcularParticion(key, meta);
         char *nombreArchivo;
         char *p = string_itoa(particion);
-        nombreArchivo = concat(4, obtenerPathTabla(nombreTabla, configuracion.puntoMontaje), "/", p, ".bin");
+        char *tablePath = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
+        nombreArchivo = concat(4, tablePath, "/", p, ".bin");
         escribirEnBloque(linea, nombreTabla, particion, nombreArchivo);
         free(path);
+        free(tablePath);
     }
 }
 
 void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombreArchivo) {
     t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-    bloqueA->tabla = concat(1, nombreTabla);
+    bloqueA->tabla = string_duplicate(nombreTabla);
     bloqueA->particion = particion;
     // TODO: Insertar en la memoria temporal del punto anterior una nueva entrada que contenga los datos enviados en la request.
     int indice = 0;
@@ -887,10 +887,12 @@ int renombrarTemporales(char *nombreTabla) {
                     seRenombraron = 1;
                 }
                 pthread_mutex_unlock(semTmp);
-                free(nombreArchivo);
             }
+            free(nombreArchivo);
         }
     }
+    closedir(d);
+    free(pathTabla);
     return seRenombraron;
 }
 
@@ -991,16 +993,18 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
 
             //8. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
             if (strcmp(mayorLinea, "") != 0) {
+                free(path);
                 retorno->tipoRespuesta = RESPUESTA;
-                retorno->valor = concat(1, mayorLinea);
+                retorno->valor = string_duplicate(mayorLinea);
                 return retorno;
             } else {
+                free(path);
                 retorno->tipoRespuesta = ERR;
                 retorno->valor = concat(1, "No se encontro ningun valor con esa key.");
-                free(mayorLinea);
                 return retorno;
             }
         } else {
+            free(path);
             retorno->tipoRespuesta = ERR;
             retorno->valor = concat(3, "No existe la Metadata de la Tabla ", nombreTabla, ".");
             return retorno;
@@ -1129,7 +1133,10 @@ char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext) {
     string_append(&nombreArchivoTemporal, ext);
     archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
     while (existeElArchivo(archivoTemporalPath)) {
-        bloques = concat(3, bloques, obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivoTemporal), ",");
+        free(archivoTemporalPath);
+        char *bloquesDeArchivo = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivoTemporal);
+        string_append(&bloques, bloquesDeArchivo);
+        string_append(&bloques, ",");
         nroTemporal++;
         vaciarString(&nombreArchivoTemporal);
         if (strcmp(ext, ".tmp") == 0 || strcmp(ext, ".tmpc") == 0) {
@@ -1138,7 +1145,9 @@ char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext) {
         string_append(&nombreArchivoTemporal, string_itoa(nroTemporal));
         string_append(&nombreArchivoTemporal, ext);
         archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
+        free(bloquesDeArchivo);
     }
+    free(archivoTemporalPath);
     if (!string_is_empty(bloques)) {
         bloques = string_substring_until(bloques, strlen(bloques) - 1);
     }
@@ -1437,8 +1446,8 @@ void cargarBloquesAsignados(char *path) {
                         deleteFile(pathArchivo);
                         free(pathArchivo);
                     }
-                    char **arrayDeBloques = convertirStringDeBloquesAArray(
-                            obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo));
+                    char *bloquesArchivo = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo);
+                    char **arrayDeBloques = convertirStringDeBloquesAArray(bloquesArchivo);
                     for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
                         t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
                         bloque->tabla = string_duplicate(nombreTabla);
@@ -1448,13 +1457,16 @@ void cargarBloquesAsignados(char *path) {
                         pthread_mutex_unlock(mutexAsignacionBloques);
                     }
                     freeArrayDeStrings(arrayDeBloques);
+                    free(bloquesArchivo);
                     free(nombreArchivo);
                 }
             }
         }
+        closedir(d);
         free(pathTabla);
         free(nombreTabla);
     }
+    freeArrayDeStrings(tablas);
 }
 
 int obtenerCantidadBloques(char *puntoMontaje) {

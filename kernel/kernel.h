@@ -62,6 +62,7 @@ typedef struct {
     GestorConexiones *conexiones;
     t_dictionary *metadataTablas;
     t_dictionary *memoriasConCriterios;
+    pthread_mutex_t* mutexJournal;
 } p_consola_kernel;
 
 //Estructura necesaria para el PLP

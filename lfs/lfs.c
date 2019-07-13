@@ -332,8 +332,8 @@ t_response *lfsDescribe(char *nombreTabla) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     if (existeTabla(nombreTabla) == 0) {
         char *pathMetadata = obtenerPathArchivo(nombreTabla, "Metadata");
-        pthread_mutex_t *semMetadata = (pthread_mutex_t *) obtenerSemaforoPath(pathMetadata);
-        pthread_mutex_lock(semMetadata);
+        /*pthread_mutex_t *semMetadata = (pthread_mutex_t *) obtenerSemaforoPath(pathMetadata);
+        pthread_mutex_lock(semMetadata);*/
         FILE *metadataTabla = fopen(pathMetadata, "r");
         if (metadataTabla != NULL) {
             fseek(metadataTabla, 0, SEEK_END);
@@ -353,7 +353,7 @@ t_response *lfsDescribe(char *nombreTabla) {
             retorno->valor = concat(3, "No se encontro la Metadata de la tabla ", nombreTabla, ".");
         }
 
-        pthread_mutex_unlock(semMetadata);
+        //pthread_mutex_unlock(semMetadata);
     } else {
         retorno->tipoRespuesta = ERR;
         retorno->valor = concat(3, "La tabla ", nombreTabla, " no existe.");
@@ -457,10 +457,11 @@ t_response *lfsDrop(char *nombreTabla) {
             pthread_mutex_unlock(semaforoTabla);
         }
 
-        pthread_t *hiloTabla = dictionary_get(hilosTablas, nombreTabla);
-        pthread_cancel(*hiloTabla);
-        if (dictionary_has_key(hiloTabla, nombreTabla)) {
-            dictionary_remove(hiloTabla, nombreTabla);
+
+        if (dictionary_has_key(hilosTablas, nombreTabla)) {
+            pthread_t *hiloTabla = dictionary_get(hilosTablas, nombreTabla);
+            pthread_cancel(hiloTabla);
+            dictionary_remove(hilosTablas, nombreTabla);
         }
         borrarContenidoDeDirectorio(pathTabla);
         if (rmdir(pathTabla) != 0) {

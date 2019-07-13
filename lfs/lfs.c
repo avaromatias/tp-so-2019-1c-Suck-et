@@ -74,12 +74,8 @@ char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
 }
 
 char *obtenerPathBloque(int numberoBloque) {
-    char *unArchivoDeBloque = concat(1, configuracion.puntoMontaje);
-    if (!string_ends_with(configuracion.puntoMontaje, "/")) {
-        unArchivoDeBloque = concat(2, unArchivoDeBloque, "/");
-    }
     char *nroDeBloque = string_from_format("%i", numberoBloque);
-    unArchivoDeBloque = concat(4, unArchivoDeBloque, "Bloques/", nroDeBloque, ".bin");
+    char *unArchivoDeBloque = concat(4, configuracion.puntoMontaje, "Bloques/", nroDeBloque, ".bin");
     free(nroDeBloque);
     return unArchivoDeBloque;
 }
@@ -542,14 +538,11 @@ char **obtenerLineasDeBloques(char **bloques) {
                 }
             }
         }
-//        if(tamanioDeArrayDeStrings(palabras)) freeArrayDeStrings(palabras);
-        vaciarString(&blockPath);
+        free(blockPath);
         fclose(binarioBloque);
     }
     if (!string_is_empty(stringDeLineas)) {
         stringDeLineas = string_substring_until(stringDeLineas, strlen(stringDeLineas) - 1);
-
-        if (blockPath != NULL) free(blockPath);
     } else {
         char **bloquesVacios;
         bloquesVacios[0] = NULL;
@@ -661,13 +654,18 @@ void liberarBloques(char **nroBloques) {
 
 void liberarBloque(char *nroBloque) {
     pthread_mutex_lock(mutexAsignacionBloques);
-    vaciarArchivo(obtenerPathBloque(atoi(nroBloque)));
+    char *pathBloque = obtenerPathBloque(atoi(nroBloque));
+    vaciarArchivo(pathBloque);
     t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-    bloque->tabla = concat(1, "");
+    if(bloque->tabla){
+        free(bloque->tabla);
+    }
+    bloque->tabla = (char *) NULL;
     bloque->particion = -1;
     free(dictionary_get(bloquesAsignados, nroBloque));
     dictionary_put(bloquesAsignados, nroBloque, bloque);
     bitarray_clean_bit(bitarray, atoi(nroBloque));
+    free(pathBloque);
     pthread_mutex_unlock(mutexAsignacionBloques);
 }
 
@@ -1021,7 +1019,7 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
     char seek;
     char str[2];
     str[1] = '\0';
-    char **palabras = NULL;
+    char **palabras = (char **) NULL;
     char *mayorLinea = string_new();
     int mayorTimestamp = 0;
     int tamanioArray = tamanioDeArrayDeStrings(bloques);
@@ -1035,6 +1033,7 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
 
         while (!feof(binarioBloque)) {
             if (!lineaContinuaEnOtroArchivo) {
+                if (palabras != NULL && seek != EOF) freeArrayDeStrings(palabras);
                 vaciarString(&linea);
             }
             vaciarString(&keyEncontrado);
@@ -1059,7 +1058,6 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
                 }
             }
         }
-        if (palabras != NULL) freeArrayDeStrings(palabras);
         vaciarString(&blockPath);
         fclose(binarioBloque);
         pthread_mutex_unlock(semBloque);
@@ -1119,7 +1117,7 @@ char **convertirStringDeBloquesAArray(char *bloques) {
 
 char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext) {
     int nroTemporal = 0;
-    char *bloques = string_new();
+    char *bloques;
     char *archivoTemporalPath;
     char *nombreArchivoTemporal = string_new();
     if (strcmp(ext, ".tmp") == 0 || strcmp(ext, ".tmpc") == 0) {
@@ -1129,15 +1127,20 @@ char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext) {
     string_append(&nombreArchivoTemporal, ext);
     archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
     while (existeElArchivo(archivoTemporalPath)) {
-        bloques = concat(3, bloques, obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivoTemporal), ",");
+        free(archivoTemporalPath);
+        char *bloquesTemporal = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivoTemporal);
+        bloques = concat(2, bloquesTemporal, ",");
         nroTemporal++;
         vaciarString(&nombreArchivoTemporal);
         if (strcmp(ext, ".tmp") == 0 || strcmp(ext, ".tmpc") == 0) {
             string_append(&nombreArchivoTemporal, nombreTabla);
         }
-        string_append(&nombreArchivoTemporal, string_itoa(nroTemporal));
+        char *nroTemporalString = string_itoa(nroTemporal);
+        string_append(&nombreArchivoTemporal, nroTemporalString);
         string_append(&nombreArchivoTemporal, ext);
         archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
+        free(bloquesTemporal);
+        free(nroTemporalString);
     }
     if (!string_is_empty(bloques)) {
         bloques = string_substring_until(bloques, strlen(bloques) - 1);
@@ -1432,8 +1435,8 @@ void cargarBloquesAsignados(char *path) {
                         deleteFile(pathArchivo);
                         free(pathArchivo);
                     }
-                    char **arrayDeBloques = convertirStringDeBloquesAArray(
-                            obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo));
+                    char *bloquesAsignadosArchivo = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo);
+                    char **arrayDeBloques = convertirStringDeBloquesAArray(bloquesAsignadosArchivo);
                     for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
                         t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
                         bloque->tabla = string_duplicate(nombreTabla);
@@ -1442,6 +1445,7 @@ void cargarBloquesAsignados(char *path) {
                         dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
                         pthread_mutex_unlock(mutexAsignacionBloques);
                     }
+                    free(bloquesAsignadosArchivo);
                     freeArrayDeStrings(arrayDeBloques);
                     free(nombreArchivo);
                 }
@@ -1451,6 +1455,7 @@ void cargarBloquesAsignados(char *path) {
         free(pathTabla);
         free(nombreTabla);
     }
+    freeArrayDeStrings(tablas);
 }
 
 int obtenerCantidadBloques(char *puntoMontaje) {
@@ -1501,7 +1506,7 @@ void crearDirBloques(char *puntoMontaje) {
             char *nroBloque = string_itoa(i);
             char *unArchivoDeBloque = concat(4, nombreArchivo, "/", nroBloque, ".bin");
             t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-            bloque->tabla = string_new();
+            bloque->tabla = (char *) NULL;
             bloque->particion = -1;
             pthread_mutex_lock(mutexAsignacionBloques);
             dictionary_put(bloquesAsignados, nroBloque, bloque);

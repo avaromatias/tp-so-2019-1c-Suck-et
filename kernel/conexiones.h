@@ -45,4 +45,6 @@ void enviarJournal(int fdMemoria);
 
 char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
 
+void borrarFdDeListaDeFdsConectados(int fdADesconectar, t_dictionary *tablaMemoriasConCriterios, char *criterio);
+
 #endif //KERNEL_CONEXIONES_H

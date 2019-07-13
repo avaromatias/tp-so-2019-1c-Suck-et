@@ -17,6 +17,8 @@ bool cantidadParametrosEsValida(t_comando comando)  {
             return comando.cantidadParametros == 1 || comando.cantidadParametros == 0;
         case CREATE:
             return comando.cantidadParametros == 4;
+        default:
+            return false;
     }
 }
 
@@ -43,7 +45,6 @@ bool validarComandosComunes(t_comando comando, t_log* logger) {
 void imprimirErrorParametros() {
     printf("Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n");
 }
-
 
 char *obtenerPathTabla(char *nombreTabla, char* puntoMontaje) {
     char *basePath = string_duplicate(puntoMontaje);

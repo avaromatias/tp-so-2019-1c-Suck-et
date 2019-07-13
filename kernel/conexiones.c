@@ -69,16 +69,16 @@ void *atenderConexiones(void *parametrosThread) {
                                                    mutexJournal);
                             } else {
                                 switch (header.tipoMensaje) {
-
                                     case RESPUESTA:
                                         gestionarRespuesta(header.fdRemitente, parametros->tablaDeMemoriasConCriterios, header.tipoRequest, mensaje, logger);
                                         break;
                                     case CONEXION_ACEPTADA:
+                                        atenderHandshake(header, componente, parametros);
                                         log_info(logger,
                                                  "La memoria conectada recientemente ya se encuentra disponible para ser utilizada.\n");
                                         break;
                                         //Componente componente = *((Componente *) mensaje);
-                                        //atenderHandshake(header, componente, parametros);
+                                        atenderHandshake(header, componente, parametros);
                                     case CONEXION_RECHAZADA:
                                         break;
                                     case GOSSIPING:
@@ -151,25 +151,29 @@ void enviarJournal(int fdMemoria) {
     enviarPaquete(fdMemoria, REQUEST, JOURNAL, "JOURNAL");
 }
 
-void eliminarFileDescriptorDeTablasDeMemorias(int fdConectado, t_dictionary *tablaDeMemoriasConCriterios,
+void borrarFdDeListaDeFdsConectados(int fdADesconectar, t_dictionary *tablaDeMemoriasConCriterios, char *criterio){
+    t_list *listaDeMemoriasConectadasACriterio = dictionary_get(tablaDeMemoriasConCriterios, "EC");
+    dictionary_remove(tablaDeMemoriasConCriterios,"EC");
+    list_remove(listaDeMemoriasConectadasACriterio, fdADesconectar);
+    dictionary_put(tablaDeMemoriasConCriterios,"EC", listaDeMemoriasConectadasACriterio);
+}
+
+void eliminarFileDescriptorDeTablasDeMemorias(int fdDesconectado, t_dictionary *tablaDeMemoriasConCriterios,
                                               pthread_mutex_t *mutexJournal) {
 
-    bool _mismoFd(void *elemento) {
-        return fdConectado == (int) elemento;
-    }
-
     pthread_mutex_lock(mutexJournal);
-    char **criterios;
-    criterios[0] = "SC";
-    criterios[1] = "SHC";
-    criterios[2] = "EC";
-    int contador = 0;
-    while (criterios[contador] != NULL) {
-        if (dictionary_has_key(tablaDeMemoriasConCriterios, criterios[contador])) {
-            t_list *listaCriterio = dictionary_get(tablaDeMemoriasConCriterios, criterios[contador]);
-            list_remove_by_condition(listaCriterio, _mismoFd);
-            list_iterate(listaCriterio, (void *) &enviarJournal);
-        }
+
+    if (dictionary_has_key(tablaDeMemoriasConCriterios,"SC")) {
+        char* criterio = "SC";
+        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
+    }
+    if (dictionary_has_key(tablaDeMemoriasConCriterios,"SHC")) {
+        char* criterio = "SHC";
+        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
+    }
+    if (dictionary_has_key(tablaDeMemoriasConCriterios,"EC")) {
+        char* criterio = "EC";
+        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
     }
     pthread_mutex_unlock(mutexJournal);
 }

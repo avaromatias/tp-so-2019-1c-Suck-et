@@ -1118,6 +1118,7 @@ void ejecutarConsola() {
 
     do {
         char *leido = readline("Lissandra@suck-ets:~$ ");
+        char *request=string_duplicate(leido);
         char **comandoParseado = parser(leido);
         if (comandoParseado == NULL) {
             free(comandoParseado);
@@ -1127,17 +1128,19 @@ void ejecutarConsola() {
         if (validarComandosComunes(comando, logger)) {
             t_response *retorno = gestionarRequest(comando);
             if (retorno->tipoRespuesta == ERR) {
-                log_warning(logger, retorno->valor);
+                log_warning(logger, "REQUEST: %s. \t RESPUESTA: %s",request,retorno->valor);
             } else {
-                if (!string_ends_with(retorno->valor, "\n")) {
-                    string_append(&retorno->valor, "\n");
-                }
-                printf("%s", retorno->valor);
-                free(retorno->valor);
-                log_info(logger, "Request procesada correctamente.");
+
+                log_info(logger, "REQUEST: %s. \t RESPUESTA: %s",request,retorno->valor);
             }
+            if (!string_ends_with(retorno->valor, "\n")) {
+                string_append(&retorno->valor, "\n");
+            }
+            printf("%s", retorno->valor);
+            free(retorno->valor);
             free(retorno);
         }
+        free(request);
 
     } while (comando.tipoRequest != EXIT);
     printf("Ya se analizo todo lo solicitado.\n");
@@ -1633,7 +1636,7 @@ void *atenderConexiones(void *parametrosThread) {
 
 
 int main(void) {
-    logger = log_create("../lfs.log", "lfs", true, LOG_LEVEL_INFO);
+    logger = log_create("../lfs.log", "lfs", false, LOG_LEVEL_INFO);
 
     log_info(logger, "Iniciando proceso Lissandra File System");
 

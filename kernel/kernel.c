@@ -62,6 +62,7 @@ int main(void) {
     parametros->conexiones = misConexiones;
     parametros->metadataTablas = metadataTablas;
     parametros->memoriasConCriterios = tablaDeMemoriasConCriterios;
+    parametros->mutexJournal = mutexJournal;
 
     parametros_plp *parametrosPLP = (parametros_plp *) malloc(sizeof(parametros_plp));
 
@@ -147,10 +148,14 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
     t_comando* requestParseada = (t_comando*) malloc(sizeof(t_comando));
     bool requestEsValida, seEncola;
     sem_t *semaforo_colaDeNew = parametrosPLP->mutexColaDeNew;
+    pthread_mutex_t* mutexJournal = parametros->mutexJournal;
 
     do {
         char *leido = readline("Kernel@suck-ets:~$ ");
         char **comandoParseado = parser(leido);
+        pthread_mutex_lock(mutexJournal);
+        pthread_mutex_unlock(mutexJournal);
+
         if (comandoParseado == NULL) {
             free(comandoParseado);
             continue;
@@ -331,6 +336,9 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
 }
 
 int gestionarJournalKernel(p_consola_kernel *parametros) {
+
+    pthread_mutex_t* mutexJournal = parametros->mutexJournal;
+    pthread_mutex_lock(mutexJournal);
     t_list *memoriasSC = dictionary_get(parametros->memoriasConCriterios, "SC");
     t_list *memoriasSHC = dictionary_get(parametros->memoriasConCriterios, "SHC");
     int cantMemoriasSHC = list_size(memoriasSHC);
@@ -364,6 +372,7 @@ int gestionarJournalKernel(p_consola_kernel *parametros) {
     } else {
         log_warning(parametros->logger, "No hay memorias EC asociadas para enviarles JOURNAL.");
     }
+    pthread_mutex_lock(mutexJournal);
     return 0;
 }
 
@@ -696,7 +705,8 @@ void instanciarPCPs(p_planificacion* paramPlanificacionGeneral) {
         paramPlanificacionGeneral->parametrosConsola = paramPlanificacionGeneral->parametrosConsola;
         paramPlanificacionGeneral->parametrosPCP = paramPlanificacionGeneral->parametrosPCP;
         paramPlanificacionGeneral->parametrosPLP = paramPlanificacionGeneral->parametrosPLP;
-
+        pthread_mutex_lock(mutexJournal);
+        pthread_mutex_unlock(mutexJournal);
         planificarRequest(paramPlanificacionGeneral, nuevoLQL);
     }
 }

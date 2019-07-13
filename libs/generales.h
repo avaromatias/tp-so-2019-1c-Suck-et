@@ -53,5 +53,6 @@ char **desarmarLinea(char *linea);
 int archivoVacio(char *path);
 void freeArrayDeStrings(char **array);
 void vaciarString(char** string);
+int getFileSize(FILE* archivo);
 
 #endif //TP_2019_1C_SUCK_ET_ARRAYDESTRING_H

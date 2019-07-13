@@ -231,3 +231,10 @@ void vaciarString(char** string) {
     *string = realloc(*string, strlen("") + 1);
     *string[0] = '\0';
 }
+
+int getFileSize(FILE* archivo)  {
+    fseek(archivo, 0, SEEK_END); // seek to end of file
+    int size = ftell(archivo); // get current file pointer
+    fseek(archivo, 0, SEEK_SET);
+    return size;
+}

@@ -362,12 +362,8 @@ int borrarContenidoDeDirectorio(char *dirPath) {
         int puntoEncontrado = 0;
         int puntoPuntoEncontrado = 0;
         while ((dir = readdir(d)) != NULL) {
-            char *nombreTabla = string_new();
-            nombreTabla = string_duplicate(dir->d_name);
-            char *pathArchivo = string_new();
-            string_append(&pathArchivo, dirPath);
-            string_append(&pathArchivo, "/");
-            string_append(&pathArchivo, nombreTabla);
+            char *nombreTabla = string_duplicate(dir->d_name);
+            char *pathArchivo = concat(3, dirPath, "/", nombreTabla);
             if (strcmp(dir->d_name, ".") == 0) {
                 puntoEncontrado = 1;
             }
@@ -375,7 +371,7 @@ int borrarContenidoDeDirectorio(char *dirPath) {
                 puntoPuntoEncontrado = 1;
             }
             if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
-                if (string_contains(dir->d_name, ".bin")) {
+                if (string_ends_with(dir->d_name, ".bin")) {
                     t_config *archivoConfig = abrirArchivoConfiguracion(pathArchivo, logger);
                     char **blocks = config_get_array_value(archivoConfig, "BLOCKS");
                     liberarBloques(blocks);
@@ -389,25 +385,23 @@ int borrarContenidoDeDirectorio(char *dirPath) {
             free(nombreTabla);
         }
         if (puntoEncontrado) {
-            char *pathArchivo = string_new();
-            string_append(&pathArchivo, dirPath);
-            string_append(&pathArchivo, "/.");
-            free(pathArchivo);
+            char *pathArchivo = concat(2, dirPath, "/.");
             if (deleteFile(pathArchivo) != 0) {
+                free(pathArchivo);
                 return 0;
             }
+            free(pathArchivo);
         }
         if (puntoPuntoEncontrado) {
-            char *pathArchivo = string_new();
-            string_append(&pathArchivo, dirPath);
-            string_append(&pathArchivo, "/..");
-            free(pathArchivo);
+            char *pathArchivo = concat(2, dirPath, "/..");
             if (deleteFile(pathArchivo) != 0) {
+                free(pathArchivo);
                 return 0;
             }
+            free(pathArchivo);
         }
-        closedir(d);
     }
+    closedir(d);
     free(dirPath);
     return 1;
 }
@@ -580,10 +574,11 @@ void compactacion(void *parametrosThread) {
             char *bloquesTemp = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
             char *bloquesTotales = string_new();
             if (!string_is_empty(bloquesBin)) {
-                bloquesTotales = concat(1, bloquesBin);
+                string_append(&bloquesTotales, bloquesBin);
             }
             if (!string_is_empty(bloquesTemp)) {
-                bloquesTotales = concat(3, bloquesTotales, ",", bloquesTemp);
+                string_append(&bloquesTotales, ",");
+                string_append(&bloquesTotales, bloquesTemp);
             }
             char **bloques = string_split(bloquesTotales, ",");
             char **lineas = obtenerLineasDeBloques(bloques);
@@ -593,17 +588,30 @@ void compactacion(void *parametrosThread) {
                 liberarBloques(bloques);
                 for (int j = 0; j < tamanioDeArrayDeStrings(lineasMaximas); j++) {
                     char **linea = desarmarLinea(lineasMaximas[j]);
-                    lfsInsertCompactacion(nombreTabla, string_duplicate(linea[1]), string_duplicate(linea[2]),
-                                          (time_t) strtol(string_duplicate(linea[0]), NULL, 10));
+                    char *key = string_duplicate(linea[1]);
+                    char *valor = string_duplicate(linea[2]);
+                    char *timestampString = string_duplicate(linea[0]);
+                    lfsInsertCompactacion(nombreTabla, key, valor, (time_t) strtol(timestampString, NULL, 10));
+                    freeArrayDeStrings(linea);
+                    free(key);
+                    free(valor);
+                    free(timestampString);
                 }
                 eliminarArchivosSegunExtension(nombreTabla, ".tmpc");
                 eliminarArchivosSegunExtension(nombreTabla, ".bin");
                 t_metadata *meta = obtenerMetadata(nombreTabla);
                 crearBinarios(nombreTabla, meta->partitions);
                 pthread_mutex_unlock(sem);
+                freeArrayDeStrings(lineasMaximas);
             }
+            free(bloquesBin);
+            free(bloquesTemp);
+            free(bloquesTotales);
+            freeArrayDeStrings(bloques);
+            freeArrayDeStrings(lineas);
         }
     }
+    free(nombreTabla);
 }
 
 void eliminarArchivosSegunExtension(char *nombreTabla, char *extension) {
@@ -640,7 +648,6 @@ void liberarBloques(char **nroBloques) {
     for (int i = 0; i < tamanioDeArrayDeStrings(nroBloques); i++) {
         liberarBloque(nroBloques[i]);
     }
-    freeArrayDeStrings(nroBloques);
 }
 
 void liberarBloque(char *nroBloque) {
@@ -862,10 +869,12 @@ int renombrarTemporales(char *nombreTabla) {
                     seRenombraron = 1;
                 }
                 pthread_mutex_unlock(semTmp);
-                free(nombreArchivo);
             }
+            free(nombreArchivo);
         }
     }
+    closedir(d);
+    free(pathTabla);
     return seRenombraron;
 }
 
@@ -943,7 +952,10 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                             if (mayorTimestampMem > mayorTimestampBlock) {
                                 mayorLinea = elemento;
                             }
+                            freeArrayDeStrings(lineaPartida);
+                            freeArrayDeStrings(lineaPartida2);
                         }
+                        free(elemento);
                     }
                 }
             }
@@ -952,18 +964,38 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             if (strcmp(mayorLinea, "") != 0) {
                 retorno->tipoRespuesta = RESPUESTA;
                 retorno->valor = concat(1, mayorLinea);
+                free(nombreArchivoParticion);
+                free(bloquesParticion);
+                free(bloquesTemporales);
+                free(bloquesTemporalesCompactacion);
+                free(todosLosBloques);
+                freeArrayDeStrings(bloques);
                 return retorno;
             } else {
                 retorno->tipoRespuesta = ERR;
                 retorno->valor = concat(1, "No se encontro ningun valor con esa key.");
+                free(nombreArchivoParticion);
+                free(bloquesParticion);
+                free(bloquesTemporales);
+                free(bloquesTemporalesCompactacion);
+                free(todosLosBloques);
+                freeArrayDeStrings(bloques);
                 free(mayorLinea);
                 return retorno;
             }
+            free(nombreArchivoParticion);
+            free(bloquesParticion);
+            free(bloquesTemporales);
+            free(bloquesTemporalesCompactacion);
+            free(todosLosBloques);
+            freeArrayDeStrings(bloques);
+            free(mayorLinea);
         } else {
             retorno->tipoRespuesta = ERR;
             retorno->valor = concat(3, "No existe la Metadata de la Tabla ", nombreTabla, ".");
             return retorno;
         }
+        free(path);
     } else {
         retorno->tipoRespuesta = ERR;
         retorno->valor = concat(3, "No existe la tabla ", nombreTabla, ".");
@@ -1111,7 +1143,7 @@ void ejecutarConsola() {
         char *leido = readline("Lissandra@suck-ets:~$ ");
         char **comandoParseado = parser(leido);
         if (comandoParseado == NULL) {
-            free(comandoParseado);
+            freeArrayDeStrings(comandoParseado);
             continue;
         }
         comando = instanciarComando(comandoParseado);
@@ -1129,7 +1161,7 @@ void ejecutarConsola() {
             }
             free(retorno);
         }
-
+        freeArrayDeStrings(comandoParseado);
     } while (comando.tipoRequest != EXIT);
     printf("Ya se analizo todo lo solicitado.\n");
 }
@@ -1405,6 +1437,7 @@ void cargarBloquesAsignados(char *path) {
                     free(nombreArchivo);
                 }
             }
+            closedir(d);
         }
         free(pathTabla);
         free(nombreTabla);

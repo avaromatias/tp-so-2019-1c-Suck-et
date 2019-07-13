@@ -403,16 +403,14 @@ void eliminarMemoriaConocida(t_memoria* memoria, nodoMemoria* unNodoMemoria){
 
 
 }
-void eliminarNodoMemoria(int fdNodoMemoria, t_list* nodosMemoria){
+void eliminarNodoMemoria(int fdNodoMemoria, t_list* nodosMemoria, t_log* logger){
     nodoMemoria* nodo;
     bool mismoNodo(void* elemento){
         nodo = (nodoMemoria*) elemento;
         return  fdNodoMemoria == nodo->fdNodoMemoria;
     }
     list_remove_by_condition(nodosMemoria, mismoNodo);
-
-    printf("Eliminé al nodo con fd: %i", fdNodoMemoria);
-    fflush(stdout);
+    log_info(logger, string_from_format("Eliminé el nodo con fd %i", fdNodoMemoria));
     free(nodo);
 }
 bool esNodoMemoria(int fdConectado, t_list* nodosMemoria){

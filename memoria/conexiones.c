@@ -64,7 +64,7 @@ void* atenderConexiones(void* parametrosThread)    {
                                 }
                                 nodoMemoria* unNodoMemoria = (nodoMemoria*) list_find(memoria->nodosMemoria, mismoNodo);
                                 eliminarMemoriaConocida(memoria, unNodoMemoria);
-                                eliminarNodoMemoria(fdConectado, memoria->nodosMemoria);
+                                eliminarNodoMemoria(fdConectado, memoria->nodosMemoria, logger);
                             }
                             desconectarCliente(fdConectado, unaConexion, logger);
 
@@ -92,7 +92,7 @@ void* atenderConexiones(void* parametrosThread)    {
                                     }
                                     nodoMemoria* unNodoMemoria = (nodoMemoria*) list_find(memoria->nodosMemoria, mismoNodo);
                                     eliminarMemoriaConocida(memoria, unNodoMemoria);
-                                    eliminarNodoMemoria(fdConectado, memoria->nodosMemoria);
+                                    eliminarNodoMemoria(fdConectado, memoria->nodosMemoria, logger);
                                 }
                                 desconectarCliente(fdConectado, unaConexion, logger);
                             }
@@ -209,7 +209,7 @@ void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthre
         log_info(logger, "Parece que una memoria se desconectó. Procedo a eliminarla.");
         desconectarCliente(fdDestinatario, misConexiones, logger);
         eliminarMemoriaConocida(memoria, unNodoMemoria);
-        eliminarNodoMemoria(unNodoMemoria->fdNodoMemoria, memoria->nodosMemoria);
+        eliminarNodoMemoria(unNodoMemoria->fdNodoMemoria, memoria->nodosMemoria, logger);
 
 
     }else if (respuesta.tipoMensaje== RESPUESTA_GOSSIPING){

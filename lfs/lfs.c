@@ -1250,7 +1250,7 @@ t_metadata *obtenerMetadata(char *tabla) {
     t_config *config = abrirArchivoConfiguracion(metadataPath, logger);
 
     if (config == NULL) {
-        log_error(logger, "No se pudo obtener el archivo Metadata.");
+        log_error(logger, "No se pudo obtener el archivo Metadata de la tabla %s", tabla);
         exit(1);
     }
 
@@ -1597,7 +1597,7 @@ void *atenderConexiones(void *parametrosThread) {
                     switch (bytesRecibidos) {
                         // hubo un error al recibir los datos
                         case -1:
-                            log_warning(logger, "Hubo un error al recibir el header proveniente del socket %i",
+                            log_error(logger, "Hubo un error al recibir el header proveniente del socket %i",
                                         fdConectado);
                             break;
                             // se desconectó
@@ -1614,7 +1614,7 @@ void *atenderConexiones(void *parametrosThread) {
                             void *mensaje = (void *) malloc(pesoMensaje);
                             bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
                             if (bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
-                                log_warning(logger, "Hubo un error al recibir el mensaje proveniente del socket %i",
+                                log_error(logger, "Hubo un error al recibir el mensaje proveniente del socket %i",
                                             fdConectado);
                             else if (bytesRecibidos == 0) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien

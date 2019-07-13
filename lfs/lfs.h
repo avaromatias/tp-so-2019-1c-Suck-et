@@ -95,6 +95,8 @@ void atenderMensajes(void *parametrosRequest);
 
 char **obtenerTablas();
 
+void inicializarBitmap();
+
 t_response *lfsDescribe(char *nombreTabla);
 
 void *obtenerSemaforoPath(char *path);

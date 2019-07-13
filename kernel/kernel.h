@@ -42,9 +42,15 @@ typedef struct {
     int tiempoCompactacion;
 } t_metadataTablas;
 
+//Para las respuestas
+typedef struct {
+    TipoMensaje tipoRespuesta;
+    char *valor;
+} t_respuesta;
+
 //Estructura necesaria para el manejo de archivosLQL
 typedef struct {
-    t_queue *colaDeRequests;
+    t_queue *colaDeRequests;//cada Request va a ser un t_comando
     int cantidadDeLineas;
     int cantidadDeSelectProcesados;
     int cantidadDeInsertProcesados;
@@ -79,7 +85,7 @@ typedef struct {
     sem_t *mutexListaFinalizados;
     t_log *logger;
     sem_t *cantidadProcesosEnReady;
-    pthread_mutex_t* mutexJournal
+    pthread_mutex_t *mutexJournal;
 } parametros_pcp;
 
 //Estructura hibrida necesaria para planificacion
@@ -89,7 +95,9 @@ typedef struct {
     parametros_pcp *parametrosPCP;
 } p_planificacion;
 
-// ***** COMPORTAMIENTOS DEL KERNEL *****
+/******************************
+ ** COMPORTAMIENTO DE KERNEL **
+ ******************************/
 
 void inicializarSemyMutex();
 
@@ -105,11 +113,11 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
 
 bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros);
 
-void *administrarRequestsLQL(t_archivoLQL archivoLQL, p_consola_kernel *parametros);
-
 int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger);
 
-// ***** GESTIÓN DE COMANDOS *****
+/******************************
+ ***** GESTIÓN DE COMANDOS ****
+ ******************************/
 
 bool validarComandosKernel(t_comando requestParseada, t_log *logger);
 
@@ -123,6 +131,10 @@ int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemor
 
 int gestionarDropKernel(char *nombreTabla, int fdMemoria);
 
+int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria);
+
+int gestionarDescribeGlobalKernel(int fdMemoria);
+
 int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros);
 
 int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP);
@@ -133,7 +145,11 @@ int diferenciarRequest(t_comando requestParseada);
 
 void actualizarCantRequest(t_archivoLQL *archivoLQL, t_comando requestParseada);
 
-// ***** MANEJO DE MEMORIAS *****
+int extensionCorrecta(char *direccionAbsoluta);
+
+/******************************
+ ***** MANEJO DE MEMORIAS *****
+ ******************************/
 
 bool existenMemoriasConectadas(GestorConexiones *misConexiones);
 
@@ -141,13 +157,15 @@ char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas);
 
 int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int key);
 
-char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
+int seleccionarMemoriaParaDescribe(p_consola_kernel *parametros);
 
-// ***** PLANIFICADORES *****
+/****************************
+ ****** PLANIFICACIÓN *******
+ ****************************/
 
 bool encolarDirectoNuevoPedido(t_comando requestParseada);
 
-t_archivoLQL *convertirRequestALQL(t_comando* requestParseada);
+t_archivoLQL *convertirRequestALQL(t_comando *requestParseada);
 
 pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros);
 
@@ -155,8 +173,8 @@ pthread_t *crearHiloPlanificadorCortoPlazo(p_planificacion *parametros);
 
 void *sincronizacionPLP(void *parametrosPLP);
 
-void instanciarPCPs(p_planificacion*);
+void instanciarPCPs(p_planificacion *);
 
-void planificarRequest(p_planificacion* paramPlanificacionGeneral, t_archivoLQL *archivoLQL);
+void planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL);
 
 #endif /* KERNEL_H_ */

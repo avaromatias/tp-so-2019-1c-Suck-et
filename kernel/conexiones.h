@@ -40,4 +40,6 @@ void gestionarRespuesta(int fdMemoria, TipoRequest tipoRequest, char *mensaje, t
 
 void enviarJournal(int fdMemoria);
 
+char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
+
 #endif //KERNEL_CONEXIONES_H

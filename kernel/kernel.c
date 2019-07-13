@@ -97,7 +97,7 @@ int main(void) {
 
     ejecutarConsola(parametros, configuracion, parametrosPLP);
 
-    //pthread_join(&hiloRespuestas, NULL);
+    pthread_join(*hiloRespuestas, NULL);
     free(parametros);
     return EXIT_SUCCESS;
 }
@@ -145,7 +145,8 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
 
 void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion, parametros_plp *parametrosPLP) {
     t_comando *requestParseada = (t_comando *) malloc(sizeof(t_comando));
-    bool requestEsValida, seEncola;
+    bool requestEsValida = true;
+    bool seEncola = true;
     sem_t *semaforo_colaDeNew = parametrosPLP->mutexColaDeNew;
 
     do {
@@ -184,7 +185,7 @@ bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
         log_error(logger, "Comando inválido.");
         return false;
     } else {
-        if (validarComandosComunes(requestParseada, logger) || validarComandosKernel(requestParseada, logger)) {
+        if (validarComandosKernel(requestParseada, logger) || validarComandosComunes(requestParseada, logger)) {
             return true;
         } else {
             return false;
@@ -209,17 +210,17 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
                 return -1;
             }
         case INSERT:
-            if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
+            //if (dictionary_has_key(parametros->metadataTablas, requestParseada.parametros[0])) {
                 criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
                 int key = atoi(requestParseada.parametros[2]);
                 fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, key);
                 return gestionarInsertKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                              requestParseada.parametros[2],
                                              fdMemoria);
-            } else {
+            /*} else {
                 log_error(parametros->logger, "La tabla no se encuentra dentro de la Metadata conocida.\n");
                 return -1;
-            }
+            }*/
         case CREATE:
             criterioConsistencia = criterioBuscado(requestParseada, parametros->metadataTablas);
             fdMemoria = seleccionarMemoriaIndicada(parametros, criterioConsistencia, NULL);
@@ -260,7 +261,7 @@ int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria) {
 }
 
 int gestionarDescribeGlobalKernel(int fdMemoria) {
-    char *request = "DESCRIBE";
+    char *request = string_from_format("DESCRIBE");
     enviarPaquete(fdMemoria, REQUEST, DESCRIBE, request);
     free(request);
     return 0;
@@ -271,7 +272,7 @@ int gestionarRequestKernel(t_comando requestParseada, p_consola_kernel *parametr
     switch (requestParseada.tipoRequest) {
         case ADD:
             printf("Tipo de Request: %s %s %s \n", "ADD", requestParseada.parametros[0], requestParseada.parametros[1]);
-            printf("To: %s \n", requestParseada.parametros[3]);
+            printf("To: %s\n", requestParseada.parametros[3]);
             gestionarAdd(requestParseada.parametros, parametros);
             return 0;
         case RUN:
@@ -426,6 +427,7 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
     bool memoriaEncontrada = (list_size(misConexiones->conexiones) >= numeroMemoria);
 
     if (memoriaEncontrada) {
+        log_info(logger, "La memoria solicitada ya se puede utilizar.");
         int *fdMemoriaSolicitada = (int *) list_get(misConexiones->conexiones,
                                                     numeroMemoria - 1); // hacemos -1 por la ubicación 0
         t_list *listaFileDescriptors = dictionary_get(tablaMemoriasConCriterios, criterio);
@@ -443,7 +445,7 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
             return 0;
         }
     } else {
-        log_error(logger, "La memoria solicitada no se encuentra dentro de las memorias conocidas.\n");
+        log_error(logger, "La memoria solicitada no se encuentra dentro de las memorias conocidas.");
         return -1;
     }
 }
@@ -455,12 +457,13 @@ int seleccionarMemoriaParaDescribe(p_consola_kernel *parametros) {
     int tamanioListaConexiones = list_size(parametros->conexiones->conexiones);
 
     int numeroMemoriaElegida = rand() % (tamanioListaConexiones + 1);//me devuelve un numero entre 0 y tamListaConex
-    fdMemoria = (int*) list_get(misConexiones, numeroMemoriaElegida);
+    fdMemoria = list_get(misConexiones->conexiones, numeroMemoriaElegida);
 
     return fdMemoria;
 }
 
 int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int key) {
+    t_log *logger = parametros->logger;
     if (criterio != NULL) {
         if (existenMemoriasConectadas) {
             string_to_upper(criterio);
@@ -473,7 +476,7 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
                     int *fdMemoriaElegida = list_get(memoriasDelCriterioPedido, 0);
                     return *fdMemoriaElegida;
                 } else {
-                    log_error(parametros->logger, "No existe ninguna memoria asociada al criterio SC. \n");
+                    log_error(logger, "No existe ninguna memoria asociada al criterio SC. \n");
                     return -1;
                 }
             } else if (strcmp("SHC", criterio) == 0) {
@@ -509,12 +512,12 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
                     list_destroy(memoriasDisponibles);
                     return *fdMemoriaElegida;
                 } else {
-                    log_error(parametros->logger, "No existen memorias asociadas al criterio EC.\n");
+                    log_error(logger, "No existen memorias asociadas al criterio EC.\n");
                     return -1;
                 }
             }
         } else {
-            log_warning(parametros->logger, "No existen memorias conectadas para asignar requests.\n");
+            log_warning(logger, "No existen memorias conectadas para asignar requests.\n");
             return -1;
         }
     }
@@ -640,7 +643,7 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
         if (comando == NULL)
             break;
         requestEsValida = analizarRequest(*comando, pConsolaKernel);
-        if (requestEsValida == true) {
+        if (requestEsValida) {
             if ((diferenciarRequest(*comando) == 1)) { //Si es 1 es primitiva
                 gestionarRequestPrimitivas(*comando, pConsolaKernel);
                 actualizarCantRequest(archivoLQL, *comando); //para métricas

@@ -36,7 +36,10 @@ void confirmarHandshake(Header header, parametros_thread parametros);
 void desconexionMemoria(int fdConectado, GestorConexiones *conexiones, t_dictionary *tablaDeMemoriasConCriterios,
                         t_log *logger, pthread_mutex_t *mutexJournal);
 
-void gestionarRespuesta(int fdMemoria, TipoRequest tipoRequest, char *mensaje, t_log *logger);
+void
+gestionarRespuesta(int fdMemoria, t_dictionary *metadataTab, TipoRequest tipoRequest, char *mensaje, t_log *logger);
+
+void actualizarMetadata(t_dictionary *metadata, char *mensaje, t_log *logger);
 
 void enviarJournal(int fdMemoria);
 

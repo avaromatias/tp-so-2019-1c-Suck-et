@@ -816,12 +816,12 @@ int main(void) {
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling);
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra, semaforoJournaling);
-    pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal, semaforoJournaling);
+    //pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal, semaforoJournaling);
     pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling);
 
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
-    pthread_join(*hiloJournal, NULL);
+    //pthread_join(*hiloJournal, NULL);
     pthread_join(*hiloGossiping, NULL);
 
 	return 0;

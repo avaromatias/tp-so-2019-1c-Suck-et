@@ -48,8 +48,7 @@ void *atenderConexiones(void *parametrosThread) {
                         case 0:
                             // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                             // nombre_maravillosa_funcion();
-                            eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
-                            desconectarCliente(fdConectado, unaConexion, logger);
+                            desconexionMemoria(fdConectado, unaConexion, tablaDeMemoriasConCriterios, logger, mutexJournal);
                             break;
                             // recibí algún mensaje
                         default:; // esto es lo más raro que vi pero tuve que hacerlo
@@ -64,14 +63,12 @@ void *atenderConexiones(void *parametrosThread) {
                             else if (bytesRecibidos == 0) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();
-                                //desconexionMemoria(fdConectado, tablaDeMemoriasConCriterios, logger);
-                                eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
-                                desconectarCliente(fdConectado, unaConexion, logger);
+                                desconexionMemoria(fdConectado, unaConexion, tablaDeMemoriasConCriterios, logger, mutexJournal);
                             } else {
                                 switch (header.tipoMensaje) {
 
                                     case RESPUESTA:
-                                        //gestionarRespuesta();//atenderMensajes(header, mensaje, parametros);
+                                        gestionarRespuesta(header.fdRemitente, header.tipoRequest, mensaje, logger);
                                         break;
                                     case CONEXION_ACEPTADA:
                                         log_info(logger,
@@ -119,29 +116,39 @@ int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexi
     return fdMemoria;
 }
 
-/*
-void conectarseAMemoriaPrincipal(t_memoria_conocida *memoriaConocida, char *ipMemoria, int puertoMemoria, t_log *logger) {
-    log_info(logger, "Intentando conectarse a Memoria Principal.");
-    memoriaConocida->fdMemoria = crearSocketCliente(ipMemoria, puertoMemoria, logger);
-    if (memoriaConocida->fdMemoria < 0) {
-        log_error(logger, "Hubo un error al intentar conectarse con la Memoria Principal. Se va a cerrar el proceso.");
-        exit(-1);
-    } else {
-        log_info(logger, "Conexión con Memoria Principal establecida");
-        enviarPaquete(memoriaConocida.fdMemoria, HANDSHAKE, NULL);
-        memoriaConocida->utilizacion = 1;
+void gestionarRespuesta(int fdMemoria, TipoRequest tipoRequest, char *mensaje, t_log *logger) {
+    int fdMemoriaEmisora = fdMemoria;
+    switch (tipoRequest) {
+        case SELECT:
+            //incrementoCantidadSelects procesados para metricas;
+            log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            break;
+        case INSERT:
+            //incrementoCantidadInserts procesados para metricas;
+            log_info(logger, "El INSERT enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            break;
+        case CREATE:
+            //incrementoCantidadCreates procesados para metricas;
+            log_info(logger, "El CREATE enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            break;
+        case DROP:
+            log_info(logger, "El DROP enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            break;
+        case DESCRIBE:
+            //actualizo metadataTablas
+            log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.",fdMemoriaEmisora);
+            break;
     }
-}*/
+}
 
+void enviarJournal(int fdMemoria){
+    enviarPaquete(fdMemoria, REQUEST, JOURNAL, "JOURNAL");
+}
 
 void eliminarFileDescriptorDeTablasDeMemorias(int fdConectado, t_dictionary* tablaDeMemoriasConCriterios, pthread_mutex_t* mutexJournal){
 
     bool _mismoFd(void* elemento){
         return fdConectado == (int) elemento;
-    }
-
-    void enviarJournal(void* elemento){
-        enviarPaquete((int) elemento, REQUEST, JOURNAL, "JOURNAL");
     }
 
     pthread_mutex_lock(mutexJournal);
@@ -154,11 +161,14 @@ void eliminarFileDescriptorDeTablasDeMemorias(int fdConectado, t_dictionary* tab
         if (dictionary_has_key(tablaDeMemoriasConCriterios, criterios[contador])){
             t_list* listaCriterio= dictionary_get(tablaDeMemoriasConCriterios, criterios[contador]);
             list_remove_by_condition(listaCriterio, _mismoFd);
-            list_iterate(listaCriterio, enviarJournal);
-
+            list_iterate(listaCriterio, (void*)&enviarJournal);
         }
     }
     pthread_mutex_unlock(mutexJournal);
+}
 
-
+void desconexionMemoria(int fdConectado, GestorConexiones *unaConexion, t_dictionary* tablaDeMemoriasConCriterios,
+                        t_log *logger, pthread_mutex_t* mutexJournal){
+    eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
+    desconectarCliente(fdConectado, unaConexion, logger);
 }

@@ -90,7 +90,11 @@ typedef struct {
 
 // ***** COMPORTAMIENTOS DEL KERNEL *****
 
+void inicializarSemyMutex();
+
 t_configuracion cargarConfiguracion(char *, t_log *);
+
+void inicializarEstructurasKernel(t_dictionary *tablaDeMemoriasConCriterios);
 
 int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *parametros);
 

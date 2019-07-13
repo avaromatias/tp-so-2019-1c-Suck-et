@@ -236,7 +236,14 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *para
                 return -1;
             }
         case DESCRIBE:
-            return 0;//gestionarDescribeKernel(); //solamente trabaja con una tabla en particular
+            if(requestParseada.cantidadParametros == 1) {
+                //Estamos hablando del Describe de una tabla en particular
+                //gestionarDescribeTablaKernel(requestParseada.parametros[0], fdMemoria);
+            } else {
+                //gestionarDescribeGlobalKernel();
+            }
+            //gestionarDescribeKernel();
+            return 0;//solamente trabaja con una tabla en particular
         case JOURNAL:
             gestionarJournalKernel(parametros);
             return 0;
@@ -331,41 +338,14 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria) {
 }
 
 int gestionarJournalKernel(p_consola_kernel *parametros) {
-    t_list *memoriasSC = dictionary_get(parametros->memoriasConCriterios, "SC");
-    t_list *memoriasSHC = dictionary_get(parametros->memoriasConCriterios, "SHC");
-    int cantMemoriasSHC = list_size(memoriasSHC);
-    t_list *memoriasEC = dictionary_get(parametros->memoriasConCriterios, "EC");
-    int cantMemoriasEC = list_size(memoriasEC);
-    char *request = string_new();
-    string_append(&request, "JOURNAL");
+    GestorConexiones *memoriasConectadas = parametros->conexiones;
 
-    if ((list_size(memoriasSC)) > 0) {
-        int fdMemoria = (int)list_get(memoriasSC, 0);
-        enviarPaquete(fdMemoria, REQUEST, JOURNAL, request);
-        log_info(parametros->logger, "Se ha enviado Journal a la memoria SC.");
-    } else {
-        log_warning(parametros->logger, "No hay memoria SC asociada para enviarle JOURNAL.");
-    }
-    if (cantMemoriasSHC > 0) {
-        for (int i = 0; i < cantMemoriasSHC; i++) {
-            int fdMemoria = (int)list_get(memoriasSC, i);
-            enviarPaquete(fdMemoria, REQUEST, JOURNAL, request);
-        }
-        log_info(parametros->logger, "Se ha enviado Journal a %s memorias SHC.",cantMemoriasSHC);
-    } else {
-        log_warning(parametros->logger, "No hay memorias SHC asociadas para enviarles JOURNAL.");
-    }
-    if (cantMemoriasEC > 0) {
-        for (int i = 0; i < cantMemoriasSHC; i++) {
-            int fdMemoria = (int)list_get(memoriasSC, i);
-            enviarPaquete(fdMemoria, REQUEST, JOURNAL, request);
-        }
-        log_info(parametros->logger, "Se ha enviado Journal a %s memoria/s EC.",cantMemoriasEC);
-    } else {
-        log_warning(parametros->logger, "No hay memorias EC asociadas para enviarles JOURNAL.");
-    }
+    list_iterate(memoriasConectadas->conexiones,&enviarJournal);
+
     return 0;
 }
+
+//int gestionarDescribe()
 
 int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP) {
     t_archivoLQL *unLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
@@ -455,7 +435,6 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
                     return -1;
                 }
             } else if (strcmp("SHC", criterio) == 0) {
-
                 //FUNCION HASH
                 int indice;
                 int cantidadFDsAsociadosSHC = list_size(memoriasDelCriterioPedido);
@@ -463,7 +442,7 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
                 if (cantidadFDsAsociadosSHC > 0) {
                     if (key != NULL){
                         indice = key % cantidadFDsAsociadosSHC;
-                    }else{
+                    }else {
                         long tiempo;
                         time_t tiempoActual;
                         tiempo = (long) time(&tiempoActual);
@@ -471,9 +450,8 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
                         indice = tiempo % cantidadFDsAsociadosSHC;
                     }
                     int *fdMemoriaElegida = list_get(memoriasDelCriterioPedido, indice);
+
                     return *fdMemoriaElegida;
-
-
                 }
             } else if (strcmp("EC", criterio) == 0) {
                 int cantidadFDsAsociadosEC = list_size(memoriasDelCriterioPedido);
@@ -634,7 +612,6 @@ void planificarRequest(p_planificacion* paramPlanifGeneral, t_archivoLQL *archiv
     parametros_plp *parametrosPLP = paramPlanifGeneral->parametrosPLP;
     int quantumMaximo = (int) paramPlanifGeneral->parametrosPCP->quantum;
     t_archivoLQL *unLQL = archivoLQL;
-    t_comando requestParseada;
     bool requestEsValida;
 
     for (int quantumsConsumidos = 0; quantumsConsumidos < quantumMaximo; quantumsConsumidos++) {

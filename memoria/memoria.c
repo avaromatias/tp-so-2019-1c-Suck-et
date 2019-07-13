@@ -828,33 +828,7 @@ int main(void) {
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra, semaforoJournaling);
     //pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal, semaforoJournaling);
     pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling);
-    t_comando comando;
 
-    while(1){
-		//sem_wait(conexionKernel.semaforo);
-		/*if(conexionKernel.fd > 0)	{
-			//t_paquete request = recibirMensaje(&conexionKernel);
-//			logearValorDeSemaforo(&lissandraConectada, logger, "kernel");
-			if(request.mensaje == NULL)
-				continue;
-			else    {
-                char** comandoParseado = parser(request.mensaje);
-                free(request.mensaje);
-                if (comandoParseado == NULL)
-                    continue;
-                comando = instanciarComando(comandoParseado);
-                free(comandoParseado);
-                t_paquete respuesta = gestionarRequest(comando, memoriaPrincipal, &conexionLissandra, logger);
-                if(respuesta == NULL)   {
-                    log_error(logger, "Se desconectó Lissandra. Finalizando el proceso.");
-                    exit(-1);
-                }
-                if(conexionKernel.fd > 0)
-                    enviarPaquete(conexionKernel.fd, REQUEST, respuesta);
-                    sem_post(conexionKernel.semaforo);
-			}
-		}*/
-    }
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
     //pthread_join(*hiloJournal, NULL);

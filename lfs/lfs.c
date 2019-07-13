@@ -566,9 +566,14 @@ void compactacion(void *parametrosThread) {
     while (1) {
         sleep(tiempoCompactacion);
         pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
+        time_t start1,end1,start2,end2;
+        double total;
         pthread_mutex_lock(sem);
+        start1=clock();
         int existenTemporales = renombrarTemporales(nombreTabla);
         pthread_mutex_unlock(sem);
+        end1=clock();
+        total=(double)(end1-start1);
         if (existenTemporales == 1) {
             char *bloquesBin = obtenerStringBloquesSegunExtension(nombreTabla, ".bin");
             char *bloquesTemp = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
@@ -585,6 +590,7 @@ void compactacion(void *parametrosThread) {
             if (tamanioDeArrayDeStrings(lineas) > 0) {
                 char **lineasMaximas = filtrarKeyMax(lineas);
                 pthread_mutex_lock(sem);
+                start2=clock();
                 liberarBloques(bloques);
                 for (int j = 0; j < tamanioDeArrayDeStrings(lineasMaximas); j++) {
                     char **linea = desarmarLinea(lineasMaximas[j]);
@@ -602,6 +608,8 @@ void compactacion(void *parametrosThread) {
                 t_metadata *meta = obtenerMetadata(nombreTabla);
                 crearBinarios(nombreTabla, meta->partitions);
                 pthread_mutex_unlock(sem);
+                end2=clock();
+                total+=(double)(end2-start2);
                 freeArrayDeStrings(lineasMaximas);
             }
             free(bloquesBin);
@@ -610,6 +618,7 @@ void compactacion(void *parametrosThread) {
             freeArrayDeStrings(bloques);
             freeArrayDeStrings(lineas);
         }
+        log_info(logger,"La tabla %s estuvo bloqueada por %f segundos.",nombreTabla,(double)(total/CLOCKS_PER_SEC));
     }
     free(nombreTabla);
 }

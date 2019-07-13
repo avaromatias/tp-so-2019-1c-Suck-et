@@ -403,14 +403,14 @@ void eliminarMemoriaConocida(t_memoria* memoria, nodoMemoria* unNodoMemoria){
 
 
 }
-void eliminarNodoMemoria(int fdNodoMemoria, t_list* nodosMemoria, t_log* logger){
+void eliminarNodoMemoria(int fdNodoMemoria, t_list* nodosMemoria){
     nodoMemoria* nodo;
     bool mismoNodo(void* elemento){
         nodo = (nodoMemoria*) elemento;
         return  fdNodoMemoria == nodo->fdNodoMemoria;
     }
     list_remove_by_condition(nodosMemoria, mismoNodo);
-    log_info(logger, string_from_format("Eliminé el nodo con fd %i", fdNodoMemoria));
+
     free(nodo);
 }
 bool esNodoMemoria(int fdConectado, t_list* nodosMemoria){
@@ -433,50 +433,49 @@ void intercambiarListaGossiping(t_memoria* memoria, pthread_mutex_t* semaforoMem
     list_iterate(memoria->nodosMemoria, enviarPedidoListaGossiping);
 }
 
-void gestionarGossiping(GestorConexiones* misConexiones ,char* direccionIp, t_log* logger, t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas){
-    int i = 0;
+void conectarYAgregarNuevaMemoria(char* ipNuevaMemoria, GestorConexiones* misConexiones, t_log* logger, t_memoria* memoria){
     int fdNodoMemoria;
-    t_list* memoriasConocidas = (t_list*) memoria->memoriasConocidas;
+    bool _sonMismoString(void* elemento){
+        if (elemento != NULL){
+            return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
+        }else{
+            return false;
+        }
+    }
+    if(!list_any_satisfy(memoria->memoriasConocidas, _sonMismoString)){
+        char** direccionIp = string_split(ipNuevaMemoria, ":");
+        fdNodoMemoria = conectarseAServidor(direccionIp[0], atoi(direccionIp[1]), misConexiones, logger );
+        if (fdNodoMemoria != NULL && fdNodoMemoria >0){
+            log_info(logger, "Nueva conexion establecida con la memoria %s:%s", direccionIp[0], direccionIp[1]);
 
-    //while (ipSeeds[i] != NULL && puertoSeeds[i] != NULL){
+            nodoMemoria* unNodoMemoria = (nodoMemoria*)malloc(sizeof(nodoMemoria));
+            unNodoMemoria->fdNodoMemoria = fdNodoMemoria;
+            unNodoMemoria->ipNodoMemoria = direccionIp[0];
+            unNodoMemoria->puertoNodoMemoria = atoi(direccionIp[1]);
+            list_add(memoria->nodosMemoria, unNodoMemoria);
+            agregarIpMemoria(direccionIp[0], direccionIp[1], memoria->memoriasConocidas, logger);
 
-        /*char* ipNuevaMemoria = string_new();
+        }
+    }
+}
 
+void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** puertoSeeds, t_log* logger, t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas){
+    int i = 0;
+    //t_list* memoriasConocidas = (t_list*) memoria->memoriasConocidas;
 
-        //Agregar direccion ip:puerto de memoria conocida a la lista
+    while (ipSeeds[i] != NULL && puertoSeeds[i] != NULL){
+
+        char* ipNuevaMemoria = string_new();
         string_append(&ipNuevaMemoria, ipSeeds[i]);
         string_append(&ipNuevaMemoria, ":");
-        string_append(&ipNuevaMemoria, puertoSeeds[i]);*/
-        //Si el valor que voy a agregar ya pertenece a la lista
+        string_append(&ipNuevaMemoria, puertoSeeds[i]);
 
-        bool _sonMismoString(void* elemento){
-            if (elemento != NULL){
-                return (strcmp(direccionIp, (char*) elemento) == 0);
-            }else{
-                return false;
-            }
+        pthread_mutex_lock(semaforoMemoriasConocidas);
 
-        }
-
-        //pthread_mutex_lock(semaforoMemoriasConocidas);
-        if(!list_any_satisfy(memoriasConocidas, _sonMismoString)){
-            char** direccionIpSpliteada = string_split(direccionIp, ":");
-            fdNodoMemoria = conectarseAServidor(direccionIpSpliteada[0], atoi(direccionIpSpliteada[1]), misConexiones, logger);
-            if (fdNodoMemoria != NULL && fdNodoMemoria >0){
-                log_info(logger, "Nueva conexion establecida con la memoria %s:%s", direccionIpSpliteada[0], direccionIpSpliteada[1]);
-
-                nodoMemoria* unNodoMemoria = (nodoMemoria*)malloc(sizeof(nodoMemoria));
-                unNodoMemoria->fdNodoMemoria = fdNodoMemoria;
-                unNodoMemoria->ipNodoMemoria = direccionIpSpliteada[0];
-                unNodoMemoria->puertoNodoMemoria = atoi(direccionIpSpliteada[1]);
-                list_add(memoria->nodosMemoria, unNodoMemoria);
-                agregarIpMemoria(direccionIpSpliteada[0], direccionIpSpliteada[1], memoriasConocidas, logger);
-
-            }
-        }
-        //pthread_mutex_unlock(semaforoMemoriasConocidas);
+        conectarYAgregarNuevaMemoria(ipNuevaMemoria, misConexiones, logger, memoria);
+        pthread_mutex_unlock(semaforoMemoriasConocidas);
         i++;
-    //}
+    }
 
 }
 void gossiping(parametros_gossiping* parametros){
@@ -490,29 +489,17 @@ void gossiping(parametros_gossiping* parametros){
         sleep(15);
         //sleep(configuracion.retardoGossiping);
         //Se conecta a memorias y las agrega como nodos de memoria
+        gestionarGossiping(misConexiones, configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria, semaforoMemoriasConocidas);
 
 
 
         pthread_mutex_lock(parametros->semaforoJournaling);
         pthread_mutex_unlock(parametros->semaforoJournaling);
-        pthread_mutex_lock(semaforoMemoriasConocidas);
-
-        //mutex
-        int cont = 0;
-        while (configuracion.ipSeeds[cont] != NULL && configuracion.puertoSeeds[cont] != NULL){
-            char* direccionIp = string_new();
-            string_append(&direccionIp, configuracion.ipSeeds[cont]);
-            string_append(&direccionIp, ":");
-            string_append(&direccionIp, configuracion.puertoSeeds[cont]);
-            gestionarGossiping(misConexiones, direccionIp, logger, memoria, semaforoMemoriasConocidas);
-            cont++;
-        }
-        pthread_mutex_unlock(semaforoMemoriasConocidas);
-        //mutex
+        //pthread_mutex_lock(semaforoMemoriasConocidas);
 
         intercambiarListaGossiping(memoria, semaforoMemoriasConocidas, logger, misConexiones);
         //mostrarMemoriasConocidasAlMomento(memoria->memoriasConocidas, semaforoMemoriasConocidas);
-
+        //pthread_mutex_unlock(semaforoMemoriasConocidas);
         //Avisar a Kernel sobre las memorias que conozco
 
 

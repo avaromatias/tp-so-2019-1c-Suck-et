@@ -364,52 +364,49 @@ int extensionCorrecta(char *direccionAbsoluta) {
     }
 }
 
-int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP) {
+t_archivoLQL* crearLQL()    {
     t_archivoLQL *unLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
+    unLQL->colaDeRequests = queue_create();
+    unLQL->cantidadDeLineas = 0;
+    unLQL->cantidadDeSelectProcesados = 0;
+    unLQL->cantidadDeInsertProcesados = 0;
+    return unLQL;
+}
+
+int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP) {
+    t_archivoLQL* unLQL = crearLQL();
     t_comando *requestParseada = (t_comando *) malloc(sizeof(t_comando));
     t_log *logger = parametros->logger;
 
-    char *archivoAEjecutar = string_from_format("/home/utnso/workspace/tp-2019-1c-Suck-et/kernel/", pathArchivo);
-
-    if(extensionCorrecta(archivoAEjecutar) == 0) {
+    if(extensionCorrecta(pathArchivo) == 0) {
 
         sem_t *semaforo_colaDeNew = parametrosPLP->mutexColaDeNew;
 
         char *linea = NULL;
         int lineaLeida = 0;
-        char caracter;
-        int contador = 0;
+        int caracter, contador;
 
-        FILE *archivo = fopen(archivoAEjecutar, "rw");
-        if (archivoAEjecutar != NULL) {
-            caracter = fgetc(archivo);
+        if (sePuedeLeerElArchivo(pathArchivo)) {
+            FILE *archivo = fopen(pathArchivo, "r");
+            int tamanioArchivo = getFileSize(archivo);
+            char* textoDelArchivo = (char*) malloc(tamanioArchivo + 1);
 
-            if (!sePuedeLeerElArchivo(pathArchivo)) {
-                log_error(logger, "El PATH recibido es inválido.\n");
-            }
-            while (!feof(archivo)) {
-                linea = (char *) realloc(NULL, sizeof(char));
-                contador = 0;
-                while (caracter != '\n') {
-                    linea[contador] = caracter;
-                    contador++;
-                    linea = (char *) realloc(linea, (contador + 1) * sizeof(char));
-                    caracter = fgetc(archivo);
-                }
-                linea = (char *) realloc(linea, (contador + 2) * sizeof(char)); //agrego el \n por las dudas
-                linea[contador] = caracter;
+            fread(textoDelArchivo, 1, tamanioArchivo, archivo);
+            fclose(archivo);
 
-                char **lineaParseada = parser(linea);
+            textoDelArchivo[tamanioArchivo] = 0;
+            char** lineas = string_split(textoDelArchivo, "\n");
+            int cantidadRequests = tamanioDeArrayDeStrings(lineas);
+            for(int i = 0; i < cantidadRequests; i++)   {
+                char **lineaParseada = parser(lineas[i]);
                 *requestParseada = instanciarComando(lineaParseada);
-                //Asignamos la linea al primer elemento de la cola de request
                 queue_push(unLQL->colaDeRequests, requestParseada);
-                lineaLeida++;
             }
             unLQL->cantidadDeLineas = queue_size(unLQL->colaDeRequests);
             sem_wait(semaforo_colaDeNew);
             queue_push(parametrosPLP->colaDeNew, unLQL);
+            sem_post(parametrosPLP->cantidadProcesosEnNew);
             sem_post(semaforo_colaDeNew);
-            fclose(archivo);
         } else {
             log_error(logger, "El archivo solicitado es incorrecto. Verifique su entrada.");
         }

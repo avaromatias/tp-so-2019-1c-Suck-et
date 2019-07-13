@@ -177,7 +177,8 @@ void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas
     while (memorias[i] != NULL){
         char** unaIpSpliteada = string_split(memorias[i], ":");
 
-        agregarIpMemoria(unaIpSpliteada[0], unaIpSpliteada[1], memoriasConocidas, logger);
+        conectarYAgregarNuevaMemoria(memorias[i], memoriasConocidas, logger);
+        //agregarIpMemoria(unaIpSpliteada[0], unaIpSpliteada[1], memoriasConocidas, logger);
         i++;
     }
 

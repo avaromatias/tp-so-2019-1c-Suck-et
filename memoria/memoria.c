@@ -433,9 +433,38 @@ void intercambiarListaGossiping(t_memoria* memoria, pthread_mutex_t* semaforoMem
     list_iterate(memoria->nodosMemoria, enviarPedidoListaGossiping);
 }
 
+void conectarYAgregarNuevaMemoria(char* ipNuevaMemoria, GestorConexiones* misConexiones, t_log* logger, t_memoria* memoria){
+    int fdNodoMemoria;
+
+    char** direccionIp = string_split(ipNuevaMemoria, ":");
+    bool _sonMismoString(void* elemento){
+        if (elemento != NULL){
+            return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
+        }else{
+            return false;
+        }
+
+    }
+
+
+    if(!list_any_satisfy(memoria->memoriasConocidas, _sonMismoString)){
+        fdNodoMemoria = conectarseAServidor(direccionIp, atoi(direccionIp), misConexiones, logger );
+        if (fdNodoMemoria != NULL && fdNodoMemoria >0){
+            log_info(logger, "Nueva conexion establecida con la memoria %s:%s", direccionIp[0], direccionIp[1]);
+
+            nodoMemoria* unNodoMemoria = (nodoMemoria*)malloc(sizeof(nodoMemoria));
+            unNodoMemoria->fdNodoMemoria = fdNodoMemoria;
+            unNodoMemoria->ipNodoMemoria = direccionIp[0];
+            unNodoMemoria->puertoNodoMemoria = atoi(direccionIp[1]);
+            list_add(memoria->nodosMemoria, unNodoMemoria);
+            agregarIpMemoria(direccionIp[0], direccionIp[1], memoria->memoriasConocidas, logger);
+
+        }
+    }
+}
+
 void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** puertoSeeds, t_log* logger, t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas){
     int i = 0;
-    int fdNodoMemoria;
     t_list* memoriasConocidas = (t_list*) memoria->memoriasConocidas;
 
     while (ipSeeds[i] != NULL && puertoSeeds[i] != NULL){
@@ -449,7 +478,10 @@ void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** 
         string_append(&ipNuevaMemoria, puertoSeeds[i]);
         //Si el valor que voy a agregar ya pertenece a la lista
 
-        bool _sonMismoString(void* elemento){
+        pthread_mutex_lock(semaforoMemoriasConocidas);
+
+        conectarYAgregarNuevaMemoria(ipNuevaMemoria, misConexiones, logger, memoria);
+        /*bool _sonMismoString(void* elemento){
             if (elemento != NULL){
                 return (strcmp(ipNuevaMemoria, (char*) elemento) == 0);
             }else{
@@ -472,7 +504,7 @@ void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** 
                 agregarIpMemoria(ipSeeds[i], puertoSeeds[i], memoriasConocidas, logger);
 
             }
-        }
+        }*/
         pthread_mutex_unlock(semaforoMemoriasConocidas);
         i++;
     }

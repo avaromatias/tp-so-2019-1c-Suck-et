@@ -212,8 +212,8 @@ void actualizarMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *logg
     dataLissandra = mensaje;
 
     if ((dataLissandra != NULL)) {
-        int cantTablasActualizadas;
-        tablasDelDescribe = string_split(dataLissandra, "-----------------\n");
+        int cantTablasActualizadas = 0;
+        tablasDelDescribe = string_split(dataLissandra, "-----------------");
         int cantidadDeTablasActualizar = tamanioDeArrayDeStrings(tablasDelDescribe);
 
         for (int i = 0; i < cantidadDeTablasActualizar; i++) {

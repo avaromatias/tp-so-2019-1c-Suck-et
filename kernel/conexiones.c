@@ -4,13 +4,14 @@
 
 #include "conexiones.h"
 
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCrits,
-                               pthread_mutex_t *mutexJournal) {
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios,
+                               t_dictionary* metadataTabla, pthread_mutex_t *mutexJournal) {
     pthread_t *hiloConexiones = malloc(sizeof(pthread_t));
 
     parametros_thread_k *parametros = (parametros_thread_k *) malloc(sizeof(parametros_thread_k));
 
-    parametros->tablaDeMemoriasConCriterios = tablaDeMemoriasConCrits;
+    parametros->tablaDeMemoriasConCriterios = tablaDeMemoriasConCriterios;
+    parametros->metadataTabla = metadataTabla;
     parametros->conexion = unaConexion;
     parametros->logger = logger;
     parametros->mutexJournal = mutexJournal;
@@ -25,6 +26,7 @@ void *atenderConexiones(void *parametrosThread) {
     GestorConexiones *unaConexion = parametros->conexion;
     t_log *logger = parametros->logger;
     t_dictionary *tablaDeMemoriasConCriterios = parametros->tablaDeMemoriasConCriterios;
+    t_dictionary *metadata = parametros->metadataTabla;
     pthread_mutex_t *mutexJournal = parametros->mutexJournal;
 
     fd_set emisores;
@@ -70,7 +72,8 @@ void *atenderConexiones(void *parametrosThread) {
                             } else {
                                 switch (header.tipoMensaje) {
                                     case RESPUESTA:
-                                        gestionarRespuesta(header.fdRemitente, parametros->tablaDeMemoriasConCriterios, header.tipoRequest, mensaje, logger);
+                                        gestionarRespuesta(header.fdRemitente, tablaDeMemoriasConCriterios, metadata,
+                                                header.tipoRequest, mensaje, logger);
                                         break;
                                     case CONEXION_ACEPTADA:
                                         //atenderHandshake(header, componente, parametros);
@@ -121,28 +124,26 @@ int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexi
     return fdMemoria;
 }
 
-void gestionarRespuesta(int fdMemoria, t_dictionary *metadataTab, TipoRequest tipoRequest, char *mensaje, t_log *logger) {
-    t_dictionary *metadataTablas = metadataTab;
-    int fdMemoriaEmisora = fdMemoria;
+void gestionarRespuesta(int fdMemoria, t_dictionary *memoriasConCriterios, t_dictionary *metadata, TipoRequest tipoRequest, char *mensaje, t_log *logger){
     switch (tipoRequest) {
         case SELECT:
             //incrementoCantidadSelects procesados para metricas;
-            log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente.", fdMemoriaEmisora);
+            log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
         case INSERT:
             //incrementoCantidadInserts procesados para metricas;
-            log_info(logger, "El INSERT enviado a la memoria %i fue procesado correctamente.", fdMemoriaEmisora);
+            log_info(logger, "El INSERT enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
         case CREATE:
             //incrementoCantidadCreates procesados para metricas;
-            log_info(logger, "El CREATE enviado a la memoria %i fue procesado correctamente.", fdMemoriaEmisora);
+            log_info(logger, "El CREATE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
         case DROP:
-            log_info(logger, "El DROP enviado a la memoria %i fue procesado correctamente.", fdMemoriaEmisora);
+            log_info(logger, "El DROP enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
         case DESCRIBE:
-            actualizarMetadata(metadataTablas, mensaje, logger);
-            log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.", fdMemoriaEmisora);
+            actualizarMetadata(metadata, mensaje, logger);
+            log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
     }
 }
@@ -201,8 +202,7 @@ char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping
     return direccionesDeMemorias;
 }
 
-void actualizarMetadata(t_dictionary *metadata, char *mensaje, t_log *logger) {
-    t_dictionary *metadataTablas = metadata;
+void actualizarMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *logger) {
     char **tablaARenovar;
     char **consistenciaTabla;
     char **tablasDelDescribe;

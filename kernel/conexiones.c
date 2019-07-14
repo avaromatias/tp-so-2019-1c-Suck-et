@@ -128,7 +128,7 @@ void gestionarRespuesta(int fdMemoria, t_dictionary *memoriasConCriterios, t_dic
     switch (tipoRequest) {
         case SELECT:
             //incrementoCantidadSelects procesados para metricas;
-            log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente.", fdMemoria);
+            log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente. Respuesta recibida: %s", fdMemoria, mensaje);
             break;
         case INSERT:
             //incrementoCantidadInserts procesados para metricas;

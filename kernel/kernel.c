@@ -390,7 +390,6 @@ t_archivoLQL *crearLQL() {
 
 int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP) {
     t_archivoLQL *unLQL = crearLQL();
-    t_comando *requestParseada = (t_comando *) malloc(sizeof(t_comando));
     t_log *logger = parametros->logger;
 
     if(extensionCorrecta(pathArchivo) == 0) {
@@ -413,6 +412,7 @@ int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp
             char** lineas = string_split(textoDelArchivo, "\n");
             int cantidadRequests = tamanioDeArrayDeStrings(lineas);
             for(int i = 0; i < cantidadRequests; i++)   {
+                t_comando *requestParseada = (t_comando *) malloc(sizeof(t_comando));
                 char **lineaParseada = parser(lineas[i]);
                 *requestParseada = instanciarComando(lineaParseada);
                 queue_push(unLQL->colaDeRequests, requestParseada);

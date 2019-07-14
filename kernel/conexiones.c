@@ -136,6 +136,7 @@ void gestionarRespuesta(int fdMemoria, t_dictionary *memoriasConCriterios, t_dic
             break;
         case CREATE:
             //incrementoCantidadCreates procesados para metricas;
+            crearTablaEnMetadata(metadata, mensaje, logger);
             log_info(logger, "El CREATE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
         case DROP:
@@ -240,5 +241,32 @@ void actualizarMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *logg
     } else {
         log_error(logger, "La información recibida por Lissandra es NULA.\n");
         exit(-1);
+    }
+}
+
+void crearTablaEnMetadata(t_dictionary *metadataTablas, char* mensaje, t_log *logger) {
+    char *dataCreateEnLissandra;
+    char **infoCreate;
+    char **separacionTablaConsistencia;
+    char *nombreTabla;
+    char *consistencia;
+    char *tablaConsistencia;
+
+    dataCreateEnLissandra = mensaje; //“CREATE OK|tabla;consistencia”
+    if ((dataCreateEnLissandra != NULL)) {
+        infoCreate = string_split(dataCreateEnLissandra, "|");
+        if (string_contains(infoCreate[0], "CREATE OK")) {
+            tablaConsistencia = infoCreate[1];
+        } else {
+            log_warning(logger, "El CREATE para la tabla/consistencia no se pudo crear.");
+            exit(-1);
+        }
+        if (string_contains(tablaConsistencia, ";")) {
+            separacionTablaConsistencia = string_split(tablaConsistencia, ";");
+            nombreTabla = separacionTablaConsistencia[0];
+            consistencia = separacionTablaConsistencia[1];
+        }
+        dictionary_put(metadataTablas, nombreTabla, consistencia);
+        log_info(logger, "La metadata se actualizó correctamente");
     }
 }

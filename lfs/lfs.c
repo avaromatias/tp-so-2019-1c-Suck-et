@@ -59,10 +59,14 @@ void atenderMensajes(void *parametrosRequest) {
     t_response *retorno;
     t_comando comando = instanciarComando(comandoParseado);
     retorno = gestionarRequest(comando);
+    if (header.tipoRequest == CREATE && retorno->tipoRespuesta ==
+                                        RESPUESTA) { //Esto es horrible, pero considerando que estamos justos con el tiempo hay que hacerlo
+        retorno->valor = concat(4, "CREATE OK|", comando.parametros[0], ";", comando.parametros[1]);
+    }
     enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, comando.tipoRequest, retorno->valor);
+    // TODO: No deberiamos hacer un free(retorno->valor)?
     free(retorno);
     free(comandoParseado);
-
 }
 
 char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
@@ -135,8 +139,10 @@ void crearBinarios(char *nombreTabla, int particiones) {
             string_append(&nombreArchivo, ".bin");
             FILE *file = fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "w");
             char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, i);
-            int cantidadBloquesAsignados = tamanioDeArrayDeStrings(convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
-            int tamanio = ((cantidadBloquesAsignados - 1) * obtenerTamanioBloques(configuracion.puntoMontaje)) + obtenerTamanioBloque(bloque);
+            int cantidadBloquesAsignados = tamanioDeArrayDeStrings(
+                    convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
+            int tamanio = ((cantidadBloquesAsignados - 1) * obtenerTamanioBloques(configuracion.puntoMontaje)) +
+                          obtenerTamanioBloque(bloque);
             char *tamanioString = string_itoa(tamanio);
             char *contenido = generarContenidoParaParticion(tamanioString, bloquesAsignadosAParticion);
             fwrite(contenido, sizeof(char) * strlen(contenido), 1, file);
@@ -153,7 +159,7 @@ void crearBinarios(char *nombreTabla, int particiones) {
 
 char *obtenerBloquesAsignados(char *nombreTabla, int particion) {
     char *bloquesAsignadosParticion = string_duplicate("[");
-    for(int i = 0; i < obtenerCantidadBloques(configuracion.puntoMontaje); i++) {
+    for (int i = 0; i < obtenerCantidadBloques(configuracion.puntoMontaje); i++) {
         char *bloqueString = string_itoa(i);
         if (bloquesAsignados->elements_amount > 0) {
             t_bloqueAsignado *bloque = dictionary_get(bloquesAsignados, bloqueString);
@@ -167,7 +173,7 @@ char *obtenerBloquesAsignados(char *nombreTabla, int particion) {
     char *retorno = string_substring_until(bloquesAsignadosParticion, strlen(bloquesAsignadosParticion) - 1);
     free(bloquesAsignadosParticion);
     string_append(&retorno, "]");
-    if(strlen(retorno) > 1) {
+    if (strlen(retorno) > 1) {
         return retorno;
     } else {
         free(retorno);
@@ -226,7 +232,7 @@ int obtenerBloqueDisponible(char *nombreTabla, int particion) {
 
 void retardo() {
     t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
-    if(config_has_property(archivoConfig,"RETARDO")) {
+    if (config_has_property(archivoConfig, "RETARDO")) {
         int tiempoDump = config_get_int_value(archivoConfig, "RETARDO");
         if (tiempoDump < 0) {
             log_error(logger, "El RETARDO no esta seteado en el Archivo de Configuracion.");
@@ -243,52 +249,51 @@ void retardo() {
 void lfsDump() {
     while (1) {
         t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
-        if(config_has_property(archivoConfig,"TIEMPO_DUMP")){
-        int tiempoDump = config_get_int_value(archivoConfig, "TIEMPO_DUMP");
-        if (!tiempoDump) {
-            log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
-            printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
-            continue;
-        }
-        tiempoDump = tiempoDump / 1000;
-        sleep(tiempoDump);
-        config_destroy(archivoConfig);
-        void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
-            int nroDump = 0;
-            char *nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
-            char *nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
-            while (existeElArchivo(nombreArchivo)) {
-                free(nombreArchivo);
-                nroDump++;
-                nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
-                nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
+        if (config_has_property(archivoConfig, "TIEMPO_DUMP")) {
+            int tiempoDump = config_get_int_value(archivoConfig, "TIEMPO_DUMP");
+            if (!tiempoDump) {
+                log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
+                printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
+                continue;
             }
-            pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
-            pthread_mutex_lock(sem);
-            pthread_mutex_t *semArchivo = obtenerSemaforoPath(nombreArchivo);
-            void _dumpKey(char *key, t_list *listaDeRegistros) {
-                int index = 0;
-                void _dumpRegistro(char *linea) {
-                    pthread_mutex_lock(semArchivo);
-                    FILE *archivoDump = fopen(nombreArchivo, "a");
-                    fclose(archivoDump);
-                    escribirEnBloque(linea, nombreDump, -1, nombreArchivo);
-                    pthread_mutex_unlock(semArchivo);
-                    list_remove(listaDeRegistros, index);
+            tiempoDump = tiempoDump / 1000;
+            sleep(tiempoDump);
+            config_destroy(archivoConfig);
+            void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
+                int nroDump = 0;
+                char *nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
+                char *nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
+                while (existeElArchivo(nombreArchivo)) {
+                    free(nombreArchivo);
+                    nroDump++;
+                    nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
+                    nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
                 }
-                list_iterate(listaDeRegistros, _dumpRegistro);
+                pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
+                pthread_mutex_lock(sem);
+                pthread_mutex_t *semArchivo = obtenerSemaforoPath(nombreArchivo);
+                void _dumpKey(char *key, t_list *listaDeRegistros) {
+                    int index = 0;
+                    void _dumpRegistro(char *linea) {
+                        pthread_mutex_lock(semArchivo);
+                        FILE *archivoDump = fopen(nombreArchivo, "a");
+                        fclose(archivoDump);
+                        escribirEnBloque(linea, nombreDump, -1, nombreArchivo);
+                        pthread_mutex_unlock(semArchivo);
+                        list_remove(listaDeRegistros, index);
+                    }
+                    list_iterate(listaDeRegistros, _dumpRegistro);
+
+                }
+                dictionary_iterator(tablaDeKeys, _dumpKey);
+                pthread_mutex_unlock(sem);
+            }
+            if (!dictionary_is_empty(memTable)) {
+
+                dictionary_iterator(memTable, dumpTabla);
 
             }
-            dictionary_iterator(tablaDeKeys, _dumpKey);
-            pthread_mutex_unlock(sem);
-        }
-        if (!dictionary_is_empty(memTable)) {
-
-            dictionary_iterator(memTable, dumpTabla);
-
-        }
-    }
-        else{
+        } else {
             log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
             printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
             continue;
@@ -584,14 +589,14 @@ void compactacion(void *parametrosThread) {
     while (1) {
         sleep(tiempoCompactacion);
         pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
-        time_t start1,end1,start2,end2;
+        time_t start1, end1, start2, end2;
         double total;
         pthread_mutex_lock(sem);
-        start1=clock();
+        start1 = clock();
         int existenTemporales = renombrarTemporales(nombreTabla);
         pthread_mutex_unlock(sem);
-        end1=clock();
-        total=(double)(end1-start1);
+        end1 = clock();
+        total = (double) (end1 - start1);
         if (existenTemporales == 1) {
             char *bloquesBin = obtenerStringBloquesSegunExtension(nombreTabla, ".bin");
             char *bloquesTemp = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
@@ -607,7 +612,7 @@ void compactacion(void *parametrosThread) {
             if (tamanioDeArrayDeStrings(lineas) > 0) {
                 char **lineasMaximas = filtrarKeyMax(lineas);
                 pthread_mutex_lock(sem);
-                start2=clock();
+                start2 = clock();
                 liberarBloques(bloques);
                 for (int j = 0; j < tamanioDeArrayDeStrings(lineasMaximas); j++) {
                     char **linea = desarmarLinea(lineasMaximas[j]);
@@ -618,12 +623,13 @@ void compactacion(void *parametrosThread) {
                 eliminarArchivosSegunExtension(nombreTabla, ".bin");
                 t_metadata *meta = obtenerMetadata(nombreTabla);
                 crearBinarios(nombreTabla, meta->partitions);
-                end2=clock();
-                total+=(double)(end2-start2);
+                end2 = clock();
+                total += (double) (end2 - start2);
                 pthread_mutex_unlock(sem);
             }
         }
-        log_info(logger,"La tabla %s estuvo bloqueada por %f segundos.",nombreTabla,(double)(total/CLOCKS_PER_SEC));
+        log_info(logger, "La tabla %s estuvo bloqueada por %f segundos.", nombreTabla,
+                 (double) (total / CLOCKS_PER_SEC));
     }
 }
 
@@ -727,7 +733,8 @@ void validarValor(char *valor, t_response *retorno) {
         return retorno;
     } else if (validarTamanioValor(valor) != 0) {
         retorno->tipoRespuesta = ERR;
-        retorno->valor = concat(3, "El valor no puede ser mayor a ",string_from_format("%i", configuracion.tamanioValue), " bytes.");
+        retorno->valor = concat(3, "El valor no puede ser mayor a ",
+                                string_from_format("%i", configuracion.tamanioValue), " bytes.");
         return retorno;
     }
     return retorno;
@@ -816,7 +823,8 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
     char *bloquesDeParticion = string_duplicate("[");
     while (linea[indice] != '\0' && indice < string_length(linea)) {
         pthread_mutex_lock(mutexAsignacionBloques);
-        bloque = obtenerBloqueDisponible(nombreTabla, particion); // Aca creo que esta obteniendo un bloque disponible distinto al que la particion ya tiene asignado
+        bloque = obtenerBloqueDisponible(nombreTabla,
+                                         particion); // Aca creo que esta obteniendo un bloque disponible distinto al que la particion ya tiene asignado
         if (bloque == -1) {
             pthread_mutex_unlock(mutexAsignacionBloques);
             log_error(logger, "No hay bloques disponibles.");
@@ -825,7 +833,8 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             break;
         } else {
             char *bloqueString = string_itoa(bloque);
-            dictionary_put(bloquesAsignados, bloqueString, bloqueA); //Tengo mis dudas con respecto a esto: porque el bloque podria ya estar asignado a esa tabla y particion
+            dictionary_put(bloquesAsignados, bloqueString,
+                           bloqueA); //Tengo mis dudas con respecto a esto: porque el bloque podria ya estar asignado a esa tabla y particion
             pthread_mutex_unlock(mutexAsignacionBloques);
             string_append(&bloquesDeParticion, bloqueString);
             string_append(&bloquesDeParticion, ",");
@@ -834,7 +843,8 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             pthread_mutex_lock(semBloque);
             FILE *f = fopen(pathBloque, "a");
             int longitudArchivo = obtenerTamanioBloque(bloque);
-            while (longitudArchivo < obtenerTamanioBloques(configuracion.puntoMontaje) && indice < string_length(linea)) {
+            while (longitudArchivo < obtenerTamanioBloques(configuracion.puntoMontaje) &&
+                   indice < string_length(linea)) {
                 fputc(linea[indice], f);
                 longitudArchivo++;
                 indice++;
@@ -848,8 +858,8 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             }
         }
     }
-    if(particion == -1) {
-        if(existeElArchivo(nombreArchivo)) {
+    if (particion == -1) {
+        if (existeElArchivo(nombreArchivo)) {
             FILE *fParticion = fopen(nombreArchivo, "w");
             char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, particion);
             int cantidadBloquesAsignados = tamanioDeArrayDeStrings(
@@ -952,14 +962,14 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             char *bloquesTemporalesCompactacion = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
 
             char *todosLosBloques = string_new();
-            string_append(&todosLosBloques,bloquesParticion);
-            if(!string_is_empty(bloquesTemporales)){
-                string_append(&todosLosBloques,",");
-                string_append(&todosLosBloques,bloquesTemporales);
+            string_append(&todosLosBloques, bloquesParticion);
+            if (!string_is_empty(bloquesTemporales)) {
+                string_append(&todosLosBloques, ",");
+                string_append(&todosLosBloques, bloquesTemporales);
             }
-            if(!string_is_empty(bloquesTemporalesCompactacion)){
-                string_append(&todosLosBloques,",");
-                string_append(&todosLosBloques,bloquesTemporalesCompactacion);
+            if (!string_is_empty(bloquesTemporalesCompactacion)) {
+                string_append(&todosLosBloques, ",");
+                string_append(&todosLosBloques, bloquesTemporalesCompactacion);
             }
 
             char **bloques = convertirStringDeBloquesAArray(todosLosBloques);
@@ -979,11 +989,11 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                             char **lineaPartida2 = desarmarLinea(mayorLinea);
                             int mayorTimestampMem = atoi(lineaPartida[0]);
                             if (lineaPartida2[0]) {
-                            int mayorTimestampBlock = atoi(lineaPartida2[0]);
-                            if (mayorTimestampMem > mayorTimestampBlock) {
-                                mayorLinea = elemento;
-                            }
-                        }else{
+                                int mayorTimestampBlock = atoi(lineaPartida2[0]);
+                                if (mayorTimestampMem > mayorTimestampBlock) {
+                                    mayorLinea = elemento;
+                                }
+                            } else {
                                 mayorLinea = elemento;
                             }
                         }
@@ -1159,7 +1169,7 @@ void ejecutarConsola() {
 
     do {
         char *leido = readline("Lissandra@suck-ets:~$ ");
-        char *request=string_duplicate(leido);
+        char *request = string_duplicate(leido);
         char **comandoParseado = parser(leido);
         if (comandoParseado == NULL) {
             free(comandoParseado);
@@ -1169,10 +1179,10 @@ void ejecutarConsola() {
         if (validarComandosComunes(comando, logger)) {
             t_response *retorno = gestionarRequest(comando);
             if (retorno->tipoRespuesta == ERR) {
-                log_warning(logger, "REQUEST: %s. \t RESPUESTA: %s",request,retorno->valor);
+                log_warning(logger, "REQUEST: %s. \t RESPUESTA: %s", request, retorno->valor);
             } else {
 
-                log_info(logger, "REQUEST: %s. \t RESPUESTA: %s",request,retorno->valor);
+                log_info(logger, "REQUEST: %s. \t RESPUESTA: %s", request, retorno->valor);
             }
             if (!string_ends_with(retorno->valor, "\n")) {
                 string_append(&retorno->valor, "\n");
@@ -1432,11 +1442,12 @@ void cargarBloquesAsignados(char *path) {
                         freeArrayDeStrings(numeroParticion);
                     } else {
                         particion = -1;
-                        if(temporalesConflictivos == 0) {
-                            log_warning(logger, "Se detectó que una compactación no pudo terminar su ejecución correctamente. Se procede a restaurar el File System a un estado consistente.");
+                        if (temporalesConflictivos == 0) {
+                            log_warning(logger,
+                                        "Se detectó que una compactación no pudo terminar su ejecución correctamente. Se procede a restaurar el File System a un estado consistente.");
                         }
                         char *pathArchivo = concat(3, pathTabla, "/", nombreArchivo);
-                        if(!archivoVacio(pathArchivo)) {
+                        if (!archivoVacio(pathArchivo)) {
                             char *bloqueTemporal = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo);
                             char *pathBloque = obtenerPathBloque(atoi(bloqueTemporal));
                             vaciarArchivo(pathBloque);
@@ -1600,7 +1611,7 @@ void inicializarBitmap() {
     char *bitmapPath = concat(2, configuracion.puntoMontaje, "Metadata/Bitmap.bin");
     int fd = open(bitmapPath, O_RDWR);
     int tamanioBitarray = obtenerCantidadBloques(configuracion.puntoMontaje) / 8;
-    if(lseek(fd, 0, SEEK_END) <= 0) {
+    if (lseek(fd, 0, SEEK_END) <= 0) {
         ftruncate(fd, tamanioBitarray);
     }
     bitmap = mmap(NULL, tamanioBitarray, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
@@ -1629,7 +1640,7 @@ void *atenderConexiones(void *parametrosThread) {
                         // hubo un error al recibir los datos
                         case -1:
                             log_error(logger, "Hubo un error al recibir el header proveniente del socket %i",
-                                        fdConectado);
+                                      fdConectado);
                             break;
                             // se desconectó
                         case 0:
@@ -1646,7 +1657,7 @@ void *atenderConexiones(void *parametrosThread) {
                             bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
                             if (bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
                                 log_error(logger, "Hubo un error al recibir el mensaje proveniente del socket %i",
-                                            fdConectado);
+                                          fdConectado);
                             else if (bytesRecibidos == 0) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();

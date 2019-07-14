@@ -66,6 +66,10 @@ void* atenderConexiones(void* parametrosThread)    {
                                 eliminarMemoriaConocida(memoria, unNodoMemoria);
                                 eliminarNodoMemoria(fdConectado, memoria->nodosMemoria);
                             }
+                            else if(fdConectado == parametros->conexionKernel->fd)   {
+                                parametros->conexionKernel->fd = 0;
+                                sem_post(parametros->conexionKernel->semaforo);
+                            }
                             desconectarCliente(fdConectado, unaConexion, logger);
 
 
@@ -93,6 +97,10 @@ void* atenderConexiones(void* parametrosThread)    {
                                     nodoMemoria* unNodoMemoria = (nodoMemoria*) list_find(memoria->nodosMemoria, mismoNodo);
                                     eliminarMemoriaConocida(memoria, unNodoMemoria);
                                     eliminarNodoMemoria(fdConectado, memoria->nodosMemoria);
+                                }
+                                if(fdConectado == parametros->conexionKernel->fd)   {
+                                    parametros->conexionKernel->fd = 0;
+                                    sem_post(parametros->conexionKernel->semaforo);
                                 }
                                 desconectarCliente(fdConectado, unaConexion, logger);
                             }

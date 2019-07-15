@@ -149,10 +149,10 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
     if(componente == KERNEL) {
         if (parametros->conexionKernel->fd == 0) {
             parametros->conexionKernel->fd = header.fdRemitente;
-            enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, INVALIDO, "Conexión aceptada.");
+            enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, INVALIDO, "Conexión aceptada.", -1);
             sem_post(parametros->conexionKernel->semaforo);
         } else {
-            enviarPaquete(header.fdRemitente, CONEXION_RECHAZADA, INVALIDO, "Conexión rechazada.");
+            enviarPaquete(header.fdRemitente, CONEXION_RECHAZADA, INVALIDO, "Conexión rechazada.", -1);
             cerrarSocket(header.fdRemitente, parametros->logger);
         }
     }
@@ -197,7 +197,7 @@ void agregarMemoriasRecibidas(char* memoriasRecibidas, GestorConexiones* misCone
 void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas, t_log* logger, GestorConexiones* misConexiones){
 
     int fdDestinatario = unNodoMemoria->fdNodoMemoria;
-    enviarPaquete(fdDestinatario, GOSSIPING, REQUEST, "DAME_LISTA_GOSSIPING");
+    enviarPaquete(fdDestinatario, GOSSIPING, REQUEST, "DAME_LISTA_GOSSIPING", -1);
     //Capturo la respuesta del gossiping y luego envio mi lista de gossiping
     t_control_conexion unaMemoria = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};
     unaMemoria.fd = fdDestinatario;
@@ -226,10 +226,10 @@ void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthre
         if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
             //printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, unaMemoria.fd);
             log_info(logger, string_from_format("Envio las memorias que conozco %s", memoriasConocidasConcatenadas));
-            enviarPaquete(unaMemoria.fd, RESPUESTA_GOSSIPING_2, INVALIDO, memoriasConocidasConcatenadas);
+            enviarPaquete(unaMemoria.fd, RESPUESTA_GOSSIPING_2, INVALIDO, memoriasConocidasConcatenadas, -1);
         } else{
             log_info(logger, "Mi lista vacia");
-            enviarPaquete(unaMemoria.fd, RESPUESTA_GOSSIPING_2, INVALIDO, "LISTA_VACIA");
+            enviarPaquete(unaMemoria.fd, RESPUESTA_GOSSIPING_2, INVALIDO, "LISTA_VACIA", -1);
         }
 
         }
@@ -253,10 +253,10 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
 
             if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
                 printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, header.fdRemitente);
-                enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA_GOSSIPING, memoriasConocidasConcatenadas);
+                enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA_GOSSIPING, memoriasConocidasConcatenadas, -1);
             } else{
                 printf("Mi lista estaba vacia primera respuesta\n");
-                enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA_GOSSIPING, "LISTA_VACIA");
+                enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA_GOSSIPING, "LISTA_VACIA", -1);
             }
 
         }else if (header.tipoMensaje == RESPUESTA_GOSSIPING_2){
@@ -280,12 +280,12 @@ void* atenderRequestKernel(void* parametrosRequest)    {
     t_paquete resultado = gestionarRequest(parametros->comando, parametros->memoria, parametros->conexionLissandra, parametros->logger, parametros->semaforoJournaling);
 
     if(parametros->conexionKernel->fd > 0)  {
-        enviarPaquete(parametros->conexionKernel->fd, resultado.tipoMensaje, parametros->comando.tipoRequest, resultado.mensaje);
+        enviarPaquete(parametros->conexionKernel->fd, resultado.tipoMensaje, parametros->comando.tipoRequest, resultado.mensaje, parametros->pid);
     }
     pthread_mutex_unlock(parametros->semaforoJournaling);
 }
 
-pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoJournaling)   {
+pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoJournaling, int pid)   {
     pthread_t* hiloRequest = (pthread_t*) malloc(sizeof(pthread_t));
 
     parametros_thread_request* parametros = (parametros_thread_request*) malloc(sizeof(parametros_thread_request));
@@ -296,6 +296,7 @@ pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_con
     parametros->memoria = memoria;
     parametros->conexionLissandra = conexionLissandra;
     parametros->semaforoJournaling = semaforoJournaling;
+    parametros->pid = pid;
 
     pthread_create(hiloRequest, NULL, &atenderRequestKernel, parametros);
 
@@ -307,7 +308,7 @@ void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* pa
     //todo wait semaforoJournaling
     char** comandoParseado = parser(mensaje);
     t_comando comando = instanciarComando(comandoParseado);
-    crearHiloRequest(comando, parametros->memoria, parametros->conexionKernel, parametros->conexionLissandra, parametros->logger, parametros->semaforoJournaling);
+    crearHiloRequest(comando, parametros->memoria, parametros->conexionKernel, parametros->conexionLissandra, parametros->logger, parametros->semaforoJournaling, header.pid);
 
     //todo post semaforoJournaling
 }

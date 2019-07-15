@@ -65,7 +65,7 @@ void atenderMensajes(void *parametrosRequest) {
     if (header.tipoRequest == CREATE && retorno->tipoRespuesta ==RESPUESTA) {
         retorno->valor = concat(4, "CREATE OK |", comando.parametros[0], ";", comando.parametros[1]);
     }
-    enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, comando.tipoRequest, retorno->valor);
+    enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, comando.tipoRequest, retorno->valor, header.pid);
     // TODO: No deberiamos hacer un free(retorno->valor)?
     free(request);
     free(retorno);
@@ -1609,7 +1609,7 @@ void inicializarLFS(char *puntoMontaje) {
 void atenderHandshake(Header header, Componente componente, parametros_thread_lfs *parametros) {
     if (componente == MEMORIA) {
         char *tamanioValue = string_itoa(parametros->tamanioValue);
-        enviarPaquete(header.fdRemitente, HANDSHAKE, INVALIDO, tamanioValue);
+        enviarPaquete(header.fdRemitente, HANDSHAKE, INVALIDO, tamanioValue, header.pid);
         free(tamanioValue);
     }
 }

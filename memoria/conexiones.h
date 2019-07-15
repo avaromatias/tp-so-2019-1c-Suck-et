@@ -41,6 +41,7 @@ struct parametros_thread_requests_d {
     t_memoria* memoria;
     t_control_conexion* conexionLissandra;
     pthread_mutex_t* semaforoJournaling;
+    int pid;
 };
 
 void* atenderConexiones(void* parametrosThread);

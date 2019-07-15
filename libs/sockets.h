@@ -43,6 +43,7 @@ typedef struct {
     int fdRemitente;
     TipoMensaje tipoMensaje;
     TipoRequest tipoRequest;
+    int pid;
 } __attribute__((packed)) Header;
 
 typedef struct  {

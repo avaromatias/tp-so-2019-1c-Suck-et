@@ -197,8 +197,9 @@ void iterarSobrePaginas(parametros_journal* parametrosJournal, char* key, void* 
 
     //TODO buscar una forma mas linda de obtener el timestamp y luego el value
     t_pagina* unaPagina = (t_pagina*) value;
-    char* timestamp = string_substring(unaPagina->marco->base, 0, 10);
-    char* unValue = string_substring(unaPagina->marco->base, 11, strlen(unaPagina->marco->base));
+    char* contenidoPagina = unaPagina->marco->base;
+    char* timestamp = getTimestampFromContenidoPagina(contenidoPagina);
+    char* unValue = getValueFromContenidoPagina(contenidoPagina);
     if ((int) unaPagina->modificada){
 
         //(&enviarInsertLissandra)(conexionConLissandra,key, unValue, timestamp);
@@ -326,12 +327,9 @@ void journaling(parametros_hilo_journal* parametros){
 
     while (1){
         sleep(15);
-        //sleep(retardoJournal);
-        //pthread_mutex_lock(semaforoJournaling);
+//        pthread_mutex_lock(semaforoJournaling);
         gestionarJournal(conexionLissandra , memoria, logger, semaforoJournaling);
-        log_info(logger, "Ha finalizado el Journal\n");
-        fflush(stdout);
-        //pthread_mutex_unlock(semaforoJournaling);
+//        pthread_mutex_unlock(semaforoJournaling);
     }
 }
 pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, int retardoJournal, pthread_mutex_t* semaforoJournaling){
@@ -673,7 +671,6 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
         if(dictionary_has_key(segmento->tablaDePaginas, key))   {
             log_info(logger, "La key %s ya existe en la tabla %s. Se procede a modificar su valor.", key, nombreTabla);
             pagina = reemplazarPagina(key, contenidoPagina, memoria->tamanioPagina, segmento->tablaDePaginas);
-            fflush(stdout);
         }   else if(hayMarcosLibres(*memoria))   {
             log_info(logger, "La key %s no existe en la tabla %s. Se procede a insertarla.", key, nombreTabla);
             pagina = insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria, recibiTimestamp);
@@ -740,14 +737,15 @@ t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria)  {
 }
 
 char* drop(char* nombreTabla, t_memoria* memoria)    {
-    char* respuesta = "No se encontró la tabla %s en memoria.";
     if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))  {
         t_segmento* segmento = dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
         liberarPaginasSegmento(segmento->tablaDePaginas, memoria);
+        char* respuesta = string_from_format("Se eliminó la tabla %s de la memoria.", nombreTabla);
         dictionary_remove_and_destroy(memoria->tablaDeSegmentos, nombreTabla, &eliminarSegmento);
-        respuesta = "Se eliminó la tabla %s de la memoria.";
+        return respuesta;
+    } else  {
+        return string_from_format("No se encontró la tabla %s en memoria.", nombreTabla);
     }
-    return string_from_format(respuesta, nombreTabla);
 }
 
 void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria)   {
@@ -830,8 +828,6 @@ int main(void) {
     pthread_mutex_t* semaforoJournaling = malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(semaforoJournaling, NULL);
 
-    printf("\nSoy la memoria con puerto %i\n", configuracion.puerto);
-
 	conectarseALissandra(&conexionLissandra, configuracion.ipFileSystem, configuracion.puertoFileSystem, logger);
 	int tamanioValue = getTamanioValue(&conexionLissandra, logger);
     t_memoria* memoriaPrincipal = inicializarMemoriaPrincipal(configuracion, tamanioValue, logger);
@@ -843,13 +839,13 @@ int main(void) {
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling);
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra, semaforoJournaling);
-//    pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal, semaforoJournaling);
-//    pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling);
+    pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal, semaforoJournaling);
+    pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling);
 
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
-//    pthread_join(*hiloJournal, NULL);
-//    pthread_join(*hiloGossiping, NULL);
+    pthread_join(*hiloJournal, NULL);
+    pthread_join(*hiloGossiping, NULL);
 
 	return 0;
 }

@@ -275,13 +275,14 @@ void* atenderRequestKernel(void* parametrosRequest)    {
 
 
     pthread_mutex_lock(parametros->semaforoJournaling);
-    pthread_mutex_unlock(parametros->semaforoJournaling);
+
 
     t_paquete resultado = gestionarRequest(parametros->comando, parametros->memoria, parametros->conexionLissandra, parametros->logger, parametros->semaforoJournaling);
 
     if(parametros->conexionKernel->fd > 0)  {
         enviarPaquete(parametros->conexionKernel->fd, resultado.tipoMensaje, parametros->comando.tipoRequest, resultado.mensaje);
     }
+    pthread_mutex_unlock(parametros->semaforoJournaling);
 }
 
 pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoJournaling)   {

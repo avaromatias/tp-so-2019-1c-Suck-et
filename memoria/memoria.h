@@ -75,6 +75,7 @@ struct t_memoria_d {
     int cantidadMaximaCaracteresValue;
     int cantidadTotalMarcos;
     int marcosOcupados;
+    int tamanioValue;
     t_dictionary* tablaDeSegmentos;
     t_marco* tablaDeMarcos;
     t_list* memoriasConocidas;
@@ -103,7 +104,7 @@ int cantidadTotalMarcosMemoria(t_memoria memoria);
 void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal);
 void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* value, int tamanioPagina, t_dictionary* tablaDePaginas);
 t_pagina* crearPagina(char* key, t_memoria* memoria);
-char* formatearPagina(char* key, char* value, char* timestamp);
+char* formatearPagina(char* key, char* value, char* timestamp, t_memoria* memoria);
 bool hayMarcosLibres(t_memoria memoria);
 t_marco* getMarcoLibre(t_memoria* memoria);
 t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger,  t_control_conexion* conexionLissandra, pthread_mutex_t* semaforoJournaling);
@@ -144,7 +145,6 @@ void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary 
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
 void vaciarMemoria(t_memoria* memoria, t_log* logger);
 pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexixonLissandra, int retardoJournal, pthread_mutex_t* semaforoJournaling);
-int getCantidadCaracteresByPeso(int pesoString);
 
 //gossiping
 
@@ -171,3 +171,7 @@ void eliminarMemoriaConocida(t_memoria* memoria, nodoMemoria* unNodoMemoria);
 bool esNodoMemoria(int fdConectado, t_list* nodosMemoria);
 void conectarYAgregarNuevaMemoria(char* ipNuevaMemoria, GestorConexiones* misConexiones, t_log* logger, t_memoria* memoria);
 #endif /* MEMORIA_H_ */
+
+char* getValueFromContenidoPagina(char* contenidoPagina);
+char* getKeyFromContenidoPagina(char* contenidoPagina);
+char* getTimestampFromContenidoPagina(char* contenidoPagina);

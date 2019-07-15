@@ -69,7 +69,7 @@ t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamani
     memoriaPrincipal->direcciones = (char*) malloc(sizeof(char) * configuracion.tamanioMemoria);
     memoriaPrincipal->tablaDeSegmentos = dictionary_create();
     memoriaPrincipal->marcosOcupados = 0;
-    memoriaPrincipal->cantidadMaximaCaracteresValue = getCantidadCaracteresByPeso(tamanioValue);
+    memoriaPrincipal->tamanioValue = tamanioValue;
     memoriaPrincipal->tamanioPagina = calcularTamanioDePagina(tamanioValue);
     log_info(logger, "Tamaño de página: %i", memoriaPrincipal->tamanioPagina);
     memoriaPrincipal->cantidadTotalMarcos = cantidadTotalMarcosMemoria(*memoriaPrincipal);
@@ -97,8 +97,7 @@ t_paquete gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, 
     char* value = string_substring(valueConComillas, 1, strlen(valueConComillas) - 2);
     free(valueConComillas);
     t_pagina* nuevaPagina = insert(nombreTabla, key, value, memoria, NULL, logger, conexionLissandra, semaforoJournaling);
-    free(value);
-    t_paquete respuesta = {.tipoMensaje = RESPUESTA, .mensaje = string_from_format("Valor insertado: %s", nuevaPagina->marco->base) };
+    t_paquete respuesta = {.tipoMensaje = RESPUESTA, .mensaje = string_from_format("Valor insertado: %s", getValueFromContenidoPagina(nuevaPagina->marco->base)) };
     return respuesta;
 }
 
@@ -107,7 +106,7 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *cone
     t_pagina* paginaEncontrada = cmdSelect(nombreTabla, key, memoria);
     if(paginaEncontrada != NULL)    {
         respuesta.tipoMensaje = RESPUESTA;
-        respuesta.mensaje = paginaEncontrada->marco->base;
+        respuesta.mensaje = getValueFromContenidoPagina(paginaEncontrada->marco->base);
         return respuesta;
     }
     char* request = string_from_format("SELECT %s %s", nombreTabla, key);
@@ -520,15 +519,44 @@ pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memo
     return hiloGossiping;
 
 }
-char* formatearPagina(char* key, char* value, char* timestamp)   {
+
+char* getTimestampFromContenidoPagina(char* contenidoPagina)    {
+    long timestamp = *(long*) contenidoPagina;
+    return string_from_format("%lu", timestamp);
+}
+
+char* getKeyFromContenidoPagina(char* contenidoPagina)  {
+    char* puntero = contenidoPagina;
+    puntero += sizeof(time_t);
+    u_int16_t key = *(u_int16_t*) puntero;
+    return string_from_format("%i", key);
+}
+
+char* getValueFromContenidoPagina(char* contenidoPagina)    {
+    char* puntero = contenidoPagina;
+    puntero += sizeof(time_t) + sizeof(u_int16_t);
+    return puntero;
+}
+
+char* formatearPagina(char* key, char* value, char* timestamp, t_memoria* memoria)   {
+    char* contenidoPagina = (char*) malloc(memoria->tamanioPagina);
+    char* puntero = contenidoPagina;
     long tiempo;
     if(timestamp == NULL)   {
         time_t tiempoActual;
         tiempo = (long) time(&tiempoActual);
     } else
         tiempo = atol(timestamp);
-    return string_from_format("%lu%s%s", tiempo, key, value);
+    memcpy(puntero, &tiempo, sizeof(time_t));
+    puntero += sizeof(time_t);
+    u_int16_t keyCasteada = (u_int16_t) atoi(key);
+    memcpy(puntero, &keyCasteada, sizeof(u_int16_t));
+    puntero += sizeof(u_int16_t);
+    memcpy(puntero, value, memoria->tamanioValue * sizeof(char));
+
+    return contenidoPagina;
 }
+
 t_pagina* eliminarPaginaLruEInsertarNueva(t_pagina* paginaLRU,char* keyNueva, char* nuevoValue,t_dictionary* tablaDePaginas, t_memoria* memoria, bool recibiTimestamp){
     t_pagina* paginaNueva;
     printf("Elimina pagina con key: %s\n", paginaLRU->key);
@@ -558,8 +586,8 @@ t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dic
     nuevaPagina->ultimaVezUsada = elTiempo;
     //pagina->
     free(pagina);
-    strncpy(nuevaPagina->marco->base, nuevoValor, tamanioPagina - 1);
-    strcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0");
+    memcpy(nuevaPagina->marco->base, nuevoValor, tamanioPagina - 1);
+    memcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0", sizeof(char));
 
     dictionary_put(tablaDePaginas, key, nuevaPagina);
     return nuevaPagina;
@@ -567,10 +595,8 @@ t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dic
 
 t_pagina* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria, bool recibiTimestamp) {
     t_pagina* nuevaPagina = crearPagina(key, memoria);
-    if (recibiTimestamp){
-        fflush(stdout);
+    if (recibiTimestamp)
         nuevaPagina->modificada = false;
-    }
     //printf("Contenido del marco: %s \n", nuevaPagina->marco->base);
     insertarEnMemoriaAndActualizarTablaDePaginas(nuevaPagina, value, memoria->tamanioPagina, tablaDePaginas);
     return nuevaPagina;
@@ -589,8 +615,8 @@ t_pagina* crearPagina(char* key, t_memoria* memoria)  {
 }
 
 void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* value, int tamanioPagina, t_dictionary* tablaDePaginas)  {
-    strncpy(nuevaPagina->marco->base, value, tamanioPagina - 1);
-    strcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0");
+    memcpy(nuevaPagina->marco->base, value, tamanioPagina - 1);
+    memcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0", sizeof(char));
     dictionary_put(tablaDePaginas, nuevaPagina->key, nuevaPagina);
 }
 
@@ -633,10 +659,10 @@ t_pagina* lru(t_dictionary* tablaDePaginas) {
 }
 
 t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger,  t_control_conexion* conexionLissandra, pthread_mutex_t* semaforoJournaling){
-    char* contenidoPagina = formatearPagina(key, value, timestamp);
+    char* contenidoPagina = formatearPagina(key, value, timestamp, memoria);
     bool recibiTimestamp = timestamp != NULL;
 
-    log_info(logger, "Se insertará el siguiente valor en memoria: %s", contenidoPagina);
+    log_info(logger, "Se insertará el siguiente valor en memoria: %s", value);
     t_pagina* pagina = NULL;
     // tengo la tabla en la memoria?
     if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))   {
@@ -748,16 +774,7 @@ int cantidadTotalMarcosMemoria(t_memoria memoria)   {
 }
 
 int calcularTamanioDePagina(int tamanioValue){
-    char* strMaxValueUint16 = string_itoa(UINT16_MAX);
-    int cifrasMaxValueUint16 = strlen(strMaxValueUint16);
-    free(strMaxValueUint16);
-    time_t tiempoEjemplo;
-    long tiempo = time(&tiempoEjemplo);
-    char* strTiempo = string_from_format("%lu", tiempo);
-    int cifrasTiempo = strlen(strTiempo);
-    free(strTiempo);
-    //tamaño de INT (timestamp) + tamaño de u_int16_t (key) + tamaño de value (respuesta HS con LS)
-    return cifrasMaxValueUint16 + cifrasTiempo + getCantidadCaracteresByPeso(tamanioValue) + 1;
+    return sizeof(time_t) + sizeof(u_int16_t) + sizeof(char) * tamanioValue;
 }
 
 //Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS
@@ -794,10 +811,6 @@ bool hayMarcosLibres(t_memoria memoria)  {
     return memoria.marcosOcupados < memoria.cantidadTotalMarcos;
 }
 
-int getCantidadCaracteresByPeso(int pesoString) {
-    return (pesoString / sizeof(char)) - 1;
-}
-
 int main(void) {
     char* nombreArchivoConfiguracion = readline("Escriba el nombre del archivo de configuración que desee cargar (el mismo deberá estar en el mismo directorio que el ejecutable).\n");
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
@@ -830,13 +843,13 @@ int main(void) {
 
     pthread_t* hiloConexiones = crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling);
     pthread_t* hiloConsola = crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra, semaforoJournaling);
-    pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal, semaforoJournaling);
-    pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling);
+//    pthread_t* hiloJournal = crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal, semaforoJournaling);
+//    pthread_t* hiloGossiping = crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling);
 
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
-    pthread_join(*hiloJournal, NULL);
-    pthread_join(*hiloGossiping, NULL);
+//    pthread_join(*hiloJournal, NULL);
+//    pthread_join(*hiloGossiping, NULL);
 
 	return 0;
 }

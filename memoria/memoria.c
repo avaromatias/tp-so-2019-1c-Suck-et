@@ -227,7 +227,7 @@ void iterarSegmentos(parametros_journal* parametrosJournal, char* key, void* val
 
 t_paquete gestionarJournal(t_control_conexion *conexionConLissandra, t_memoria *memoria, t_log *logger, pthread_mutex_t* semaforoJournaling){
 
-    pthread_mutex_lock(semaforoJournaling);
+    //pthread_mutex_lock(semaforoJournaling);
     parametros_journal* parametrosJournal = (parametros_journal*)malloc(sizeof(parametros_journal));
     parametrosJournal->logger = logger;
     parametrosJournal->conexionLissandra = conexionConLissandra;
@@ -236,7 +236,7 @@ t_paquete gestionarJournal(t_control_conexion *conexionConLissandra, t_memoria *
 
     vaciarMemoria(memoria, logger);
 
-    pthread_mutex_unlock(semaforoJournaling);
+    //pthread_mutex_unlock(semaforoJournaling);
 
     t_paquete resultado = {.mensaje = "Se gestionó el journal", .tipoMensaje = RESPUESTA };
 
@@ -327,9 +327,9 @@ void journaling(parametros_hilo_journal* parametros){
 
     while (1){
         sleep(15);
-//        pthread_mutex_lock(semaforoJournaling);
+        pthread_mutex_lock(semaforoJournaling);
         gestionarJournal(conexionLissandra , memoria, logger, semaforoJournaling);
-//        pthread_mutex_unlock(semaforoJournaling);
+        pthread_mutex_unlock(semaforoJournaling);
     }
 }
 pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, int retardoJournal, pthread_mutex_t* semaforoJournaling){

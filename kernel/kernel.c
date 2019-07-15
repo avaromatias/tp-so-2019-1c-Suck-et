@@ -653,6 +653,8 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
     t_archivoLQL *unLQL = archivoLQL;
     bool requestEsValida;
 
+
+
     for (int quantumsConsumidos = 0; quantumsConsumidos < quantumMaximo; quantumsConsumidos++) {
         int lineaDeEjecucion = 0;//dejamos por si queremos hacer un lineaDeEjecución++
         t_comando *comando = (t_comando *) queue_pop(unLQL->colaDeRequests);

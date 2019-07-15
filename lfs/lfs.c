@@ -55,16 +55,19 @@ void atenderMensajes(void *parametrosRequest) {
     parametros_thread_request *parametros = (parametros_thread_request *) parametrosRequest;
     Header header = parametros->header;
     char *mensaje = parametros->mensaje;
+    char* request = string_duplicate(mensaje);
     char **comandoParseado = parser(mensaje);
     t_response *retorno;
     t_comando comando = instanciarComando(comandoParseado);
     retorno = gestionarRequest(comando);
-    if (header.tipoRequest == CREATE && retorno->tipoRespuesta ==
-                                        RESPUESTA) { //Esto es horrible, pero considerando que estamos justos con el tiempo hay que hacerlo
-        retorno->valor = concat(4, "CREATE OK|", comando.parametros[0], ";", comando.parametros[1]);
+    loguearRespuesta(request,retorno);
+
+    if (header.tipoRequest == CREATE && retorno->tipoRespuesta ==RESPUESTA) {
+        retorno->valor = concat(4, "CREATE OK |", comando.parametros[0], ";", comando.parametros[1]);
     }
     enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, comando.tipoRequest, retorno->valor);
     // TODO: No deberiamos hacer un free(retorno->valor)?
+    free(request);
     free(retorno);
     free(comandoParseado);
 }
@@ -1178,12 +1181,7 @@ void ejecutarConsola() {
         comando = instanciarComando(comandoParseado);
         if (validarComandosComunes(comando, logger)) {
             t_response *retorno = gestionarRequest(comando);
-            if (retorno->tipoRespuesta == ERR) {
-                log_warning(logger, "REQUEST: %s. \t RESPUESTA: %s", request, retorno->valor);
-            } else {
-
-                log_info(logger, "REQUEST: %s. \t RESPUESTA: %s", request, retorno->valor);
-            }
+            loguearRespuesta(request,retorno);
             if (!string_ends_with(retorno->valor, "\n")) {
                 string_append(&retorno->valor, "\n");
             }
@@ -1197,6 +1195,15 @@ void ejecutarConsola() {
 
     } while (comando.tipoRequest != EXIT);
     printf("Ya se analizo todo lo solicitado.\n");
+}
+
+void loguearRespuesta(char* request,t_response* retorno){
+    if (retorno->tipoRespuesta == ERR) {
+        log_warning(logger, "REQUEST: %s. \t RESPUESTA: %s", request, retorno->valor);
+    } else {
+
+        log_info(logger, "REQUEST: %s. \t RESPUESTA: %s", request, retorno->valor);
+    }
 }
 
 t_response *gestionarRequest(t_comando comando) {

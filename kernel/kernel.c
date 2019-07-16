@@ -419,11 +419,23 @@ int gestionarDescribeGlobalKernel(int fdMemoria, p_planificacion *paramPlanifGen
 
 int gestionarJournalKernel(p_planificacion *paramPlanifGeneral) {
     p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
-    GestorConexiones *memoriasConectadas = pConsolaKernel->conexiones;
+    t_list *memoriasConectadas = pConsolaKernel->conexiones->conexiones;
+    int cantidadMemoriasConectadas = list_size(memoriasConectadas);
 
-//    list_iterate(memoriasConectadas->conexiones, &enviarJournal(paramPlanifGeneral));
-
+    for (int i = 0; i < cantidadMemoriasConectadas ; i++) {
+        int *memoriaSeleccionada = list_get(memoriasConectadas,i);
+        enviarJournal(*memoriaSeleccionada, paramPlanifGeneral);
+    }
     return 0;
+}
+
+void enviarJournal(int fdMemoria, p_planificacion *paramPlanifGeneral) {
+    int PID = *paramPlanifGeneral->parametrosPLP->contadorPID;
+    enviarPaquete(fdMemoria, REQUEST, JOURNAL, "JOURNAL", PID);
+    dictionary_put(paramPlanifGeneral->supervisorDeHilos, PID, paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
+    pthread_mutex_lock(paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
+    pthread_mutex_t *semaforoAEliminar = dictionary_remove(paramPlanifGeneral->supervisorDeHilos, PID);
+    free(semaforoAEliminar);
 }
 
 int extensionCorrecta(char *direccionAbsoluta) {

@@ -3,7 +3,6 @@
 //
 
 #include "conexiones.h"
-#include "kernel.h"
 
 pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios,
                                t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos) {
@@ -75,8 +74,8 @@ void *atenderConexiones(void *parametrosThread) {
                             } else {
                                 switch (header.tipoMensaje) {
                                     case RESPUESTA:
-                                        gestionarRespuesta(header.fdRemitente, header.pid, header.tipoRequest, supervisorDeHilos
-                                                tablaDeMemoriasConCriterios, metadata, , mensaje, logger);
+                                        gestionarRespuesta(header.fdRemitente, header.pid, header.tipoRequest, supervisorDeHilos,
+                                                tablaDeMemoriasConCriterios, metadata, mensaje, logger);
                                         break;
                                     case CONEXION_ACEPTADA:
                                         //atenderHandshake(header, componente, parametros);
@@ -125,96 +124,6 @@ int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexi
         log_info(logger, "Conexión con Memoria Principal establecida.");
     }
     return fdMemoria;
-}
-
-void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dictionary *supervisorDeHilos,
-        t_dictionary *memoriasConCriterios, t_dictionary *metadata, char *mensaje, t_log *logger) {
-
-    pthread_mutex_t *semaforoADesbloquear = dictionary_get(supervisorDeHilos, pid);
-
-    switch (tipoRequest) {
-        case SELECT:
-            //incrementoCantidadSelects procesados para metricas;
-            log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente. Respuesta recibida: %s",
-                     fdMemoria, mensaje);
-            break;
-        case INSERT:
-            //incrementoCantidadInserts procesados para metricas;
-            log_info(logger, "El INSERT enviado a la memoria %i fue procesado correctamente.", fdMemoria);
-            break;
-        case CREATE:
-            //incrementoCantidadCreates procesados para metricas;
-            crearTablaEnMetadata(metadata, mensaje, logger);
-            log_info(logger, "El CREATE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
-            break;
-        case DROP:
-            log_info(logger, "El DROP enviado a la memoria %i fue procesado correctamente.", fdMemoria);
-            break;
-        case DESCRIBE:
-            actualizarMetadata(metadata, mensaje, logger);
-            log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
-            break;
-    }
-    pthread_mutex_unlock(semaforoADesbloquear);
-}
-
-void enviarJournal(p_planificacion *paramPlanifGeneral) {
-    int PID = *paramPlanifGeneral->parametrosPLP->contadorPID;
-    enviarPaquete(fdMemoria, REQUEST, JOURNAL, "JOURNAL", PID);
-    dictionary_put(paramPlanifGeneral->supervisorDeHilos, PID, paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_lock(paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_t *semaforoAEliminar = dictionary_remove(paramPlanifGeneral->supervisorDeHilos, PID);
-    free(semaforoAEliminar);
-}
-
-void borrarFdDeListaDeFdsConectados(int fdADesconectar, t_dictionary *tablaDeMemoriasConCriterios, char *criterio) {
-    t_list *listaDeMemoriasConectadasACriterio = dictionary_get(tablaDeMemoriasConCriterios, criterio);
-    dictionary_remove(tablaDeMemoriasConCriterios, criterio);
-    list_remove(listaDeMemoriasConectadasACriterio, fdADesconectar);
-    dictionary_put(tablaDeMemoriasConCriterios, criterio, listaDeMemoriasConectadasACriterio);
-}
-
-void eliminarFileDescriptorDeTablasDeMemorias(int fdDesconectado, t_dictionary *tablaDeMemoriasConCriterios,
-                                              pthread_mutex_t *mutexJournal) {
-
-    pthread_mutex_lock(mutexJournal);
-
-    if (dictionary_has_key(tablaDeMemoriasConCriterios, "SC")) {
-        char *criterio = "SC";
-        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
-    }
-    if (dictionary_has_key(tablaDeMemoriasConCriterios, "SHC")) {
-        char *criterio = "SHC";
-        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
-    }
-    if (dictionary_has_key(tablaDeMemoriasConCriterios, "EC")) {
-        char *criterio = "EC";
-        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
-    }
-}
-
-void desconexionMemoria(int fdConectado, GestorConexiones *unaConexion, t_dictionary *tablaDeMemoriasConCriterios,
-                        t_log *logger, pthread_mutex_t *mutexJournal) {
-    eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
-    desconectarCliente(fdConectado, unaConexion, logger);
-}
-
-char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping
-    datosConexionMemoria = "192.168.0.52:8001;192.168.0.45:8003;192.168.0.99:13002;";
-    string_trim(&datosConexionMemoria);
-    if (string_is_empty(datosConexionMemoria))
-        return NULL;
-    char **direcciones = string_split(datosConexionMemoria, ";");
-    //"192.168.0.52:8001""192.168.0.45:8003""192.168.0.99:13002"
-    int cantidadDireccionesRecibidas = tamanioDeArrayDeStrings(direcciones);//3
-    char **direccionesDeMemorias = (char **) malloc(sizeof(char *) * cantidadDireccionesRecibidas);
-    int memoria = 0;
-
-    while (memoria < cantidadDireccionesRecibidas) {
-        direccionesDeMemorias[memoria] = direcciones[memoria];
-        memoria++;
-    }
-    return direccionesDeMemorias;
 }
 
 void actualizarMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *logger) {
@@ -283,4 +192,88 @@ void crearTablaEnMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *lo
         dictionary_put(metadataTablas, nombreTabla, consistencia);
         log_info(logger, "La metadata se actualizó correctamente");
     }
+}
+
+void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dictionary *supervisorDeHilos,
+        t_dictionary *memoriasConCriterios, t_dictionary *metadata, char *mensaje, t_log *logger) {
+
+    pthread_mutex_t *semaforoADesbloquear = dictionary_get(supervisorDeHilos,(char*) pid);
+
+    switch (tipoRequest) {
+        case SELECT:
+            //incrementoCantidadSelects procesados para metricas;
+            log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente. Respuesta recibida: %s",
+                     fdMemoria, mensaje);
+            printf("hola");
+            break;
+        case INSERT:
+            //incrementoCantidadInserts procesados para metricas;
+            log_info(logger, "El INSERT enviado a la memoria %i fue procesado correctamente.", fdMemoria);
+            break;
+        case CREATE:
+            //incrementoCantidadCreates procesados para metricas;
+            crearTablaEnMetadata(metadata, mensaje, logger);
+            log_info(logger, "El CREATE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
+            break;
+        case DROP:
+            log_info(logger, "El DROP enviado a la memoria %i fue procesado correctamente.", fdMemoria);
+            break;
+        case DESCRIBE:
+            actualizarMetadata(metadata, mensaje, logger);
+            log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
+            break;
+    }
+    pthread_mutex_unlock(semaforoADesbloquear);
+}
+
+
+
+void borrarFdDeListaDeFdsConectados(int fdADesconectar, t_dictionary *tablaDeMemoriasConCriterios, char *criterio) {
+    t_list *listaDeMemoriasConectadasACriterio = dictionary_get(tablaDeMemoriasConCriterios, criterio);
+    dictionary_remove(tablaDeMemoriasConCriterios, criterio);
+    list_remove(listaDeMemoriasConectadasACriterio, fdADesconectar);
+    dictionary_put(tablaDeMemoriasConCriterios, criterio, listaDeMemoriasConectadasACriterio);
+}
+
+void eliminarFileDescriptorDeTablasDeMemorias(int fdDesconectado, t_dictionary *tablaDeMemoriasConCriterios,
+                                              pthread_mutex_t *mutexJournal) {
+
+    pthread_mutex_lock(mutexJournal);
+
+    if (dictionary_has_key(tablaDeMemoriasConCriterios, "SC")) {
+        char *criterio = "SC";
+        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
+    }
+    if (dictionary_has_key(tablaDeMemoriasConCriterios, "SHC")) {
+        char *criterio = "SHC";
+        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
+    }
+    if (dictionary_has_key(tablaDeMemoriasConCriterios, "EC")) {
+        char *criterio = "EC";
+        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
+    }
+}
+
+void desconexionMemoria(int fdConectado, GestorConexiones *unaConexion, t_dictionary *tablaDeMemoriasConCriterios,
+                        t_log *logger, pthread_mutex_t *mutexJournal) {
+    eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
+    desconectarCliente(fdConectado, unaConexion, logger);
+}
+
+char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping
+    datosConexionMemoria = "192.168.0.52:8001;192.168.0.45:8003;192.168.0.99:13002;";
+    string_trim(&datosConexionMemoria);
+    if (string_is_empty(datosConexionMemoria))
+        return NULL;
+    char **direcciones = string_split(datosConexionMemoria, ";");
+    //"192.168.0.52:8001""192.168.0.45:8003""192.168.0.99:13002"
+    int cantidadDireccionesRecibidas = tamanioDeArrayDeStrings(direcciones);//3
+    char **direccionesDeMemorias = (char **) malloc(sizeof(char *) * cantidadDireccionesRecibidas);
+    int memoria = 0;
+
+    while (memoria < cantidadDireccionesRecibidas) {
+        direccionesDeMemorias[memoria] = direcciones[memoria];
+        memoria++;
+    }
+    return direccionesDeMemorias;
 }

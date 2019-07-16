@@ -42,8 +42,6 @@ void desconexionMemoria(int fdConectado, GestorConexiones *conexiones, t_diction
 void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dictionary *supervisorDeHilos,
                         t_dictionary *memoriasConCriterios, t_dictionary *metadata, char *mensaje, t_log *logger);
 
-void enviarJournal(int fdMemoria);
-
 char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
 
 void borrarFdDeListaDeFdsConectados(int fdADesconectar, t_dictionary *tablaMemoriasConCriterios, char *criterio);

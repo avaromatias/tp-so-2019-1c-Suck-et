@@ -106,11 +106,11 @@ void inicializarEstructurasKernel(t_dictionary *tablaDeMemoriasConCriterios);
 
 int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral);
 
-int gestionarRequestKernel(t_comando requestParseada, p_planificacion * paramPlanifGeneral);
+int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlanifGeneral);
 
 void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion, p_planificacion *paramPlanifGral);
 
-        bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros);
+bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros);
 
 int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger);
 
@@ -124,12 +124,10 @@ bool esComandoValidoDeKernel(t_comando comando);
 
 int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, p_planificacion *paramPlanifGeneral);
 
-int
-gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion, int fdMemoria,
-                      p_planificacion *paramPlanifGeneral);
+int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion,
+                          int fdMemoria, p_planificacion *paramPlanifGeneral);
 
-int
-gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, p_planificacion *paramPlanifGeneral);
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, p_planificacion *paramPlanifGral);
 
 
 int gestionarDropKernel(char *nombreTabla, int fdMemoria, p_planificacion *paramPlanifGeneral);
@@ -144,11 +142,13 @@ int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp
 
 int gestionarJournalKernel(p_planificacion *paramPlanifGeneral);
 
-        int diferenciarRequest(t_comando requestParseada);
+int diferenciarRequest(t_comando requestParseada);
 
 void actualizarCantRequest(t_archivoLQL *archivoLQL, t_comando requestParseada);
 
 int extensionCorrecta(char *direccionAbsoluta);
+
+void enviarJournal(int memoriaSeleccionada, p_planificacion *paramPlanifGeneral);
 
 /******************************
  ***** MANEJO DE MEMORIAS *****

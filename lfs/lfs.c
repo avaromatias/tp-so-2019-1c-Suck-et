@@ -125,7 +125,7 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
     fwrite(linea, sizeof(char), strlen(linea), f);
     free(linea);
     fclose(f);
-    pthread_mutex_unlock(&semMetadata);
+    pthread_mutex_unlock(semMetadata);
 }
 
 void crearBinarios(char *nombreTabla, int particiones) {
@@ -140,7 +140,8 @@ void crearBinarios(char *nombreTabla, int particiones) {
             dictionary_put(bloquesAsignados, bloqueString, bloqueA);
             char *nombreArchivo = string_itoa(i);
             string_append(&nombreArchivo, ".bin");
-            FILE *file = fopen(obtenerPathArchivo(nombreTabla, nombreArchivo), "w");
+            char * pathArchivo=obtenerPathArchivo(nombreTabla, nombreArchivo);
+            FILE *file = fopen(pathArchivo, "w");
             char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, i);
             int cantidadBloquesAsignados = tamanioDeArrayDeStrings(
                     convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
@@ -152,6 +153,7 @@ void crearBinarios(char *nombreTabla, int particiones) {
             free(contenido);
             free(bloquesAsignadosAParticion);
             fclose(file);
+            free(pathArchivo);
             free(nombreArchivo);
             free(bloqueString);
             free(tamanioString);
@@ -284,6 +286,7 @@ void lfsDump() {
                         escribirEnBloque(linea, nombreDump, -1, nombreArchivo);
                         pthread_mutex_unlock(semArchivo);
                         list_remove(listaDeRegistros, index);
+                        free(nombreArchivo);
                     }
                     list_iterate(listaDeRegistros, _dumpRegistro);
 
@@ -411,19 +414,21 @@ int borrarContenidoDeDirectorio(char *dirPath) {
             char *pathArchivo = string_new();
             string_append(&pathArchivo, dirPath);
             string_append(&pathArchivo, "/.");
-            free(pathArchivo);
             if (deleteFile(pathArchivo) != 0) {
+                free(pathArchivo);
                 return 0;
             }
+            free(pathArchivo);
         }
         if (puntoPuntoEncontrado) {
             char *pathArchivo = string_new();
             string_append(&pathArchivo, dirPath);
             string_append(&pathArchivo, "/..");
-            free(pathArchivo);
             if (deleteFile(pathArchivo) != 0) {
+                free(pathArchivo);
                 return 0;
             }
+            free(pathArchivo);
         }
         closedir(d);
     }
@@ -464,7 +469,7 @@ t_response *lfsDrop(char *nombreTabla) {
 
         if (dictionary_has_key(hilosTablas, nombreTabla)) {
             pthread_t *hiloTabla = dictionary_get(hilosTablas, nombreTabla);
-            pthread_cancel(hiloTabla);
+            pthread_cancel(*hiloTabla);
             dictionary_remove(hilosTablas, nombreTabla);
         }
         borrarContenidoDeDirectorio(pathTabla);
@@ -712,6 +717,7 @@ char **filtrarKeyMax(char **listaLineas) {
     }
     dictionary_iterator(keys, obtenerMaxTimestamp);
     lineasSinRepetir[tamanioDeArrayDeStrings(lineasSinRepetir)] = NULL;
+    dictionary_destroy(keys);
     return lineasSinRepetir;
 }
 

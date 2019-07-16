@@ -64,9 +64,10 @@ char *obtenerPathMetadata(char *nombreTabla, char* puntoMontaje) {
 
 bool matchea(char* palabra, char* expresion) {
     regex_t regex;
-    regcomp(&regex, expresion, REG_EXTENDED);
-
-    return regexec(&regex, palabra, 0, NULL, 0) != REG_NOMATCH;
+    int reg=regcomp(&regex, expresion, REG_EXTENDED);
+    bool result= regexec(&regex, palabra, 0, NULL, 0) != REG_NOMATCH;
+    regfree(&regex);
+    return result;
 }
 
 bool esEntero(char* palabra) {

@@ -42,16 +42,11 @@ typedef struct {
     int tiempoCompactacion;
 } t_metadataTablas;
 
-//Para las respuestas
-typedef struct {
-    TipoMensaje tipoRespuesta;
-    char *valor;
-} t_respuesta;
-
 //Estructura necesaria para el manejo de archivosLQL
 typedef struct {
     t_queue *colaDeRequests;//cada Request va a ser un t_comando
     int cantidadDeLineas;
+    int PID;
     int cantidadDeSelectProcesados;
     int cantidadDeInsertProcesados;
 } t_archivoLQL;
@@ -62,7 +57,8 @@ typedef struct {
     GestorConexiones *conexiones;
     t_dictionary *metadataTablas;
     t_dictionary *memoriasConCriterios;
-    pthread_mutex_t* mutexJournal;
+    pthread_mutex_t *mutexJournal;
+    t_dictionary *supervisorDeHilos;
 } p_consola_kernel;
 
 //Estructura necesaria para el PLP
@@ -71,9 +67,10 @@ typedef struct {
     t_queue *colaDeReady;
     sem_t *mutexColaDeNew;
     sem_t *mutexColaDeReady;
-    t_log *logger;
     sem_t *cantidadProcesosEnNew;
     sem_t *cantidadProcesosEnReady;
+    int *contadorPID;
+    t_log *logger;
 } parametros_plp;
 
 //Estructura necesaria para el PCP
@@ -82,10 +79,11 @@ typedef struct {
     t_queue *colaDeReady;
     t_queue *colaDeFinalizados;
     sem_t *mutexColaDeReady;
-    sem_t *mutexListaFinalizados;
+    sem_t *mutexColaFinalizados;
     t_log *logger;
     sem_t *cantidadProcesosEnReady;
     pthread_mutex_t *mutexJournal;
+    pthread_mutex_t *mutexSemaforoHilo;
 } parametros_pcp;
 
 //Estructura hibrida necesaria para planificacion
@@ -93,6 +91,7 @@ typedef struct {
     p_consola_kernel *parametrosConsola;
     parametros_plp *parametrosPLP;
     parametros_pcp *parametrosPCP;
+    t_dictionary *supervisorDeHilos;
 } p_planificacion;
 
 /******************************
@@ -105,13 +104,13 @@ t_configuracion cargarConfiguracion(char *, t_log *);
 
 void inicializarEstructurasKernel(t_dictionary *tablaDeMemoriasConCriterios);
 
-int gestionarRequestPrimitivas(t_comando requestParseada, p_consola_kernel *parametros);
+int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral);
 
-int gestionarRequestKernel(t_comando requestParseada, p_consola_kernel *parametros, parametros_plp *parametrosPLP);
+int gestionarRequestKernel(t_comando requestParseada, p_planificacion * paramPlanifGeneral);
 
-void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion, parametros_plp *parametrosPLP);
+void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion, p_planificacion *paramPlanifGral);
 
-bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros);
+        bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros);
 
 int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger);
 
@@ -123,25 +122,29 @@ bool validarComandosKernel(t_comando requestParseada, t_log *logger);
 
 bool esComandoValidoDeKernel(t_comando comando);
 
-int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria);
+int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, p_planificacion *paramPlanifGeneral);
 
-int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tpoCompactacion, int fdMemoria);
+int
+gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion, int fdMemoria,
+                      p_planificacion *paramPlanifGeneral);
 
-int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria);
+int
+gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, p_planificacion *paramPlanifGeneral);
 
-int gestionarDropKernel(char *nombreTabla, int fdMemoria);
 
-int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria);
+int gestionarDropKernel(char *nombreTabla, int fdMemoria, p_planificacion *paramPlanifGeneral);
 
-int gestionarDescribeGlobalKernel(int fdMemoria);
+int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria, p_planificacion *paramPlanifGeneral);
+
+int gestionarDescribeGlobalKernel(int fdMemoria, p_planificacion *paramPlanifGeneral);
 
 int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros);
 
 int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP);
 
-int gestionarJournalKernel(p_consola_kernel *parametros);
+int gestionarJournalKernel(p_planificacion *paramPlanifGeneral);
 
-int diferenciarRequest(t_comando requestParseada);
+        int diferenciarRequest(t_comando requestParseada);
 
 void actualizarCantRequest(t_archivoLQL *archivoLQL, t_comando requestParseada);
 
@@ -162,6 +165,7 @@ int seleccionarMemoriaParaDescribe(p_consola_kernel *parametros);
 /****************************
  ****** PLANIFICACIÓN *******
  ****************************/
+t_archivoLQL *crearLQL(parametros_plp *parametrosPLP);
 
 bool encolarDirectoNuevoPedido(t_comando requestParseada);
 
@@ -184,9 +188,8 @@ typedef struct {
     long inicioRequest;
     long finRequets;
     long duracionEnSegundos;
-    char* tipoRequest;
-}t_estadistica_request;
-
+    char *tipoRequest;
+} t_estadistica_request;
 
 
 #endif /* KERNEL_H_ */

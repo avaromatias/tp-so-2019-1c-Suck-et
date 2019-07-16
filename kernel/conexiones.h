@@ -22,11 +22,13 @@ typedef struct {
     t_dictionary *tablaDeMemoriasConCriterios;
     t_dictionary *metadataTabla;
     pthread_mutex_t *mutexJournal;
+    t_dictionary *supervisorDeHilos;
+    pthread_mutex_t *mutexSemaforoHilo;
 } parametros_thread_k;
 
 //Conexión con Memoria
 pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios,
-                               t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal);
+                               t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos);
 
 void *atenderConexiones(void *parametrosThread);
 
@@ -37,9 +39,8 @@ void confirmarHandshake(Header header, parametros_thread parametros);
 void desconexionMemoria(int fdConectado, GestorConexiones *conexiones, t_dictionary *tablaDeMemoriasConCriterios,
                         t_log *logger, pthread_mutex_t *mutexJournal);
 
-void
-gestionarRespuesta(int fdMemoria, t_dictionary *memoriasConCriterios, t_dictionary *metadata, TipoRequest tipoRequest,
-                   char *mensaje, t_log *logger);
+void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dictionary *supervisorDeHilos,
+                        t_dictionary *memoriasConCriterios, t_dictionary *metadata, char *mensaje, t_log *logger);
 
 void enviarJournal(int fdMemoria);
 

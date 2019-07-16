@@ -3,9 +3,10 @@
 //
 
 #include "conexiones.h"
+#include "kernel.h"
 
 pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios,
-                               t_dictionary* metadataTabla, pthread_mutex_t *mutexJournal) {
+                               t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos) {
     pthread_t *hiloConexiones = malloc(sizeof(pthread_t));
 
     parametros_thread_k *parametros = (parametros_thread_k *) malloc(sizeof(parametros_thread_k));
@@ -15,6 +16,7 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_d
     parametros->conexion = unaConexion;
     parametros->logger = logger;
     parametros->mutexJournal = mutexJournal;
+    parametros->supervisorDeHilos = visorDeHilos;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -27,6 +29,7 @@ void *atenderConexiones(void *parametrosThread) {
     t_log *logger = parametros->logger;
     t_dictionary *tablaDeMemoriasConCriterios = parametros->tablaDeMemoriasConCriterios;
     t_dictionary *metadata = parametros->metadataTabla;
+    t_dictionary *supervisorDeHilos = parametros->supervisorDeHilos;
     pthread_mutex_t *mutexJournal = parametros->mutexJournal;
 
     fd_set emisores;
@@ -72,8 +75,8 @@ void *atenderConexiones(void *parametrosThread) {
                             } else {
                                 switch (header.tipoMensaje) {
                                     case RESPUESTA:
-                                        gestionarRespuesta(header.fdRemitente, tablaDeMemoriasConCriterios, metadata,
-                                                header.tipoRequest, mensaje, logger);
+                                        gestionarRespuesta(header.fdRemitente, header.pid, header.tipoRequest, supervisorDeHilos
+                                                tablaDeMemoriasConCriterios, metadata, , mensaje, logger);
                                         break;
                                     case CONEXION_ACEPTADA:
                                         //atenderHandshake(header, componente, parametros);
@@ -124,11 +127,16 @@ int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexi
     return fdMemoria;
 }
 
-void gestionarRespuesta(int fdMemoria, t_dictionary *memoriasConCriterios, t_dictionary *metadata, TipoRequest tipoRequest, char *mensaje, t_log *logger){
+void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dictionary *supervisorDeHilos,
+        t_dictionary *memoriasConCriterios, t_dictionary *metadata, char *mensaje, t_log *logger) {
+
+    pthread_mutex_t *semaforoADesbloquear = dictionary_get(supervisorDeHilos, pid);
+
     switch (tipoRequest) {
         case SELECT:
             //incrementoCantidadSelects procesados para metricas;
-            log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente. Respuesta recibida: %s", fdMemoria, mensaje);
+            log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente. Respuesta recibida: %s",
+                     fdMemoria, mensaje);
             break;
         case INSERT:
             //incrementoCantidadInserts procesados para metricas;
@@ -147,10 +155,16 @@ void gestionarRespuesta(int fdMemoria, t_dictionary *memoriasConCriterios, t_dic
             log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
     }
+    pthread_mutex_unlock(semaforoADesbloquear);
 }
 
-void enviarJournal(int fdMemoria) {
-    enviarPaquete(fdMemoria, REQUEST, JOURNAL, "JOURNAL");
+void enviarJournal(p_planificacion *paramPlanifGeneral) {
+    int PID = *paramPlanifGeneral->parametrosPLP->contadorPID;
+    enviarPaquete(fdMemoria, REQUEST, JOURNAL, "JOURNAL", PID);
+    dictionary_put(paramPlanifGeneral->supervisorDeHilos, PID, paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
+    pthread_mutex_lock(paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
+    pthread_mutex_t *semaforoAEliminar = dictionary_remove(paramPlanifGeneral->supervisorDeHilos, PID);
+    free(semaforoAEliminar);
 }
 
 void borrarFdDeListaDeFdsConectados(int fdADesconectar, t_dictionary *tablaDeMemoriasConCriterios, char *criterio) {
@@ -244,7 +258,7 @@ void actualizarMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *logg
     }
 }
 
-void crearTablaEnMetadata(t_dictionary *metadataTablas, char* mensaje, t_log *logger) {
+void crearTablaEnMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *logger) {
     char *dataCreateEnLissandra;
     char **infoCreate;
     char **separacionTablaConsistencia;

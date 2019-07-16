@@ -196,7 +196,7 @@ void enviarPaquete(int fdDestinatario, TipoMensaje tipoMensaje, TipoRequest tipo
 
 void hacerHandshake(int fdDestinatario, Componente componente)  {
     char* componenteStr = string_itoa(componente);
-    enviarPaquete(fdDestinatario, HANDSHAKE, INVALIDO, componenteStr);
+    enviarPaquete(fdDestinatario, HANDSHAKE, INVALIDO, componenteStr, -1);
     free(componenteStr);
 }
 

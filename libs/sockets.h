@@ -66,11 +66,11 @@ int aceptarCliente(int, t_log*);
 int crearSocketCliente(char*, int, t_log*);
 void cerrarSocket(int, t_log*);
 
-Header armarHeader(int fdDestinatario, int tamanioDelMensaje, TipoMensaje tipoMensaje, TipoRequest tipoRequest);
+Header armarHeader(int fdDestinatario, int tamanioDelMensaje, TipoMensaje tipoMensaje, TipoRequest tipoRequest, int pid);
 void* serializarHeader(Header header);
 Header deserializarHeader(void* headerSerializado);
 void* empaquetar(void* headerSerializado, char* mensaje);
-void enviarPaquete(int fdDestinatario, TipoMensaje tipoMensaje, TipoRequest tipoRequest, char* mensaje);
+void enviarPaquete(int fdDestinatario, TipoMensaje tipoMensaje, TipoRequest tipoRequest, char* mensaje, int pid);
 
 void desconectarCliente(int fdCliente, GestorConexiones* unaConexion, t_log* logger);
 

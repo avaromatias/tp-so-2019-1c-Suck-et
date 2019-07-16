@@ -60,11 +60,14 @@ typedef struct  {
 typedef struct {
     char* pathTabla; // viene a ser el identificador del segmento
     t_dictionary* tablaDePaginas; // viene a ser la base del segmento
+    pthread_mutex_t enUso;
 } t_segmento;
 
 typedef struct {
     bool enUso;
     pthread_mutex_t semaforo;
+    pthread_mutex_t tablaDeSegmentosEnUso;
+    pthread_mutex_t tablaDeMarcosEnUso;
 } t_control_memoria;
 
 //Tipo de la Memoria Principal que aloja las paginas
@@ -105,7 +108,7 @@ void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal);
 void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* value, int tamanioPagina, t_dictionary* tablaDePaginas);
 t_pagina* crearPagina(char* key, t_memoria* memoria);
 char* formatearPagina(char* key, char* value, char* timestamp, t_memoria* memoria);
-bool hayMarcosLibres(t_memoria memoria);
+bool hayMarcosLibres(t_memoria* memoria);
 t_marco* getMarcoLibre(t_memoria* memoria);
 t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger,  t_control_conexion* conexionLissandra, pthread_mutex_t* semaforoJournaling);
 t_pagina* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria, bool recibiTimestamp);

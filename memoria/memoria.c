@@ -76,6 +76,8 @@ t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamani
     log_info(logger, "Cantidad total de marcos: %i", memoriaPrincipal->cantidadTotalMarcos);
     memoriaPrincipal->memoriasConocidas = list_create();
     memoriaPrincipal->nodosMemoria = list_create();
+    pthread_mutex_init(&memoriaPrincipal->control.tablaDeSegmentosEnUso, NULL);
+    pthread_mutex_init(&memoriaPrincipal->control.tablaDeMarcosEnUso, NULL);
 
     inicializarTablaDeMarcos(memoriaPrincipal);
     return memoriaPrincipal;
@@ -103,16 +105,19 @@ t_paquete gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, 
 
 t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *conexionLissandra, t_memoria *memoria, t_log *logger, pthread_mutex_t* semaforoJournaling) {
     t_paquete respuesta;
+    pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     t_pagina* paginaEncontrada = cmdSelect(nombreTabla, key, memoria);
     if(paginaEncontrada != NULL)    {
         respuesta.tipoMensaje = RESPUESTA;
         respuesta.mensaje = getValueFromContenidoPagina(paginaEncontrada->marco->base);
+        pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
         return respuesta;
     }
+    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
     char* request = string_from_format("SELECT %s %s", nombreTabla, key);
     log_info(logger, "Valor no encontrado en memoria. Se enviará la siguiente request a Lissandra: %s", request);
     sem_wait(conexionLissandra->semaforo);
-    enviarPaquete(conexionLissandra->fd, REQUEST, SELECT, request);
+    enviarPaquete(conexionLissandra->fd, REQUEST, SELECT, request, -1);
     free(request);
     respuesta = recibirMensajeDeLissandra(conexionLissandra);
     sem_post(conexionLissandra->semaforo);
@@ -120,7 +125,7 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *cone
         char** componentesSelect = string_split(respuesta.mensaje, ";");
         insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger, conexionLissandra, semaforoJournaling);
         free(respuesta.mensaje);
-        respuesta.mensaje = string_from_format("%s%s%s", componentesSelect[0], key, componentesSelect[2]);
+        respuesta.mensaje = string_from_format("%s", componentesSelect[2]);
     }
 
     return respuesta;
@@ -129,7 +134,7 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *cone
 t_paquete gestionarCreate(char* nombreTabla, char* tipoConsistencia, char* cantidadParticiones, char* tiempoCompactacion, t_control_conexion* conexionLissandra, t_log* logger)   {
     char* request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones, tiempoCompactacion);
     sem_wait(conexionLissandra->semaforo);
-    enviarPaquete(conexionLissandra->fd, REQUEST, CREATE, request);
+    enviarPaquete(conexionLissandra->fd, REQUEST, CREATE, request, -1);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
     sem_post(conexionLissandra->semaforo);
@@ -141,7 +146,7 @@ t_paquete gestionarDrop(char* nombreTabla, t_control_conexion* conexionLissandra
     log_info(logger, resultado);
     char* request = string_from_format("DROP %s", nombreTabla);
     sem_wait(conexionLissandra->semaforo);
-    enviarPaquete(conexionLissandra->fd, REQUEST, DROP, request);
+    enviarPaquete(conexionLissandra->fd, REQUEST, DROP, request, -1);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
     sem_post(conexionLissandra->semaforo);
@@ -174,7 +179,7 @@ void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, cha
 
     log_info(logger, request);
     sem_wait(parametrosJournal->conexionLissandra->semaforo);
-    enviarPaquete(parametrosJournal->conexionLissandra->fd, REQUEST, INSERT, request);
+    enviarPaquete(parametrosJournal->conexionLissandra->fd, REQUEST, INSERT, request, -1);
     free(request);
 
     t_paquete respuesta = recibirMensajeDeLissandra(parametrosJournal->conexionLissandra);
@@ -232,7 +237,9 @@ t_paquete gestionarJournal(t_control_conexion *conexionConLissandra, t_memoria *
     parametrosJournal->logger = logger;
     parametrosJournal->conexionLissandra = conexionConLissandra;
 
+    pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     mi_dictionary_iterator(parametrosJournal, memoria->tablaDeSegmentos, &iterarSegmentos);
+    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
 
     vaciarMemoria(memoria, logger);
 
@@ -249,7 +256,7 @@ t_paquete gestionarDescribe(char *nombreTabla, t_control_conexion *conexionLissa
         request = string_from_format("DESCRIBE %s", nombreTabla);
     }
     sem_wait(conexionLissandra->semaforo);
-    enviarPaquete(conexionLissandra->fd, REQUEST, DESCRIBE, request);
+    enviarPaquete(conexionLissandra->fd, REQUEST, DESCRIBE, request, -1);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
     sem_post(conexionLissandra->semaforo);
@@ -582,10 +589,9 @@ t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dic
     long elTiempo;
     elTiempo = (long) time(&elTiempoActual);
     nuevaPagina->ultimaVezUsada = elTiempo;
-    //pagina->
     free(pagina);
-    memcpy(nuevaPagina->marco->base, nuevoValor, tamanioPagina - 1);
-    memcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0", sizeof(char));
+    memcpy(nuevaPagina->marco->base, nuevoValor, tamanioPagina - sizeof(char));
+    memcpy(nuevaPagina->marco->base + tamanioPagina - sizeof(char), "\0", sizeof(char));
 
     dictionary_put(tablaDePaginas, key, nuevaPagina);
     return nuevaPagina;
@@ -613,8 +619,8 @@ t_pagina* crearPagina(char* key, t_memoria* memoria)  {
 }
 
 void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* value, int tamanioPagina, t_dictionary* tablaDePaginas)  {
-    memcpy(nuevaPagina->marco->base, value, tamanioPagina - 1);
-    memcpy(nuevaPagina->marco->base + tamanioPagina - 1, "\0", sizeof(char));
+    memcpy(nuevaPagina->marco->base, value, tamanioPagina - sizeof(char));
+    memcpy(nuevaPagina->marco->base + tamanioPagina - sizeof(char), "\0", sizeof(char));
     dictionary_put(tablaDePaginas, nuevaPagina->key, nuevaPagina);
 }
 
@@ -631,7 +637,7 @@ t_pagina* lru(t_dictionary* tablaDePaginas) {
     bool encontrePaginaLRU=  false;
 
     int table_index;
-    t_pagina* paginaActual = malloc(sizeof(t_pagina));
+    t_pagina* paginaActual;
     for (table_index = 0; table_index < tablaDePaginas->table_max_size; table_index++) {
         t_hash_element *element = tablaDePaginas->elements[table_index];
 
@@ -660,41 +666,44 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
     char* contenidoPagina = formatearPagina(key, value, timestamp, memoria);
     bool recibiTimestamp = timestamp != NULL;
 
-    log_info(logger, "Se insertará el siguiente valor en memoria: %s", value);
+//    log_info(logger, "Se insertará el siguiente valor en memoria: %s", value);
     t_pagina* pagina = NULL;
     // tengo la tabla en la memoria?
+    pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))   {
-        log_info(logger, "La tabla %s se encuentra en memoria", nombreTabla);
+//        log_info(logger, "La tabla %s se encuentra en memoria", nombreTabla);
         // obtengo el segmento asociado a la tabla en memoria
         t_segmento* segmento = (t_segmento*) dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
         // tengo la key en la tabla de páginas?
         if(dictionary_has_key(segmento->tablaDePaginas, key))   {
-            log_info(logger, "La key %s ya existe en la tabla %s. Se procede a modificar su valor.", key, nombreTabla);
+//            log_info(logger, "La key %s ya existe en la tabla %s. Se procede a modificar su valor.", key, nombreTabla);
             pagina = reemplazarPagina(key, contenidoPagina, memoria->tamanioPagina, segmento->tablaDePaginas);
-        }   else if(hayMarcosLibres(*memoria))   {
-            log_info(logger, "La key %s no existe en la tabla %s. Se procede a insertarla.", key, nombreTabla);
+        }   else if(hayMarcosLibres(memoria))   {
+//            log_info(logger, "La key %s no existe en la tabla %s. Se procede a insertarla.", key, nombreTabla);
             pagina = insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria, recibiTimestamp);
         }else {
             t_pagina* paginaLRU = lru(segmento->tablaDePaginas);
             if (paginaLRU != NULL){
                 pagina = eliminarPaginaLruEInsertarNueva(paginaLRU, key, contenidoPagina,segmento->tablaDePaginas, memoria, recibiTimestamp);
             }else{
-                log_info(logger, "La memoria se encuentra FULL");
+                pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
+//                log_info(logger, "La memoria se encuentra FULL");
                 gestionarJournal(conexionLissandra, memoria, logger, semaforoJournaling);
                 return insert(nombreTabla,key,value,memoria, timestamp,logger,conexionLissandra, semaforoJournaling);
             }
         }
-    } else if(hayMarcosLibres(*memoria)) {
-        log_info(logger, "La tabla %s no se encuentra en memoria. Se procede a crearla.", nombreTabla);
+    } else if(hayMarcosLibres(memoria)) {
+//        log_info(logger, "La tabla %s no se encuentra en memoria. Se procede a crearla.", nombreTabla);
         t_segmento* nuevoSegmento = crearSegmento(nombreTabla, memoria);
-        log_info(logger, "Se procede a insertar el nuevo valor.");
+//        log_info(logger, "Se procede a insertar el nuevo valor.");
         pagina = insertarNuevaPagina(key, contenidoPagina, nuevoSegmento->tablaDePaginas, memoria, recibiTimestamp);
     } else{
-        log_info(logger, "La memoria se encuentra FULL, todavia no se puede crear la nueva tabla");
+        pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
+//        log_info(logger, "La memoria se encuentra FULL, todavia no se puede crear la nueva tabla");
         gestionarJournal(conexionLissandra,  memoria, logger, semaforoJournaling);
         return insert(nombreTabla, key, value, memoria, timestamp,logger,  conexionLissandra, semaforoJournaling);
     }
-
+    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
     free(contenidoPagina);
     return pagina;
 }
@@ -712,7 +721,6 @@ void vaciarMemoria(t_memoria* memoria, t_log* logger){
 
         }
     }
-
 }
 
 t_segmento* crearSegmento(char* nombreTabla, t_memoria* memoria)    {
@@ -737,13 +745,16 @@ t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria)  {
 }
 
 char* drop(char* nombreTabla, t_memoria* memoria)    {
+    pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))  {
         t_segmento* segmento = dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
         liberarPaginasSegmento(segmento->tablaDePaginas, memoria);
         char* respuesta = string_from_format("Se eliminó la tabla %s de la memoria.", nombreTabla);
         dictionary_remove_and_destroy(memoria->tablaDeSegmentos, nombreTabla, &eliminarSegmento);
+        pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
         return respuesta;
     } else  {
+        pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
         return string_from_format("No se encontró la tabla %s en memoria.", nombreTabla);
     }
 }
@@ -793,20 +804,26 @@ int getTamanioValue(t_control_conexion* conexionLissandra, t_log* logger){
 }
 
 t_marco* getMarcoLibre(t_memoria* memoria)   {
+    pthread_mutex_lock(&memoria->control.tablaDeMarcosEnUso);
     for(int i = 0; i < memoria->cantidadTotalMarcos; i++)   {
         t_marco* marcoLeido = &memoria->tablaDeMarcos[i];
         if(!marcoLeido->ocupado)    {
             marcoLeido->ocupado = true;
             memoria->marcosOcupados++;
+            pthread_mutex_unlock(&memoria->control.tablaDeMarcosEnUso);
             return marcoLeido;
         }
     }
+    pthread_mutex_unlock(&memoria->control.tablaDeMarcosEnUso);
 
     return NULL;
 }
 
-bool hayMarcosLibres(t_memoria memoria)  {
-    return memoria.marcosOcupados < memoria.cantidadTotalMarcos;
+bool hayMarcosLibres(t_memoria* memoria)  {
+    pthread_mutex_lock(&memoria->control.tablaDeMarcosEnUso);
+    bool hayMarcosDisponibles = memoria->marcosOcupados < memoria->cantidadTotalMarcos;
+    pthread_mutex_unlock(&memoria->control.tablaDeMarcosEnUso);
+    return hayMarcosDisponibles;
 }
 
 int main(void) {

@@ -61,7 +61,7 @@ t_configuracion cargarConfiguracion(char *, t_log *);
 
 void inicializarEstructurasKernel(t_dictionary *tablaDeMemoriasConCriterios);
 
-int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral);
+int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral, pthread_mutex_t *semaforoHilo);
 
 int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlanifGeneral);
 
@@ -79,19 +79,19 @@ bool validarComandosKernel(t_comando requestParseada, t_log *logger);
 
 bool esComandoValidoDeKernel(t_comando comando);
 
-int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, p_planificacion *paramPlanifGeneral);
+int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID);
 
 int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion,
-                          int fdMemoria, p_planificacion *paramPlanifGeneral);
+                          int fdMemoria, int PID);
 
-int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, p_planificacion *paramPlanifGral);
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, int PID);
 
 
-int gestionarDropKernel(char *nombreTabla, int fdMemoria, p_planificacion *paramPlanifGeneral);
+int gestionarDropKernel(char *nombreTabla, int fdMemoria, int PID);
 
-int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria, p_planificacion *paramPlanifGeneral);
+int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria, int PID);
 
-int gestionarDescribeGlobalKernel(int fdMemoria, p_planificacion *paramPlanifGeneral);
+int gestionarDescribeGlobalKernel(int fdMemoria, int PID);
 
 int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros);
 
@@ -136,7 +136,7 @@ void *sincronizacionPLP(void *parametrosPLP);
 
 void instanciarPCPs(p_planificacion *);
 
-void planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL);
+void planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t * semaforoHilo);
 
 //Estructuras de las metricas
 typedef struct {

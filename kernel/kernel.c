@@ -99,9 +99,7 @@ int main(void) {
     paramPlanificacionGeneral->supervisorDeHilos = supervisorDeHilos;
 
     for (int i = 0; i < configuracion.multiprocesamiento; i++) {
-        pthread_mutex_t *semaforoHilo = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t));
-        int init = pthread_mutex_init(semaforoHilo, NULL);
-        paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo = semaforoHilo;
+//        paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo = semaforoHilo;
         crearHiloPlanificadorCortoPlazo(paramPlanificacionGeneral);
     }
 
@@ -215,7 +213,11 @@ bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
     }
 }
 
-int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral) {
+int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral, pthread_mutex_t *mutexDeHiloRequest) {
+    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
+    char *PIDCasteado = string_itoa(PID);
+    dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
+    pthread_mutex_lock(mutexDeHiloRequest);
     p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
 
     char *criterioConsistencia;
@@ -229,7 +231,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                 int key = atoi(requestParseada.parametros[2]);
                 fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, key);
                 return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], fdMemoria,
-                                             paramPlanifGeneral);
+                                             PID);
             } else {
                 log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
                 return -1;
@@ -241,7 +243,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     int key = atoi(requestParseada.parametros[2]);
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, key);
                     return gestionarInsertKernel(requestParseada.parametros[0], requestParseada.parametros[1],
-                                                 requestParseada.parametros[2], fdMemoria, paramPlanifGeneral);
+                                                 requestParseada.parametros[2], fdMemoria, PID);
                 } else {
                     log_error(logger, "El criterio es nulo, no se puede analizar.");
                     return -1;
@@ -256,7 +258,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                 fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, NULL);
                 return gestionarCreateKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                              requestParseada.parametros[2], requestParseada.parametros[3],
-                                             fdMemoria, paramPlanifGeneral);
+                                             fdMemoria, PID);
             } else {
                 log_error(logger, "El criterio es nulo, no se puede analizar.");
                 return -1;
@@ -265,7 +267,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
             if (dictionary_has_key(pConsolaKernel->metadataTablas, requestParseada.parametros[0])) {
                 criterioConsistencia = criterioBuscado(requestParseada, pConsolaKernel->metadataTablas);
                 fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, NULL);
-                return gestionarDropKernel(requestParseada.parametros[0], fdMemoria, paramPlanifGeneral);
+                return gestionarDropKernel(requestParseada.parametros[0], fdMemoria, PID);
             } else {
                 log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
                 return -1;
@@ -276,14 +278,14 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                 if (dictionary_has_key(pConsolaKernel->metadataTablas, requestParseada.parametros[0])) {
                     criterioConsistencia = criterioBuscado(requestParseada, pConsolaKernel->metadataTablas);
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, NULL);
-                    return gestionarDescribeTablaKernel(requestParseada.parametros[0], fdMemoria, paramPlanifGeneral);
+                    return gestionarDescribeTablaKernel(requestParseada.parametros[0], fdMemoria, PID);
                 } else {
                     log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
                     return -1;
                 }
             } else {
                 fdMemoria = seleccionarMemoriaParaDescribe(pConsolaKernel);
-                return gestionarDescribeGlobalKernel(fdMemoria, paramPlanifGeneral);
+                return gestionarDescribeGlobalKernel(fdMemoria, PID);
             }
         case JOURNAL:
             return gestionarJournalKernel(paramPlanifGeneral);
@@ -347,105 +349,45 @@ bool esComandoValidoDeKernel(t_comando comando) {
     }
 }
 
-int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, p_planificacion *paramPlanifGeneral) {
-    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
+int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID) {
     char *request = string_from_format("SELECT %s %s", nombreTabla, key);
     enviarPaquete(fdMemoria, REQUEST, SELECT, request, PID);
-    char *PIDCasteado = string_itoa(PID);
-    pthread_mutex_t *mutexDeHiloRequest;
-    if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
-        mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
-    } else {
-        mutexDeHiloRequest= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
-        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
-    }
-    pthread_mutex_lock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
 
 int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion, int fdMemoria,
-                      p_planificacion *paramPlanifGeneral) {
-    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
+                      int PID) {
     char *request = string_from_format("CREATE %s %s %s %s", tabla, consistencia, cantParticiones, tiempoCompactacion);
     enviarPaquete(fdMemoria, REQUEST, CREATE, request, PID);
-    char *PIDCasteado = string_itoa(PID);
-    pthread_mutex_t *mutexDeHiloRequest;
-    if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
-        mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
-    } else {
-        mutexDeHiloRequest= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
-        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
-    }
-    pthread_mutex_lock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
 
-int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, p_planificacion *paramPlanifGeneral) {
-    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, int PID) {
     char *request = string_from_format("INSERT %s %s %s", nombreTabla, key, valor);
     enviarPaquete(fdMemoria, REQUEST, INSERT, request, PID);
-        char *PIDCasteado = string_itoa(PID);
-    pthread_mutex_t *mutexDeHiloRequest;
-    if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
-        mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
-    } else {
-        mutexDeHiloRequest= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
-        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
-    }
-    pthread_mutex_lock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
 
-int gestionarDropKernel(char *nombreTabla, int fdMemoria, p_planificacion *paramPlanifGeneral) {
-    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
+int gestionarDropKernel(char *nombreTabla, int fdMemoria, int PID) {
     char *request = string_from_format("DROP %s", nombreTabla);
     enviarPaquete(fdMemoria, REQUEST, DROP, request, PID);
-        char *PIDCasteado = string_itoa(PID);
-    pthread_mutex_t *mutexDeHiloRequest;
-    if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
-        mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
-    } else {
-        mutexDeHiloRequest= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
-        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
-    }
-    pthread_mutex_lock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
 
-int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria, p_planificacion *paramPlanifGeneral) {
-    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
+int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria, int PID) {
     char *request = string_from_format("DESCRIBE %s", nombreTabla);
     enviarPaquete(fdMemoria, REQUEST, DESCRIBE, request, PID);
-    char *PIDCasteado = string_itoa(PID);
-    pthread_mutex_t *mutexDeHiloRequest;
-    if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
-        mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
-    } else {
-        mutexDeHiloRequest= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
-        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
-    }
-    pthread_mutex_lock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
 
-int gestionarDescribeGlobalKernel(int fdMemoria, p_planificacion *paramPlanifGeneral) {
-    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
+int gestionarDescribeGlobalKernel(int fdMemoria, int PID) {
     char *request = string_from_format("DESCRIBE");
     enviarPaquete(fdMemoria, REQUEST, DESCRIBE, request, PID);
-        char *PIDCasteado = string_itoa(PID);
-    pthread_mutex_t *mutexDeHiloRequest;
-    if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
-        mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
-    } else {
-        mutexDeHiloRequest= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
-        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
-    }
-    pthread_mutex_lock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
@@ -753,7 +695,7 @@ pthread_t *crearHiloPlanificadorCortoPlazo(p_planificacion *paramPlanificacionGe
     return hiloPCP;
 }
 
-void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archivoLQL) {
+void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t *semaforoHilo) {
     p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
     t_log *logger = paramPlanifGeneral->parametrosConsola->logger;
     int quantumMaximo = (int) paramPlanifGeneral->parametrosPCP->quantum;
@@ -767,7 +709,7 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
             break;
         if (requestEsValida) {
             if ((diferenciarRequest(*comando) == 1)) { //Si es 1 es primitiva
-                gestionarRequestPrimitivas(*comando, paramPlanifGeneral);
+                gestionarRequestPrimitivas(*comando, paramPlanifGeneral, semaforoHilo);
                 actualizarCantRequest(archivoLQL, *comando); //para métricas
             } else { //Si es 0 es comando de Kernel
                 gestionarRequestKernel(*comando, paramPlanifGeneral);
@@ -809,13 +751,17 @@ void instanciarPCPs(p_planificacion *paramPlanificacionGeneral) {
     sem_t *semaforo_mutexColaDeReady = parametrosPCP->mutexColaDeReady;
 
     pthread_mutex_t *mutexJournal = parametrosPCP->mutexJournal;
+
+    pthread_mutex_t *semaforoHilo = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t));
+    int init = pthread_mutex_init(semaforoHilo, NULL);
+
     while (1) {
         sem_wait(semaforo_cantidadProcesosEnReady);
         sem_wait(semaforo_mutexColaDeReady);
         t_archivoLQL *nuevoLQL = (t_archivoLQL *) queue_pop(parametrosPCP->colaDeReady);
         sem_post(semaforo_mutexColaDeReady);
 
-        planificarRequest(paramPlanificacionGeneral, nuevoLQL);
+        planificarRequest(paramPlanificacionGeneral, nuevoLQL, semaforoHilo);
     }
 }
 

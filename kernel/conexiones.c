@@ -88,7 +88,11 @@ void *atenderConexiones(void *parametrosThread) {
                                         break;
                                     case GOSSIPING:
                                         //char **direccionesNuevasMemorias = obtenerDatosDeConexion();
-                                    case ERR:
+                                    case ERR: ;
+                                        char* PID = string_itoa(header.pid);
+                                        pthread_mutex_t* semaforo = (pthread_mutex_t*) dictionary_get(supervisorDeHilos, PID);
+                                        pthread_mutex_unlock(semaforo);
+                                        free(PID);
                                         break;
                                 }
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
@@ -200,7 +204,7 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
     char *PIDCasteado = string_itoa(pid);
     pthread_mutex_t *semaforoADesbloquear;
     if(dictionary_has_key(supervisorDeHilos,PIDCasteado)) {
-        semaforoADesbloquear = dictionary_get(supervisorDeHilos, PIDCasteado);
+        semaforoADesbloquear = (pthread_mutex_t*) dictionary_get(supervisorDeHilos, PIDCasteado);
     } else {
         semaforoADesbloquear= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
         pthread_mutex_lock(semaforoADesbloquear);

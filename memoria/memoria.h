@@ -28,10 +28,11 @@
 
 typedef struct t_memoria_d t_memoria;
 typedef struct t_nodoMemoria nodoMemoria;
+typedef struct t_configuracion_d t_configuracion;
 
 #include "conexiones.h"
 
-typedef struct {
+struct t_configuracion_d{
     int puerto;
     char* ipFileSystem;
     int puertoFileSystem;
@@ -43,7 +44,7 @@ typedef struct {
     int retardoJournal;
     int retardoGossiping;
     int cantidadDeMemorias;
-} t_configuracion;
+};
 
 typedef struct {
     char* base;

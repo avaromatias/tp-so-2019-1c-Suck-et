@@ -387,7 +387,7 @@ int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemor
     char *request = string_from_format("INSERT %s %s %s", nombreTabla, key, valor);
     enviarPaquete(fdMemoria, REQUEST, INSERT, request, PID);
         char *PIDCasteado = string_itoa(PID);
-    pthread_mutex_t *mutexDRUN eHiloRequest;
+    pthread_mutex_t *mutexDeHiloRequest;
     if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
         mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
     } else {

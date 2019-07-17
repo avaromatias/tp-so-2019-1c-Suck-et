@@ -4,7 +4,7 @@
 
 #include "conexiones.h"
 
-pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoMemoriasConocidas, pthread_mutex_t* semaforoJournaling, int* retardoMemoria)    {
+pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoMemoriasConocidas, pthread_mutex_t* semaforoJournaling, t_retardos_memoria* retardos)    {
 
     /*int value;
     sem_getvalue(kernelConectado, &value);
@@ -21,7 +21,7 @@ pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria
     parametros->memoria = memoria;
     parametros->semaforoMemoriasConocidas = semaforoMemoriasConocidas;
     parametros->semaforoJournaling = semaforoJournaling;
-    parametros->retardoMemoria= retardoMemoria;
+    parametros->retardoMemoria= retardos;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -306,8 +306,8 @@ pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_con
 
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros)    {
 
-//    t_configuracion configuracion = (t_configuracion) parametros->configuracion;
-//    sleep(configuracion.retardoMemoria/1000);
+    t_retardos_memoria* retardosMemoria = (t_retardos_memoria*)parametros->retardoMemoria;
+    sleep(retardosMemoria->retardoMemoria/1000);
     //todo wait semaforoJournaling
     char** comandoParseado = parser(mensaje);
     t_comando comando = instanciarComando(comandoParseado);

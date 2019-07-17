@@ -29,16 +29,17 @@
 typedef struct t_memoria_d t_memoria;
 typedef struct t_nodoMemoria nodoMemoria;
 typedef struct t_configuracion_d t_configuracion;
+typedef struct t_retardos_memoria_d t_retardos_memoria;
 
 #include "conexiones.h"
 
 
-typedef struct {
+struct t_retardos_memoria_d{
     int retardoMemoria;
     int retardoGossiping;
     int retardoJournaling;
     int retardoFileSystem;
-}t_retardos_memoria;
+};
 struct t_configuracion_d{
     int puerto;
     char* ipFileSystem;

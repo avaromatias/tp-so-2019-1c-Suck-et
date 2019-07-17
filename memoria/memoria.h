@@ -32,6 +32,13 @@ typedef struct t_configuracion_d t_configuracion;
 
 #include "conexiones.h"
 
+
+typedef struct {
+    int retardoMemoria;
+    int retardoGossiping;
+    int retardoJournaling;
+    int retardoFileSystem;
+}t_retardos_memoria;
 struct t_configuracion_d{
     int puerto;
     char* ipFileSystem;

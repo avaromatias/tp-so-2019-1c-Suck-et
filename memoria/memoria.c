@@ -833,6 +833,11 @@ int main(void) {
 	t_configuracion configuracion = cargarConfiguracion(nombreArchivoConfiguracionConExtension, logger);
 	free(nombreArchivoConfiguracionConExtension);
 
+	t_retardos_memoria* retardos = malloc(sizeof(t_retardos_memoria));
+	retardos->retardoMemoria = configuracion.retardoMemoria;
+    retardos->retardoGossiping = configuracion.retardoGossiping;
+    retardos->retardoFileSystem = configuracion.retardoFileSystem;
+    retardos->retardoJournaling = configuracion.retardoJournal;
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
     t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};
 
@@ -854,7 +859,7 @@ int main(void) {
     //TODO Agregar "mi ip" al archivo de configuracion para que memorias tenga su propia ip en su lista de gossiping
     agregarIpMemoria(configuracion.ipFileSystem, string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
 
-    pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, &(configuracion.retardoMemoria));
+    pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);
     pthread_t* hiloConsola = (pthread_t*) crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra, semaforoJournaling);
     pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, configuracion.retardoJournal, semaforoJournaling);
     pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling);

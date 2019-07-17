@@ -1194,12 +1194,13 @@ void ejecutarConsola() {
             printf("%s", retorno->valor);
             free(retorno->valor);
             free(retorno);
+            rl_clear_history();
         } else {
             printf("Alguno de los parámetros ingresados es incorrecto. Por favor verifique su entrada.\n");
         }
         free(request);
-
     } while (comando.tipoRequest != EXIT);
+    rl_clear_history();
     printf("Ya se analizo todo lo solicitado.\n");
 }
 

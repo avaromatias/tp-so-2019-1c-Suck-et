@@ -26,6 +26,51 @@ typedef struct {
     pthread_mutex_t *mutexSemaforoHilo;
 } parametros_thread_k;
 
+//Estructura necesaria para manejar las consistencias y la metadata
+typedef struct {
+    t_log *logger;
+    GestorConexiones *conexiones;
+    t_dictionary *metadataTablas;
+    t_dictionary *memoriasConCriterios;
+    pthread_mutex_t *mutexJournal;
+    t_dictionary *supervisorDeHilos;
+} p_consola_kernel;
+
+//Estructura necesaria para el PLP
+typedef struct {
+    t_queue *colaDeNew;
+    t_queue *colaDeReady;
+    sem_t *mutexColaDeNew;
+    sem_t *mutexColaDeReady;
+    sem_t *cantidadProcesosEnNew;
+    sem_t *cantidadProcesosEnReady;
+    int contadorPID;
+    t_log *logger;
+} parametros_plp;
+
+//Estructura necesaria para el PCP
+typedef struct {
+    int *quantum;
+    t_queue *colaDeReady;
+    t_queue *colaDeFinalizados;
+    sem_t *mutexColaDeReady;
+    sem_t *mutexColaFinalizados;
+    t_log *logger;
+    sem_t *cantidadProcesosEnReady;
+    pthread_mutex_t *mutexJournal;
+    pthread_mutex_t *mutexSemaforoHilo;
+} parametros_pcp;
+
+//Estructura hibrida necesaria para planificacion
+typedef struct {
+    p_consola_kernel *parametrosConsola;
+    parametros_plp *parametrosPLP;
+    parametros_pcp *parametrosPCP;
+    t_dictionary *supervisorDeHilos;
+} p_planificacion;
+
+p_planificacion *paramPlanificacionGeneral;
+
 //Conexión con Memoria
 pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios,
                                t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos);

@@ -14,7 +14,7 @@ int main(void) {
     log_info(logger, "Iniciando el proceso Kernel");
 
     t_dictionary *supervisorDeHilos = dictionary_create();//Va a tener como KEY el PID, y la data el SEMÁFORO de c/hilo
-    int *contadorPIDs = 0;
+    int contadorPIDs = 0;
 
     pthread_mutex_t *mutexJournal = malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutexJournal, NULL);
@@ -60,12 +60,12 @@ int main(void) {
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas,
                                                     mutexJournal, supervisorDeHilos);
 
-    p_consola_kernel *parametros = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
+    p_consola_kernel *pConsolaKernel= (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
-    parametros->conexiones = misConexiones;
-    parametros->metadataTablas = metadataTablas;
-    parametros->memoriasConCriterios = tablaDeMemoriasConCriterios;
-    parametros->logger = logger;
+    pConsolaKernel->conexiones = misConexiones;
+    pConsolaKernel->metadataTablas = metadataTablas;
+    pConsolaKernel->memoriasConCriterios = tablaDeMemoriasConCriterios;
+    pConsolaKernel->logger = logger;
 
     parametros_plp *parametrosPLP = (parametros_plp *) malloc(sizeof(parametros_plp));
 
@@ -75,7 +75,7 @@ int main(void) {
     parametrosPLP->mutexColaDeReady = mutexColaDeReady;
     parametrosPLP->cantidadProcesosEnNew = cantidadProcesosEnNew;
     parametrosPLP->cantidadProcesosEnReady = cantidadProcesosEnReady;
-    parametrosPLP->contadorPID = &contadorPIDs;
+    parametrosPLP->contadorPID = contadorPIDs;
     parametrosPLP->logger = logger;
 
     pthread_t *hiloPlanificadorLargoPlazo = crearHiloPlanificadorLargoPlazo(parametrosPLP);
@@ -91,26 +91,28 @@ int main(void) {
     parametrosPCP->mutexJournal = mutexJournal;
     parametrosPCP->logger = logger;
 
-    p_planificacion paramPlanificacionGeneral;
-    paramPlanificacionGeneral.parametrosConsola = parametros;
-    paramPlanificacionGeneral.parametrosPCP = parametrosPCP;
-    paramPlanificacionGeneral.parametrosPLP = parametrosPLP;
-    paramPlanificacionGeneral.supervisorDeHilos = supervisorDeHilos;
+    paramPlanificacionGeneral = (p_planificacion*) malloc(sizeof(p_planificacion));
+
+    paramPlanificacionGeneral->parametrosConsola = pConsolaKernel;
+    paramPlanificacionGeneral->parametrosPCP = parametrosPCP;
+    paramPlanificacionGeneral->parametrosPLP = parametrosPLP;
+    paramPlanificacionGeneral->supervisorDeHilos = supervisorDeHilos;
 
     for (int i = 0; i < configuracion.multiprocesamiento; i++) {
         pthread_mutex_t *semaforoHilo = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t));
-        pthread_mutex_init(semaforoHilo, NULL);
-        paramPlanificacionGeneral.parametrosPCP->mutexSemaforoHilo = semaforoHilo;
-        crearHiloPlanificadorCortoPlazo(&paramPlanificacionGeneral);
+        int init = pthread_mutex_init(semaforoHilo, NULL);
+        paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo = semaforoHilo;
+        crearHiloPlanificadorCortoPlazo(paramPlanificacionGeneral);
     }
 
-    ejecutarConsola(parametros, configuracion, parametrosPLP);
+    ejecutarConsola(pConsolaKernel, configuracion, paramPlanificacionGeneral);
 
     pthread_join(*hiloRespuestas, NULL);
 
-    free(parametros);
+    free(pConsolaKernel);
     free(parametrosPCP);
     free(parametrosPLP);
+    free(paramPlanificacionGeneral);
     return EXIT_SUCCESS;
 }
 
@@ -275,6 +277,9 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     criterioConsistencia = criterioBuscado(requestParseada, pConsolaKernel->metadataTablas);
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, NULL);
                     return gestionarDescribeTablaKernel(requestParseada.parametros[0], fdMemoria, paramPlanifGeneral);
+                } else {
+                    log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.\n");
+                    return -1;
                 }
             } else {
                 fdMemoria = seleccionarMemoriaParaDescribe(pConsolaKernel);
@@ -343,13 +348,19 @@ bool esComandoValidoDeKernel(t_comando comando) {
 }
 
 int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, p_planificacion *paramPlanifGeneral) {
-    int PID = *paramPlanifGeneral->parametrosPLP->contadorPID;
+    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
     char *request = string_from_format("SELECT %s %s", nombreTabla, key);
     enviarPaquete(fdMemoria, REQUEST, SELECT, request, PID);
-    dictionary_put(paramPlanifGeneral->supervisorDeHilos, (char*) PID, paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_lock(paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_t *semaforoAEliminar = dictionary_remove(paramPlanifGeneral->supervisorDeHilos, (char*) PID);
-    free(semaforoAEliminar);
+    char *PIDCasteado = string_itoa(PID);
+    pthread_mutex_t *mutexDeHiloRequest;
+    if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
+        mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
+    } else {
+        mutexDeHiloRequest= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
+        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
+    }
+    pthread_mutex_lock(mutexDeHiloRequest);
+    pthread_mutex_unlock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
@@ -357,62 +368,92 @@ int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, p_planifi
 int
 gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion, int fdMemoria,
                       p_planificacion *paramPlanifGeneral) {
-    int PID = *paramPlanifGeneral->parametrosPLP->contadorPID;
+    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
     char *request = string_from_format("CREATE %s %s %s %s", tabla, consistencia, cantParticiones, tiempoCompactacion);
     enviarPaquete(fdMemoria, REQUEST, CREATE, request, PID);
-    dictionary_put(paramPlanifGeneral->supervisorDeHilos,(char*) PID, paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_lock(paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_t *semaforoAEliminar = dictionary_remove(paramPlanifGeneral->supervisorDeHilos,(char*) PID);
-    free(semaforoAEliminar);
+    char *PIDCasteado = string_itoa(PID);
+    pthread_mutex_t *mutexDeHiloRequest;
+    if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
+        mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
+    } else {
+        mutexDeHiloRequest= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
+        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
+    }
+    pthread_mutex_lock(mutexDeHiloRequest);
+    pthread_mutex_unlock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
 
 int
 gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, p_planificacion *paramPlanifGeneral) {
-    int PID = *paramPlanifGeneral->parametrosPLP->contadorPID;
+    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
     char *request = string_from_format("INSERT %s %s %s", nombreTabla, key, valor);
     enviarPaquete(fdMemoria, REQUEST, INSERT, request, PID);
-    dictionary_put(paramPlanifGeneral->supervisorDeHilos,(char*) PID, paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_lock(paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_t *semaforoAEliminar = dictionary_remove(paramPlanifGeneral->supervisorDeHilos,(char*) PID);
-    free(semaforoAEliminar);
+        char *PIDCasteado = string_itoa(PID);
+    pthread_mutex_t *mutexDeHiloRequest;
+    if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
+        mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
+    } else {
+        mutexDeHiloRequest= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
+        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
+    }
+    pthread_mutex_lock(mutexDeHiloRequest);
+    pthread_mutex_unlock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
 
 int gestionarDropKernel(char *nombreTabla, int fdMemoria, p_planificacion *paramPlanifGeneral) {
-    int PID = *paramPlanifGeneral->parametrosPLP->contadorPID;
+    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
     char *request = string_from_format("DROP %s", nombreTabla);
     enviarPaquete(fdMemoria, REQUEST, DROP, request, PID);
-    dictionary_put(paramPlanifGeneral->supervisorDeHilos,(char*) PID, paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_lock(paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_t *semaforoAEliminar = dictionary_remove(paramPlanifGeneral->supervisorDeHilos,(char*) PID);
-    free(semaforoAEliminar);
+        char *PIDCasteado = string_itoa(PID);
+    pthread_mutex_t *mutexDeHiloRequest;
+    if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
+        mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
+    } else {
+        mutexDeHiloRequest= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
+        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
+    }
+    pthread_mutex_lock(mutexDeHiloRequest);
+    pthread_mutex_unlock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
 
 int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria, p_planificacion *paramPlanifGeneral) {
-    int PID = *paramPlanifGeneral->parametrosPLP->contadorPID;
+    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
     char *request = string_from_format("DESCRIBE %s", nombreTabla);
     enviarPaquete(fdMemoria, REQUEST, DESCRIBE, request, PID);
-    dictionary_put(paramPlanifGeneral->supervisorDeHilos,(char*) PID, paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_lock(paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_t *semaforoAEliminar = dictionary_remove(paramPlanifGeneral->supervisorDeHilos,(char*) PID);
-    free(semaforoAEliminar);
+    char *PIDCasteado = string_itoa(PID);
+    pthread_mutex_t *mutexDeHiloRequest;
+    if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
+        mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
+    } else {
+        mutexDeHiloRequest= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
+        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
+    }
+    pthread_mutex_lock(mutexDeHiloRequest);
+    pthread_mutex_unlock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
 
 int gestionarDescribeGlobalKernel(int fdMemoria, p_planificacion *paramPlanifGeneral) {
-    int PID = *paramPlanifGeneral->parametrosPLP->contadorPID;
+    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
     char *request = string_from_format("DESCRIBE");
     enviarPaquete(fdMemoria, REQUEST, DESCRIBE, request, PID);
-    dictionary_put(paramPlanifGeneral->supervisorDeHilos,(char*) PID, paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_lock(paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_t *semaforoAEliminar = dictionary_remove(paramPlanifGeneral->supervisorDeHilos,(char*) PID);
-    free(semaforoAEliminar);
+        char *PIDCasteado = string_itoa(PID);
+    pthread_mutex_t *mutexDeHiloRequest;
+    if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
+        mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
+    } else {
+        mutexDeHiloRequest= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
+        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
+    }
+    pthread_mutex_lock(mutexDeHiloRequest);
+    pthread_mutex_unlock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
@@ -430,12 +471,18 @@ int gestionarJournalKernel(p_planificacion *paramPlanifGeneral) {
 }
 
 void enviarJournal(int fdMemoria, p_planificacion *paramPlanifGeneral) {
-    int PID = *paramPlanifGeneral->parametrosPLP->contadorPID;
+    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
     enviarPaquete(fdMemoria, REQUEST, JOURNAL, "JOURNAL", PID);
-    dictionary_put(paramPlanifGeneral->supervisorDeHilos, PID, paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_lock(paramPlanifGeneral->parametrosPCP->mutexSemaforoHilo);
-    pthread_mutex_t *semaforoAEliminar = dictionary_remove(paramPlanifGeneral->supervisorDeHilos, PID);
-    free(semaforoAEliminar);
+    char *PIDCasteado = string_itoa(PID);
+    pthread_mutex_t *mutexDeHiloRequest;
+    if(dictionary_has_key(paramPlanifGeneral->supervisorDeHilos,PIDCasteado)) {
+        mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
+    } else {
+        mutexDeHiloRequest= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
+        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
+    }
+    pthread_mutex_lock(mutexDeHiloRequest);
+    pthread_mutex_unlock(mutexDeHiloRequest);
 }
 
 int extensionCorrecta(char *direccionAbsoluta) {
@@ -452,7 +499,7 @@ t_archivoLQL *crearLQL(parametros_plp *parametrosPLP) {
     unLQL->cantidadDeLineas = 0;
     unLQL->cantidadDeSelectProcesados = 0;
     unLQL->cantidadDeInsertProcesados = 0;
-    unLQL->PID = *parametrosPLP->contadorPID++;
+    unLQL->PID = (parametrosPLP->contadorPID)++;
     return unLQL;
 }
 
@@ -699,6 +746,7 @@ t_archivoLQL *convertirRequestALQL(t_comando *requestParseada) {
     unLQL->colaDeRequests = queue_create();
     unLQL->cantidadDeInsertProcesados = 0;
     unLQL->cantidadDeSelectProcesados = 0;
+    unLQL->PID = 0;
 
     queue_push(unLQL->colaDeRequests, requestParseada);
     unLQL->cantidadDeLineas = queue_size(unLQL->colaDeRequests);
@@ -706,10 +754,10 @@ t_archivoLQL *convertirRequestALQL(t_comando *requestParseada) {
     return unLQL;
 }
 
-pthread_t *crearHiloPlanificadorCortoPlazo(p_planificacion *parametros) {
+pthread_t *crearHiloPlanificadorCortoPlazo(p_planificacion *paramPlanificacionGeneral) {
     pthread_t *hiloPCP = (pthread_t *) malloc(sizeof(pthread_t));
 
-    pthread_create(hiloPCP, NULL, &instanciarPCPs, parametros);
+    pthread_create(hiloPCP, NULL, &instanciarPCPs, paramPlanificacionGeneral);
 
     return hiloPCP;
 }
@@ -719,14 +767,13 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
     t_log *logger = paramPlanifGeneral->parametrosConsola->logger;
     int quantumMaximo = (int) paramPlanifGeneral->parametrosPCP->quantum;
     t_archivoLQL *unLQL = archivoLQL;
-    bool requestEsValida;
+    bool requestEsValida = true;
 
     for (int quantumsConsumidos = 0; quantumsConsumidos < quantumMaximo; quantumsConsumidos++) {
         int lineaDeEjecucion = 0;//dejamos por si queremos hacer un lineaDeEjecución++
         t_comando *comando = (t_comando *) queue_pop(unLQL->colaDeRequests);
         if (comando == NULL)
             break;
-        requestEsValida = analizarRequest(*comando, pConsolaKernel);
         if (requestEsValida) {
             if ((diferenciarRequest(*comando) == 1)) { //Si es 1 es primitiva
                 gestionarRequestPrimitivas(*comando, paramPlanifGeneral);
@@ -766,7 +813,7 @@ void actualizarCantRequest(t_archivoLQL *archivoLQL, t_comando requestParseada) 
 }
 
 void instanciarPCPs(p_planificacion *paramPlanificacionGeneral) {
-    parametros_pcp *parametrosPCP = (parametros_pcp *) paramPlanificacionGeneral->parametrosPCP;
+    parametros_pcp *parametrosPCP = paramPlanificacionGeneral->parametrosPCP;
     sem_t *semaforo_cantidadProcesosEnReady = parametrosPCP->cantidadProcesosEnReady;
     sem_t *semaforo_mutexColaDeReady = parametrosPCP->mutexColaDeReady;
 

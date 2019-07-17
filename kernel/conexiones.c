@@ -203,6 +203,7 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
         semaforoADesbloquear = dictionary_get(supervisorDeHilos, PIDCasteado);
     } else {
         semaforoADesbloquear= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
+        pthread_mutex_lock(semaforoADesbloquear);
         dictionary_put(supervisorDeHilos, PIDCasteado, semaforoADesbloquear);
     }
 
@@ -230,11 +231,7 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
             log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
     }
-
-    pthread_mutex_lock(semaforoADesbloquear);
     pthread_mutex_unlock(semaforoADesbloquear);
-
-    pthread_mutex_t *semaforoAEliminar = dictionary_remove(supervisorDeHilos, PIDCasteado);
     free(PIDCasteado);
 }
 

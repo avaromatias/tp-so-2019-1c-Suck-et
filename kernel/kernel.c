@@ -267,7 +267,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                 fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, NULL);
                 return gestionarDropKernel(requestParseada.parametros[0], fdMemoria, paramPlanifGeneral);
             } else {
-                log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.\n");
+                log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
                 return -1;
             }
         case DESCRIBE:
@@ -278,7 +278,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, NULL);
                     return gestionarDescribeTablaKernel(requestParseada.parametros[0], fdMemoria, paramPlanifGeneral);
                 } else {
-                    log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.\n");
+                    log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
                     return -1;
                 }
             } else {
@@ -360,13 +360,11 @@ int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, p_planifi
         dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
     }
     pthread_mutex_lock(mutexDeHiloRequest);
-    pthread_mutex_unlock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
 
-int
-gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion, int fdMemoria,
+int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion, int fdMemoria,
                       p_planificacion *paramPlanifGeneral) {
     int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
     char *request = string_from_format("CREATE %s %s %s %s", tabla, consistencia, cantParticiones, tiempoCompactacion);
@@ -380,13 +378,11 @@ gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, ch
         dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
     }
     pthread_mutex_lock(mutexDeHiloRequest);
-    pthread_mutex_unlock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
 
-int
-gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, p_planificacion *paramPlanifGeneral) {
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, p_planificacion *paramPlanifGeneral) {
     int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
     char *request = string_from_format("INSERT %s %s %s", nombreTabla, key, valor);
     enviarPaquete(fdMemoria, REQUEST, INSERT, request, PID);
@@ -399,7 +395,6 @@ gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, 
         dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
     }
     pthread_mutex_lock(mutexDeHiloRequest);
-    pthread_mutex_unlock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
@@ -417,7 +412,6 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria, p_planificacion *param
         dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
     }
     pthread_mutex_lock(mutexDeHiloRequest);
-    pthread_mutex_unlock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
@@ -435,7 +429,6 @@ int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria, p_planificaci
         dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
     }
     pthread_mutex_lock(mutexDeHiloRequest);
-    pthread_mutex_unlock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
@@ -453,7 +446,6 @@ int gestionarDescribeGlobalKernel(int fdMemoria, p_planificacion *paramPlanifGen
         dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
     }
     pthread_mutex_lock(mutexDeHiloRequest);
-    pthread_mutex_unlock(mutexDeHiloRequest);
     free(request);
     return 0;
 }
@@ -482,7 +474,6 @@ void enviarJournal(int fdMemoria, p_planificacion *paramPlanifGeneral) {
         dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
     }
     pthread_mutex_lock(mutexDeHiloRequest);
-    pthread_mutex_unlock(mutexDeHiloRequest);
 }
 
 int extensionCorrecta(char *direccionAbsoluta) {
@@ -571,7 +562,7 @@ int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros) {
                 list_add(listaFileDescriptors, fdMemoriaSolicitada);
         } else if (strcmp("SHC", criterio) == 0 || strcmp("EC", criterio) == 0) {
             list_add(listaFileDescriptors, fdMemoriaSolicitada);
-            log_info(logger, "La memoria ha sido agregada a la tabla de Memorias conocidas.\n");
+            log_info(logger, "La memoria ha sido agregada a la tabla de Memorias conocidas.");
             return 0;
         }
     } else {
@@ -606,7 +597,7 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
                     int *fdMemoriaElegida = (int *) list_get(memoriasDelCriterioPedido, 0);
                     return *fdMemoriaElegida;
                 } else {
-                    log_error(logger, "No existe ninguna memoria asociada al criterio SC.\n");
+                    log_error(logger, "No existe ninguna memoria asociada al criterio SC.");
                     return -1;
                 }
             } else if (strcmp("SHC", criterio) == 0) {
@@ -642,12 +633,12 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
                     list_destroy(memoriasDisponibles);
                     return *fdMemoriaElegida;
                 } else {
-                    log_error(logger, "No existen memorias asociadas al criterio EC.\n");
+                    log_error(logger, "No existen memorias asociadas al criterio EC.");
                     return -1;
                 }
             }
         } else {
-            log_warning(logger, "No existen memorias conectadas para asignar requests.\n");
+            log_warning(logger, "No existen memorias conectadas para asignar requests.");
             return -1;
         }
     }

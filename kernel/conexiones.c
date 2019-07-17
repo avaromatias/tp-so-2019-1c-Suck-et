@@ -197,7 +197,14 @@ void crearTablaEnMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *lo
 void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dictionary *supervisorDeHilos,
         t_dictionary *memoriasConCriterios, t_dictionary *metadata, char *mensaje, t_log *logger) {
 
-    pthread_mutex_t *semaforoADesbloquear = dictionary_get(supervisorDeHilos,(char*) pid);
+    char *PIDCasteado = string_itoa(pid);
+    pthread_mutex_t *semaforoADesbloquear;
+    if(dictionary_has_key(supervisorDeHilos,PIDCasteado)) {
+        semaforoADesbloquear = dictionary_get(supervisorDeHilos, PIDCasteado);
+    } else {
+        semaforoADesbloquear= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
+        dictionary_put(supervisorDeHilos, PIDCasteado, semaforoADesbloquear);
+    }
 
     switch (tipoRequest) {
         case SELECT:
@@ -223,7 +230,12 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
             log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
     }
+
+    pthread_mutex_lock(semaforoADesbloquear);
     pthread_mutex_unlock(semaforoADesbloquear);
+
+    pthread_mutex_t *semaforoAEliminar = dictionary_remove(supervisorDeHilos, PIDCasteado);
+    free(PIDCasteado);
 }
 
 

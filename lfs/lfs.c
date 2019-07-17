@@ -74,11 +74,9 @@ void atenderMensajes(void *parametrosRequest) {
 
 char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
     char *tablePath = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
-    char *path = string_duplicate(tablePath);
-    free(tablePath);
-    string_append(&path, "/");
-    string_append(&path, nombreArchivo);
-    return path;
+    string_append(&tablePath, "/");
+    string_append(&tablePath, nombreArchivo);
+    return tablePath;
 }
 
 char *obtenerPathBloque(int numberoBloque) {
@@ -280,25 +278,24 @@ void lfsDump() {
                 void _dumpKey(char *key, t_list *listaDeRegistros) {
                     int index = 0;
                     void _dumpRegistro(char *linea) {
-                        pthread_mutex_lock(semArchivo);
+//                        pthread_mutex_lock(semArchivo);
                         FILE *archivoDump = fopen(nombreArchivo, "a");
                         fclose(archivoDump);
                         escribirEnBloque(linea, nombreDump, -1, nombreArchivo);
-                        pthread_mutex_unlock(semArchivo);
+//                        pthread_mutex_unlock(semArchivo);
                         list_remove(listaDeRegistros, index);
-                        free(nombreArchivo);
                     }
                     list_iterate(listaDeRegistros, _dumpRegistro);
 
                 }
                 dictionary_iterator(tablaDeKeys, _dumpKey);
                 pthread_mutex_unlock(sem);
+                free(nombreArchivo);
             }
             if (!dictionary_is_empty(memTable)) {
-
                 dictionary_iterator(memTable, dumpTabla);
-
             }
+
         } else {
             log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
             printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
@@ -682,11 +679,12 @@ void liberarBloque(char *nroBloque) {
     pthread_mutex_lock(mutexAsignacionBloques);
     char *bloquePath = obtenerPathBloque(atoi(nroBloque));
     vaciarArchivo(bloquePath);
-    free(dictionary_get(bloquesAsignados, nroBloque));
-    t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-    bloque->tabla = string_new();
-    bloque->particion = -1;
-    dictionary_put(bloquesAsignados, nroBloque, bloque);
+    if(dictionary_has_key(bloquesAsignados,nroBloque)){
+        t_bloqueAsignado *bloque = dictionary_get(bloquesAsignados, nroBloque);
+        free(bloque->tabla);
+        bloque->tabla = string_new();
+        bloque->particion = -1;
+    }
     bitarray_clean_bit(bitarray, atoi(nroBloque));
     free(bloquePath);
     pthread_mutex_unlock(mutexAsignacionBloques);
@@ -1082,10 +1080,10 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
                 }
             }
         }
-        if (palabras != NULL) freeArrayDeStrings(palabras);
-        vaciarString(&blockPath);
         fclose(binarioBloque);
         pthread_mutex_unlock(semBloque);
+        if (palabras != NULL) freeArrayDeStrings(palabras);
+        vaciarString(&blockPath);
     }
     free(linea);
     free(keyEncontrado);

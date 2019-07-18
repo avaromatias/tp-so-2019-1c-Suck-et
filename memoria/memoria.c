@@ -9,6 +9,7 @@
 
 #include "memoria.h"
 
+
 t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logger)	{
 	t_configuracion configuracion;
 
@@ -334,8 +335,8 @@ void journaling(parametros_hilo_journal* parametros){
 
 
     while (1){
-        sleep(15);
-        //sleep(retardos->retardoJournaling/1000);
+        //sleep(15);
+        sleep(retardos->retardoJournaling);
         pthread_mutex_lock(semaforoJournaling);
         gestionarJournal(conexionLissandra , memoria, logger, semaforoJournaling);
         pthread_mutex_unlock(semaforoJournaling);
@@ -835,6 +836,9 @@ int main(void) {
     char* nombreArchivoConfiguracionConExtension = string_from_format("%s.cfg", nombreArchivoConfiguracion);
 	t_configuracion configuracion = cargarConfiguracion(nombreArchivoConfiguracionConExtension, logger);
 	free(nombreArchivoConfiguracionConExtension);
+
+    //monitorearDirectorio("/home/utnso/tp-2019-1c-Suck-et/memoria/");
+
 
 	t_retardos_memoria* retardos = malloc(sizeof(t_retardos_memoria));
 	retardos->retardoMemoria = configuracion.retardoMemoria;

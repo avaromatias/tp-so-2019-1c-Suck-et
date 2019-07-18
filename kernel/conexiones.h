@@ -67,6 +67,7 @@ typedef struct {
     parametros_plp *parametrosPLP;
     parametros_pcp *parametrosPCP;
     t_dictionary *supervisorDeHilos;
+    int memoriasUtilizables;
 } p_planificacion;
 
 p_planificacion *paramPlanificacionGeneral;

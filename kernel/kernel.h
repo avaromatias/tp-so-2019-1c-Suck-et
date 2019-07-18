@@ -61,7 +61,8 @@ t_configuracion cargarConfiguracion(char *, t_log *);
 
 void inicializarEstructurasKernel(t_dictionary *tablaDeMemoriasConCriterios);
 
-int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral, pthread_mutex_t *semaforoHilo);
+int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral,
+                               pthread_mutex_t *semaforoHilo);
 
 int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlanifGeneral);
 
@@ -79,6 +80,8 @@ bool validarComandosKernel(t_comando requestParseada, t_log *logger);
 
 bool esComandoValidoDeKernel(t_comando comando);
 
+void imprimirMensajeAdd(int numeroMemoria, char *criterio);
+
 int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID);
 
 int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion,
@@ -93,7 +96,7 @@ int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria, int PID);
 
 int gestionarDescribeGlobalKernel(int fdMemoria, int PID);
 
-int gestionarAdd(char **parametrosDeRequest, p_consola_kernel *parametros);
+int gestionarAdd(char **parametrosDeRequest, p_planificacion *paramPlanificacionGeneral);
 
 int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP);
 
@@ -136,7 +139,8 @@ void *sincronizacionPLP(void *parametrosPLP);
 
 void instanciarPCPs(p_planificacion *);
 
-void planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t * semaforoHilo);
+void
+planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t *semaforoHilo);
 
 //Estructuras de las metricas
 typedef struct {

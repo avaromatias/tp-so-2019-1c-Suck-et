@@ -886,7 +886,14 @@ int obtenerLatenciaSegunTipoDeRequest(t_list* listaRequestsDeAlgunCriterio, char
 //GOSSIPING
 
 void gossiping(parametros_gossiping* parametros){
-    //
+
+
+    GestorConexiones* misConexiones = (GestorConexiones*) parametros->misConexiones;
+    t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
+    t_log* logger = (t_log*) parametros->logger;
+
+    
+
 }
 pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_list* memoriasConocidas, t_log* logger){
     pthread_t* hiloGossiping = malloc(sizeof(pthread_t));

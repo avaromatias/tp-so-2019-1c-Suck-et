@@ -154,4 +154,6 @@ typedef struct {
     GestorConexiones* misConexiones;
 }parametros_gossiping;
 
+pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_list* memoriasConocidas, t_log* logger);
+
 #endif /* KERNEL_H_ */

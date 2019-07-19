@@ -9,6 +9,7 @@
 #include <commons/collections/queue.h>
 #include <commons/collections/dictionary.h>
 #include "../libs/sockets.h"
+#include "../libs/consola.h"
 
 typedef struct {
     GestorConexiones *conexion;
@@ -70,6 +71,13 @@ typedef struct {
     int memoriasUtilizables;
 } p_planificacion;
 
+//Estructura
+typedef struct {
+    char* ipNodoMemoria;
+    int puertoNodoMemoria;
+    int fdNodoMemoria;
+} t_nodoMemoria;
+
 p_planificacion *paramPlanificacionGeneral;
 
 //Conexión con Memoria
@@ -93,5 +101,7 @@ char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
 void borrarFdDeListaDeFdsConectados(int fdADesconectar, t_dictionary *tablaMemoriasConCriterios, char *criterio);
 
 void actualizarMetadata(t_dictionary *metadata, char *mensaje, t_log *logger);
+
+bool tenemosMemoriaEnListaDeMemorias(t_list *listaDeNodosMemorias, t_nodoMemoria *nodoDatosDeMemoria);
 
 #endif //KERNEL_CONEXIONES_H

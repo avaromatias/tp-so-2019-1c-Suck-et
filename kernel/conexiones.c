@@ -31,6 +31,9 @@ void *atenderConexiones(void *parametrosThread) {
     t_dictionary *supervisorDeHilos = parametros->supervisorDeHilos;
     pthread_mutex_t *mutexJournal = parametros->mutexJournal;
 
+    char **direccionesNuevasMemorias;
+    t_list *listaDeNodosMemorias = list_create();
+
     fd_set emisores;
 
     while (1) {
@@ -53,8 +56,9 @@ void *atenderConexiones(void *parametrosThread) {
                         case 0:
                             // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                             // nombre_maravillosa_funcion();
-                            desconexionMemoria(fdConectado, unaConexion, tablaDeMemoriasConCriterios, logger,
-                                               mutexJournal);
+                            eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios,
+                                                                     mutexJournal);
+                            desconectarCliente(fdConectado, unaConexion, logger);
                             break;
                             // recibí algún mensaje
                         default:; // esto es lo más raro que vi pero tuve que hacerlo
@@ -69,13 +73,15 @@ void *atenderConexiones(void *parametrosThread) {
                             else if (bytesRecibidos == 0) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();
-                                desconexionMemoria(fdConectado, unaConexion, tablaDeMemoriasConCriterios, logger,
-                                                   mutexJournal);
+                                eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios,
+                                                                         mutexJournal);
+                                desconectarCliente(fdConectado, unaConexion, logger);
                             } else {
                                 switch (header.tipoMensaje) {
                                     case RESPUESTA:
-                                        gestionarRespuesta(header.fdRemitente, header.pid, header.tipoRequest, supervisorDeHilos,
-                                                tablaDeMemoriasConCriterios, metadata, mensaje, logger);
+                                        gestionarRespuesta(header.fdRemitente, header.pid, header.tipoRequest,
+                                                           supervisorDeHilos,
+                                                           tablaDeMemoriasConCriterios, metadata, mensaje, logger);
                                         break;
                                     case CONEXION_ACEPTADA:
                                         //atenderHandshake(header, componente, parametros);
@@ -86,11 +92,14 @@ void *atenderConexiones(void *parametrosThread) {
                                         //atenderHandshake(header, componente, parametros);
                                     case CONEXION_RECHAZADA:
                                         break;
-                                    case GOSSIPING:
-                                        //char **direccionesNuevasMemorias = obtenerDatosDeConexion();
-                                    case ERR: ;
-                                        char* PID = string_itoa(header.pid);
-                                        pthread_mutex_t* semaforo = (pthread_mutex_t*) dictionary_get(supervisorDeHilos, PID);
+                                    case RESPUESTA_GOSSIPING:
+                                        //direccionesNuevasMemorias = obtenerDatosDeConexion(mensaje);
+                                        //identificarMemorias(listaDeNodosMemorias, direccionesNuevasMemorias, logger);
+
+                                    case ERR:;
+                                        char *PID = string_itoa(header.pid);
+                                        pthread_mutex_t *semaforo = (pthread_mutex_t *) dictionary_get(
+                                                supervisorDeHilos, PID);
                                         pthread_mutex_unlock(semaforo);
                                         free(PID);
                                         break;
@@ -117,6 +126,50 @@ void *atenderConexiones(void *parametrosThread) {
         }
     }
 }
+
+/*void identificarMemorias(t_list *listaDeNodosMemorias, char **direccionesNuevasMemorias, t_log *logger) {
+
+    int cantidadMemoriasReconocidas = tamanioDeArrayDeStrings(direccionesNuevasMemorias);
+    char **ipYPuerto;
+
+    for (int i = 0; i < cantidadMemoriasReconocidas; i++) {
+        t_nodoMemoria *nodoDatosDeMemoria = (t_nodoMemoria *) malloc(sizeof(t_nodoMemoria));
+        ipYPuerto = string_split(direccionesNuevasMemorias[i], ":");
+
+        if (esString(ipYPuerto[0]) && esEntero(ipYPuerto[1])) {
+            nodoDatosDeMemoria->ipNodoMemoria = ipYPuerto[0];
+            nodoDatosDeMemoria->puertoNodoMemoria = ipYPuerto[1];
+            if (tenemosMemoriaEnListaDeMemorias(listaDeNodosMemorias, nodoDatosDeMemoria)) {
+                log_warning(logger,
+                            "La memoria ya se está en nuestra lista de memorias. No procederemos a conectarnos.\n");
+            } else {
+                list_add(listaDeNodosMemorias, nodoDatosDeMemoria);
+            }
+        }
+    }
+}
+
+void conectarseANodosPorGossiping(t_list *listaDeNodosMemorias, ) {
+
+}
+
+bool tenemosMemoriaEnListaDeMemorias(t_list *listaDeNodosMemorias, t_nodoMemoria *nodoDatosDeMemoria) {
+
+    bool memoriaEncontrada(void *elemento) {
+        t_nodoMemoria *nodoAVerificar = elemento;
+        char *ip = nodoAVerificar->ipNodoMemoria;
+
+        if (strcmp(nodoDatosDeMemoria->ipNodoMemoria, ip)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    if (list_find(listaDeNodosMemorias, memoriaEncontrada(nodoDatosDeMemoria)) != NULL) {
+        return true;
+    } else return false;
+
+}*/
 
 int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger) {
     int fdMemoria = conectarseAServidor(ipMemoria, puertoMemoria, misConexiones, logger);
@@ -199,14 +252,14 @@ void crearTablaEnMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *lo
 }
 
 void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dictionary *supervisorDeHilos,
-        t_dictionary *memoriasConCriterios, t_dictionary *metadata, char *mensaje, t_log *logger) {
+                        t_dictionary *memoriasConCriterios, t_dictionary *metadata, char *mensaje, t_log *logger) {
 
     char *PIDCasteado = string_itoa(pid);
     pthread_mutex_t *semaforoADesbloquear;
-    if(dictionary_has_key(supervisorDeHilos,PIDCasteado)) {
-        semaforoADesbloquear = (pthread_mutex_t*) dictionary_get(supervisorDeHilos, PIDCasteado);
+    if (dictionary_has_key(supervisorDeHilos, PIDCasteado)) {
+        semaforoADesbloquear = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PIDCasteado);
     } else {
-        semaforoADesbloquear= paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
+        semaforoADesbloquear = paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
         pthread_mutex_lock(semaforoADesbloquear);
         dictionary_put(supervisorDeHilos, PIDCasteado, semaforoADesbloquear);
     }
@@ -239,14 +292,27 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
     free(PIDCasteado);
 }
 
+/*void borrarFdDeListaDeFdsConectados(int fdMemoria, t_dictionary *tablaDeMemoriasConCriterios, char *criterio) {
 
+    char *fdADesconectar = string_itoa(fdMemoria);
 
-void borrarFdDeListaDeFdsConectados(int fdADesconectar, t_dictionary *tablaDeMemoriasConCriterios, char *criterio) {
+    bool memoriaEncontrada(void *elemento) {
+        char *elementoAComparar = string_itoa((int) elemento);
+
+        if (elemento != NULL) {
+            return (strcmp(fdADesconectar, elementoAComparar) == 0);
+        } else {
+            return false;
+        }
+    }
     t_list *listaDeMemoriasConectadasACriterio = dictionary_get(tablaDeMemoriasConCriterios, criterio);
     dictionary_remove(tablaDeMemoriasConCriterios, criterio);
-    list_remove(listaDeMemoriasConectadasACriterio, fdADesconectar);
-    dictionary_put(tablaDeMemoriasConCriterios, criterio, listaDeMemoriasConectadasACriterio);
-}
+    int indiceASacar = (int) list_find(listaDeMemoriasConectadasACriterio, memoriaEncontrada(fdADesconectar));
+    if (indiceASacar != 0) {
+        list_remove(listaDeMemoriasConectadasACriterio, indiceASacar);
+        dictionary_put(tablaDeMemoriasConCriterios, criterio, listaDeMemoriasConectadasACriterio);
+    }
+}*/
 
 void eliminarFileDescriptorDeTablasDeMemorias(int fdDesconectado, t_dictionary *tablaDeMemoriasConCriterios,
                                               pthread_mutex_t *mutexJournal) {
@@ -255,22 +321,16 @@ void eliminarFileDescriptorDeTablasDeMemorias(int fdDesconectado, t_dictionary *
 
     if (dictionary_has_key(tablaDeMemoriasConCriterios, "SC")) {
         char *criterio = "SC";
-        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
+        //borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
     }
     if (dictionary_has_key(tablaDeMemoriasConCriterios, "SHC")) {
         char *criterio = "SHC";
-        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
+        //borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
     }
     if (dictionary_has_key(tablaDeMemoriasConCriterios, "EC")) {
         char *criterio = "EC";
-        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
+        //borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
     }
-}
-
-void desconexionMemoria(int fdConectado, GestorConexiones *unaConexion, t_dictionary *tablaDeMemoriasConCriterios,
-                        t_log *logger, pthread_mutex_t *mutexJournal) {
-    eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
-    desconectarCliente(fdConectado, unaConexion, logger);
 }
 
 char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping

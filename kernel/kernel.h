@@ -22,7 +22,6 @@
 #include <commons/collections/queue.h>
 #include "../libs/config.h"
 #include "../libs/sockets.h"
-#include "../libs/consola.h"
 #include "conexiones.h"
 
 //Estructura necesaria para el archivo de configuración
@@ -35,12 +34,15 @@ typedef struct {
     int retardoEjecucion;
 } t_configuracion;
 
-//Estructura necesaria para las metadatas de las tablas
+//Estructura para manejar metricas
 typedef struct {
-    char *consistencia;
-    int particiones;
-    int tiempoCompactacion;
-} t_metadataTablas;
+    int fdMemoria;
+    //char* criteroAsociado;
+    long inicioRequest;
+    long finRequets;
+    long duracionEnSegundos;
+    char *tipoRequest;
+} t_estadistica_request;
 
 //Estructura necesaria para el manejo de archivosLQL
 typedef struct {
@@ -141,16 +143,5 @@ void instanciarPCPs(p_planificacion *);
 
 void
 planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t *semaforoHilo);
-
-//Estructuras de las metricas
-typedef struct {
-    int fdMemoria;
-    //char* criteroAsociado;
-    long inicioRequest;
-    long finRequets;
-    long duracionEnSegundos;
-    char *tipoRequest;
-} t_estadistica_request;
-
 
 #endif /* KERNEL_H_ */

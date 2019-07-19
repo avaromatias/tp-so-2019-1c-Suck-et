@@ -25,6 +25,7 @@ typedef struct {
     pthread_mutex_t *mutexJournal;
     t_dictionary *supervisorDeHilos;
     pthread_mutex_t *mutexSemaforoHilo;
+    t_list* memoriasConocidas;
 } parametros_thread_k;
 
 //Estructura necesaria para manejar las consistencias y la metadata
@@ -81,8 +82,7 @@ typedef struct {
 p_planificacion *paramPlanificacionGeneral;
 
 //Conexión con Memoria
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios,
-                               t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos);
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios, t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas);
 
 void *atenderConexiones(void *parametrosThread);
 

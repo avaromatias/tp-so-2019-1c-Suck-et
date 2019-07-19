@@ -5,7 +5,7 @@
 #include "conexiones.h"
 
 pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios,
-                               t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos) {
+                               t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas) {
     pthread_t *hiloConexiones = malloc(sizeof(pthread_t));
 
     parametros_thread_k *parametros = (parametros_thread_k *) malloc(sizeof(parametros_thread_k));
@@ -16,6 +16,7 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_d
     parametros->logger = logger;
     parametros->mutexJournal = mutexJournal;
     parametros->supervisorDeHilos = visorDeHilos;
+    parametros->memoriasConocidas = memoriasConocidas;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -30,6 +31,7 @@ void *atenderConexiones(void *parametrosThread) {
     t_dictionary *metadata = parametros->metadataTabla;
     t_dictionary *supervisorDeHilos = parametros->supervisorDeHilos;
     pthread_mutex_t *mutexJournal = parametros->mutexJournal;
+    t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
 
     char **direccionesNuevasMemorias;
     t_list *listaDeNodosMemorias = list_create();
@@ -95,6 +97,7 @@ void *atenderConexiones(void *parametrosThread) {
                                     case RESPUESTA_GOSSIPING:
                                         //direccionesNuevasMemorias = obtenerDatosDeConexion(mensaje);
                                         //identificarMemorias(listaDeNodosMemorias, direccionesNuevasMemorias, logger);
+                                        agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
 
                                     case ERR:;
                                         char *PID = string_itoa(header.pid);

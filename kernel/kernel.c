@@ -58,10 +58,13 @@ int main(void) {
     t_queue *colaDeFinalizados = queue_create();
 
     GestorConexiones *misConexiones = inicializarConexion();
-    conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
+    int fdMemoriaPrincipal = conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
+    agregarIpMemoria(configuracion.ipMemoria, configuracion.puertoMemoria, memoriasConocidas, logger);
+    t_nodoMemoria* nodoMemoriaPrincipal = list_get(memoriasConocidas, 1);
+    nodoMemoriaPrincipal->fdNodoMemoria = fdMemoriaPrincipal;
 
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas,
-                                                    mutexJournal, supervisorDeHilos);
+                                                    mutexJournal, supervisorDeHilos, memoriasConocidas);
 
     p_consola_kernel *pConsolaKernel = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
@@ -111,6 +114,7 @@ int main(void) {
     pthread_t* hiloGossiping = (pthread_t*)crearHiloGossiping(misConexiones, memoriasConocidas, logger);
 
     pthread_join(*hiloRespuestas, NULL);
+    pthread_join(*hiloGossiping, NULL);
 
     free(pConsolaKernel);
     free(parametrosPCP);
@@ -910,11 +914,14 @@ void gossiping(parametros_gossiping* parametros){
     GestorConexiones* misConexiones = (GestorConexiones*) parametros->misConexiones;
     t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
     t_log* logger = (t_log*) parametros->logger;
+    t_nodoMemoria* nodoMemoriaPrincipal = list_get(memoriasConocidas, 1);
 
 
     int i = 0;
     while (1){
+
         sleep(20);
+        enviarPaquete(nodoMemoriaPrincipal->fdNodoMemoria, GOSSIPING, INVALIDO, "DAME_LISTA_GOSSIPING", -1);
         conectarseANuevasMemorias(memoriasConocidas, misConexiones, logger);
 
     }

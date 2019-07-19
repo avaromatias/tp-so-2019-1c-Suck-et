@@ -29,7 +29,8 @@ typedef enum  {
     RESPUESTA_GOSSIPING_2,
     ERR,
     CONEXION_ACEPTADA,
-    CONEXION_RECHAZADA
+    CONEXION_RECHAZADA,
+    NIVEL_MULTIPROCESAMIENTO
 } TipoMensaje;
 
 typedef enum {

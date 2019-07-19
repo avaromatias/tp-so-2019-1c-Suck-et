@@ -365,7 +365,7 @@ void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas
 
         char** nuevaMemoria = string_split(listaDeMemorias[i], ":");
 
-        agregarIpMemoria(nuevaMemoria[0], nuevaMemoria[1], memoriasConocidas, logger);
+        agregarIpMemoria(nuevaMemoria[0], atoi(nuevaMemoria[1]), memoriasConocidas, logger);
 
         i++;
 

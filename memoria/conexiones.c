@@ -117,8 +117,10 @@ void* atenderConexiones(void* parametrosThread)    {
                                         break;
                                     case GOSSIPING: ;
                                         atenderPedidoMemoria(header, mensaje, parametros);
+                                        sleep(1);
                                         break;
                                     case RESPUESTA_GOSSIPING_2: ;
+                                        sleep(1);
                                         atenderPedidoMemoria(header, mensaje, parametros);
                                         break;
                                 }
@@ -263,7 +265,7 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
         }else if (header.tipoMensaje == RESPUESTA_GOSSIPING_2){
             if (strcmp(mensaje, "LISTA_VACIA") != 0){
                 printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
-                agregarMemoriasRecibidas(mensaje, misConexiones, logger, memoria, semaforoMemoriasConocidas);
+                agregarMemoriasRecibidas(mensaje, misConexiones, memoria, logger, semaforoMemoriasConocidas);
             } else{
                 printf("Recibi lista vacia como respuesta 2\n");
             }

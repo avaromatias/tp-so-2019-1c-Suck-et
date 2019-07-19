@@ -922,7 +922,7 @@ void gossiping(parametros_gossiping* parametros){
     int i = 0;
     while (1){
 
-        sleep(20);
+        sleep(60);
         enviarPaquete(nodoMemoriaPrincipal->fdNodoMemoria, GOSSIPING, INVALIDO, "DAME_LISTA_GOSSIPING", -1);
         conectarseANuevasMemorias(memoriasConocidas, misConexiones, logger);
         i++;

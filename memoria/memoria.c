@@ -449,6 +449,7 @@ void conectarYAgregarNuevaMemoria(char* ipNuevaMemoria, GestorConexiones* misCon
             return false;
         }
     }
+    printf(list_size(memoria->memoriasConocidas) == 0);
     if(!list_any_satisfy(memoria->memoriasConocidas, _sonMismoString)){
         char** direccionIp = string_split(ipNuevaMemoria, ":");
         fdNodoMemoria = conectarseAServidor(direccionIp[0], atoi(direccionIp[1]), misConexiones, logger );

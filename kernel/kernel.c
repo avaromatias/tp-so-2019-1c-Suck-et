@@ -942,7 +942,7 @@ pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_list* memoria
 
 }
 
-void agregarIpMemoria(char* ipNuevaMemoria, char* puertoNuevaMemoria, t_list* memoriasConocidas, t_log* logger){
+void agregarIpMemoria(char* ipNuevaMemoria, int puertoNuevaMemoria, t_list* memoriasConocidas, t_log* logger){
 
     t_nodoMemoria* unNodoMemoria = malloc(sizeof(t_nodoMemoria));
 
@@ -953,7 +953,7 @@ void agregarIpMemoria(char* ipNuevaMemoria, char* puertoNuevaMemoria, t_list* me
 
             unNodoMemoria = (t_nodoMemoria*)elemento;
 
-            return strcmp( (char*) unNodoMemoria->ipNodoMemoria, ipNuevaMemoria) == 0 && atoi(ipNuevaMemoria) == (int) unNodoMemoria->puertoNodoMemoria;
+            return strcmp( (char*) unNodoMemoria->ipNodoMemoria, ipNuevaMemoria) == 0 && ipNuevaMemoria == (int) unNodoMemoria->puertoNodoMemoria;
 
         }else{
             return false;

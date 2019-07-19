@@ -60,7 +60,7 @@ int main(void) {
     GestorConexiones *misConexiones = inicializarConexion();
     int fdMemoriaPrincipal = conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
     agregarIpMemoria(configuracion.ipMemoria, configuracion.puertoMemoria, memoriasConocidas, logger);
-    t_nodoMemoria* nodoMemoriaPrincipal = list_get(memoriasConocidas, 1);
+    t_nodoMemoria* nodoMemoriaPrincipal = list_get(memoriasConocidas, 0);
     nodoMemoriaPrincipal->fdNodoMemoria = fdMemoriaPrincipal;
 
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas,
@@ -85,6 +85,7 @@ int main(void) {
     parametrosPLP->logger = logger;
 
     pthread_t *hiloPlanificadorLargoPlazo = crearHiloPlanificadorLargoPlazo(parametrosPLP);
+    pthread_t* hiloGossiping = (pthread_t*)crearHiloGossiping(misConexiones, memoriasConocidas, logger);
 
     parametros_pcp *parametrosPCP = (parametros_pcp *) malloc(sizeof(parametros_pcp));
 
@@ -111,10 +112,11 @@ int main(void) {
     }
 
     ejecutarConsola(pConsolaKernel, configuracion, paramPlanificacionGeneral);
-    pthread_t* hiloGossiping = (pthread_t*)crearHiloGossiping(misConexiones, memoriasConocidas, logger);
+
 
     pthread_join(*hiloRespuestas, NULL);
     pthread_join(*hiloGossiping, NULL);
+    pthread_join(*hiloPlanificadorLargoPlazo, NULL);
 
     free(pConsolaKernel);
     free(parametrosPCP);
@@ -914,7 +916,7 @@ void gossiping(parametros_gossiping* parametros){
     GestorConexiones* misConexiones = (GestorConexiones*) parametros->misConexiones;
     t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
     t_log* logger = (t_log*) parametros->logger;
-    t_nodoMemoria* nodoMemoriaPrincipal = list_get(memoriasConocidas, 1);
+    t_nodoMemoria* nodoMemoriaPrincipal = list_get(memoriasConocidas, 0);
 
 
     int i = 0;
@@ -923,6 +925,7 @@ void gossiping(parametros_gossiping* parametros){
         sleep(20);
         enviarPaquete(nodoMemoriaPrincipal->fdNodoMemoria, GOSSIPING, INVALIDO, "DAME_LISTA_GOSSIPING", -1);
         conectarseANuevasMemorias(memoriasConocidas, misConexiones, logger);
+        i++;
 
     }
 
@@ -966,7 +969,7 @@ void agregarIpMemoria(char* ipNuevaMemoria, int puertoNuevaMemoria, t_list* memo
 
         t_nodoMemoria* nuevoNodoMemoria = (t_nodoMemoria*)malloc(sizeof(t_nodoMemoria));
         nuevoNodoMemoria->ipNodoMemoria = ipNuevaMemoria;
-        nuevoNodoMemoria->puertoNodoMemoria = atoi(puertoNuevaMemoria);
+        nuevoNodoMemoria->puertoNodoMemoria = puertoNuevaMemoria;
         nuevoNodoMemoria->fdNodoMemoria = 0;
         list_add(memoriasConocidas, nuevoNodoMemoria);
         log_info(logger, "Nueva memoria agregada a lista de memorias conocidas");

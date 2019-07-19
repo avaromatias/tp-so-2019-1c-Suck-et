@@ -104,4 +104,9 @@ void actualizarMetadata(t_dictionary *metadata, char *mensaje, t_log *logger);
 
 bool tenemosMemoriaEnListaDeMemorias(t_list *listaDeNodosMemorias, t_nodoMemoria *nodoDatosDeMemoria);
 
+//GOSSPING
+
+void agregarIpMemoria(char* ipNuevaMemoria, int puertoNuevaMemoria, t_list* memoriasConocidas, t_log* logger);
+void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas, t_log* logger);
+
 #endif //KERNEL_CONEXIONES_H

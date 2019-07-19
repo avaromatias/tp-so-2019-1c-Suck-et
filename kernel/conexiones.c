@@ -98,6 +98,7 @@ void *atenderConexiones(void *parametrosThread) {
                                         //direccionesNuevasMemorias = obtenerDatosDeConexion(mensaje);
                                         //identificarMemorias(listaDeNodosMemorias, direccionesNuevasMemorias, logger);
                                         agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
+                                        break;
 
                                     case ERR:;
                                         char *PID = string_itoa(header.pid);
@@ -353,3 +354,55 @@ char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping
     }
     return direccionesDeMemorias;
 }
+
+//GOSSIPING
+
+void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas, t_log* logger){
+
+    int i = 0;
+    char** listaDeMemorias = string_split(memoriasRecibidas, ";");
+    while(listaDeMemorias[i] != NULL){
+
+        char** nuevaMemoria = string_split(listaDeMemorias[i], ":");
+
+        agregarIpMemoria(nuevaMemoria[0], nuevaMemoria[1], memoriasConocidas, logger);
+
+        i++;
+
+    }
+}
+
+void agregarIpMemoria(char* ipNuevaMemoria, int puertoNuevaMemoria, t_list* memoriasConocidas, t_log* logger){
+
+    t_nodoMemoria* unNodoMemoria = malloc(sizeof(t_nodoMemoria));
+
+
+    bool sonMismaMemoria(void* elemento){
+
+        if (elemento != NULL){
+
+            unNodoMemoria = (t_nodoMemoria*)elemento;
+
+            return strcmp( (char*) unNodoMemoria->ipNodoMemoria, ipNuevaMemoria) == 0 && (puertoNuevaMemoria == (int) unNodoMemoria->puertoNodoMemoria);
+
+        }else{
+            return false;
+        }
+    }
+
+    if (!list_any_satisfy(memoriasConocidas, sonMismaMemoria)){
+
+
+
+        t_nodoMemoria* nuevoNodoMemoria = (t_nodoMemoria*)malloc(sizeof(t_nodoMemoria));
+        nuevoNodoMemoria->ipNodoMemoria = ipNuevaMemoria;
+        nuevoNodoMemoria->puertoNodoMemoria = puertoNuevaMemoria;
+        nuevoNodoMemoria->fdNodoMemoria = 0;
+        list_add(memoriasConocidas, nuevoNodoMemoria);
+        log_info(logger, "Nueva memoria agregada a lista de memorias conocidas");
+    }else{
+        log_info(logger, "Memoria ya conocida");
+    }
+}
+
+

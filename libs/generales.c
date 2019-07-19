@@ -137,6 +137,16 @@ char *concat(int count, ...) {
     return merged;
 }
 
+void sem_wait_n(sem_t* semaforo, int cantidadInstancias)    {
+    for(int i=0; i < cantidadInstancias; i++)
+        sem_wait(semaforo);
+}
+
+void sem_post_n(sem_t* semaforo, int cantidadInstancias)    {
+    for(int i=0; i < cantidadInstancias; i++)
+        sem_post(semaforo);
+}
+
 
 char **parser(char *input) {
     string_trim(&input);

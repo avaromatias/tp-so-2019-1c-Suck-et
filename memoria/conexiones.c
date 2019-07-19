@@ -4,7 +4,7 @@
 
 #include "conexiones.h"
 
-pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoMemoriasConocidas, pthread_mutex_t* semaforoJournaling, t_retardos_memoria* retardos)    {
+pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoMemoriasConocidas, t_sincro_journaling* semaforoJournaling, t_retardos_memoria* retardos)    {
 
     /*int value;
     sem_getvalue(kernelConectado, &value);
@@ -21,7 +21,7 @@ pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria
     parametros->memoria = memoria;
     parametros->semaforoMemoriasConocidas = semaforoMemoriasConocidas;
     parametros->semaforoJournaling = semaforoJournaling;
-    parametros->retardoMemoria= retardos;
+    parametros->retardoMemoria = retardos;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -123,6 +123,9 @@ void* atenderConexiones(void* parametrosThread)    {
                                         sleep(1);
                                         atenderPedidoMemoria(header, mensaje, parametros);
                                         break;
+                                    case NIVEL_MULTIPROCESAMIENTO: ;
+                                        actualizarNivelMultiprocesamiento(mensaje, parametros->semaforoJournaling);
+                                        break;
                                 }
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
@@ -146,6 +149,18 @@ void* atenderConexiones(void* parametrosThread)    {
             }
         }
     }
+}
+
+void actualizarNivelMultiprocesamiento(void* mensaje, t_sincro_journaling* semaforoJournaling)  {
+    int nuevoNivel = atoi((char*) mensaje);
+    int viejoNivel = semaforoJournaling->cantidadRequestsEnParalelo;
+    pthread_mutex_lock(&semaforoJournaling->mutexNivel);
+    semaforoJournaling->cantidadRequestsEnParalelo = nuevoNivel;
+    if(viejoNivel < nuevoNivel)
+        sem_post_n(&semaforoJournaling->semaforoJournaling, nuevoNivel - viejoNivel);
+    else if(viejoNivel > nuevoNivel)
+        sem_wait_n(&semaforoJournaling->semaforoJournaling, viejoNivel - nuevoNivel);
+    pthread_mutex_unlock(&semaforoJournaling->mutexNivel);
 }
 
 void atenderHandshake(Header header, Componente componente, parametros_thread_memoria* parametros) {
@@ -275,17 +290,11 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
 
 void* atenderRequestKernel(void* parametrosRequest)    {
     parametros_thread_request* parametros = (parametros_thread_request*) parametrosRequest;
-
-
-    pthread_mutex_lock(parametros->semaforoJournaling);
-
-
     t_paquete resultado = gestionarRequest(parametros->comando, parametros->memoria, parametros->conexionLissandra, parametros->logger, parametros->semaforoJournaling);
 
     if(parametros->conexionKernel->fd > 0)  {
         enviarPaquete(parametros->conexionKernel->fd, resultado.tipoMensaje, parametros->comando.tipoRequest, resultado.mensaje, parametros->pid);
     }
-    pthread_mutex_unlock(parametros->semaforoJournaling);
 }
 
 pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoJournaling, int pid)   {
@@ -312,12 +321,11 @@ void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* pa
 
     t_retardos_memoria* retardosMemoria = (t_retardos_memoria*)parametros->retardoMemoria;
     sleep(retardosMemoria->retardoMemoria/1000);
-    //todo wait semaforoJournaling
     char** comandoParseado = parser(mensaje);
     t_comando comando = instanciarComando(comandoParseado);
-    crearHiloRequest(comando, parametros->memoria, parametros->conexionKernel, parametros->conexionLissandra, parametros->logger, parametros->semaforoJournaling, header.pid);
 
-    //todo post semaforoJournaling
+    pthread_t* hiloRequest = crearHiloRequest(comando, parametros->memoria, parametros->conexionKernel, parametros->conexionLissandra, parametros->logger, parametros->semaforoJournaling, header.pid);
+    pthread_join(*hiloRequest, NULL);
 }
 
 t_paquete recibirMensajeDeLissandra(t_control_conexion *conexion)    {

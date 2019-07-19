@@ -877,3 +877,56 @@ int obtenerLatenciaSegunTipoDeRequest(t_list* listaRequestsDeAlgunCriterio, char
     }
 
 */
+
+
+
+//GOSSIPING
+
+
+void agregarIpMemoria(char* ipNuevaMemoria, char* puertoNuevaMemoria, t_list* memoriasConocidas, t_log* logger){
+
+    t_nodoMemoria* unNodoMemoria = malloc(sizeof(t_nodoMemoria));
+
+
+    bool sonMismaMemoria(void* elemento){
+
+        if (elemento != NULL){
+
+            unNodoMemoria = (t_nodoMemoria*)elemento;
+
+            return strcmp( (char*) unNodoMemoria->ipNodoMemoria, ipNuevaMemoria) == 0 && atoi(ipNuevaMemoria) == (int) unNodoMemoria->puertoNodoMemoria;
+
+        }else{
+            return false;
+        }
+    }
+
+    if (!list_any_satisfy(memoriasConocidas, sonMismaMemoria)){
+
+
+
+        t_nodoMemoria* nuevoNodoMemoria = (t_nodoMemoria*)malloc(sizeof(t_nodoMemoria));
+        nuevoNodoMemoria->ipNodoMemoria = ipNuevaMemoria;
+        nuevoNodoMemoria->puertoNodoMemoria = atoi(puertoNuevaMemoria);
+        list_add(memoriasConocidas, nuevoNodoMemoria);
+        log_info(logger, "Nueva memoria agregada a lista de memorias conocidas");
+    }else{
+        log_info(logger, "Memoria ya conocida");
+    }
+}
+
+void agregarMemoriasRecibidas(char* memoriasRecibidas, memoriasConocidas, logger){
+
+    int i = 0;
+    char** listaDeMemorias = string_split(memoriasRecibidas, ";");
+    while(listaDeMemorias[i] != NULL){
+
+        char** nuevaMemoria = string_split(listaDeMemorias[i], ":");
+
+        agregarIpMemoria(nuevaMemoria[0], nuevaMemoria[1], memoriasConocidas, logger);
+
+        i++;
+
+    }
+}
+

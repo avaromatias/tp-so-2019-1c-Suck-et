@@ -513,10 +513,11 @@ int gestionarAdd(char **parametrosDeRequest, p_planificacion *paramPlanificacion
     GestorConexiones *misConexiones = pConsolaKernel->conexiones;
     t_dictionary *tablaMemoriasConCriterios = pConsolaKernel->memoriasConCriterios;
 
-    bool memoriaEncontrada = (list_size(misConexiones->conexiones) >= numeroMemoria);
+    bool haySuficientesMemorias = (list_size(misConexiones->conexiones) >= numeroMemoria);
 
-    if (memoriaEncontrada) {
+    if (haySuficientesMemorias) {
 
+        //Busco la memoria se posicionBuscada -1
         int *fdMemoriaSolicitada = (int *) list_get(misConexiones->conexiones, numeroMemoria - 1);
         // hacemos -1 por la ubicación 0
 
@@ -536,10 +537,26 @@ int gestionarAdd(char **parametrosDeRequest, p_planificacion *paramPlanificacion
                     return 0;
                 }
             } else if (strcmp("SHC", criterio) == 0 || strcmp("EC", criterio) == 0) {
-                list_add(listaFileDescriptors, fdMemoriaSolicitada);
-                imprimirMensajeAdd(numeroMemoria, criterio);
-                paramPlanificacionGeneral->memoriasUtilizables++;
-                return 0;
+
+                int* fdParaComparar;
+                bool sonMismoFileDescriptor(void* elemento){
+                    if (elemento != NULL){
+                        fdParaComparar = (int*) elemento;
+                        return (fdParaComparar == fdMemoriaSolicitada);
+                    }else{
+                        return false;
+                    }
+                }
+                if(!list_any_satisfy(listaFileDescriptors, sonMismoFileDescriptor)){
+                    list_add(listaFileDescriptors, fdMemoriaSolicitada);
+                    imprimirMensajeAdd(numeroMemoria, criterio);
+                    paramPlanificacionGeneral->memoriasUtilizables++;
+                    return 0;
+                }else{
+                    return -1;
+                }
+
+
             }
         } else {
             log_error(logger, "El criterio escrito no está dentro de los avalados.");
@@ -922,7 +939,7 @@ void gossiping(parametros_gossiping* parametros){
     int i = 0;
     while (1){
 
-        sleep(60);
+        sleep(20);
         enviarPaquete(nodoMemoriaPrincipal->fdNodoMemoria, GOSSIPING, INVALIDO, "DAME_LISTA_GOSSIPING", -1);
         conectarseANuevasMemorias(memoriasConocidas, misConexiones, logger);
         i++;

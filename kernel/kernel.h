@@ -144,4 +144,14 @@ void instanciarPCPs(p_planificacion *);
 void
 planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t *semaforoHilo);
 
+
+//Gossiping
+
+
+typedef struct {
+    t_log* logger;
+    t_list* memoriasConocidas;
+    GestorConexiones* misConexiones;
+}parametros_gossiping;
+
 #endif /* KERNEL_H_ */

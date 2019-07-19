@@ -46,6 +46,8 @@ int main(void) {
     t_list *listaDeCriteriosSHC = list_create();
     t_list *listaDeCriteriosEC = list_create();
 
+    t_list* memoriasConocidas = list_create();
+
     //voy a tener relacion de criterio con un t_list* de FDs
     dictionary_put(tablaDeMemoriasConCriterios, "SC", listaDeCriteriosSC);
     dictionary_put(tablaDeMemoriasConCriterios, "SHC", listaDeCriteriosSHC);
@@ -106,6 +108,7 @@ int main(void) {
     }
 
     ejecutarConsola(pConsolaKernel, configuracion, paramPlanificacionGeneral);
+    pthread_t* hiloGossiping = (pthread_t*)crearHiloGossiping(misConexiones, memoriasConocidas, logger);
 
     pthread_join(*hiloRespuestas, NULL);
 
@@ -882,6 +885,21 @@ int obtenerLatenciaSegunTipoDeRequest(t_list* listaRequestsDeAlgunCriterio, char
 
 //GOSSIPING
 
+void gossiping(parametros_gossiping* parametros){
+    //
+}
+pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_list* memoriasConocidas, t_log* logger){
+    pthread_t* hiloGossiping = malloc(sizeof(pthread_t));
+    parametros_gossiping* parametros = (parametros_gossiping*) malloc(sizeof(parametros_gossiping));
+
+    parametros->logger = logger;
+    parametros->memoriasConocidas = memoriasConocidas;
+    parametros->misConexiones = misConexiones;
+
+    pthread_create(hiloGossiping, NULL, &gossiping, parametros);
+    return hiloGossiping;
+
+}
 
 void agregarIpMemoria(char* ipNuevaMemoria, char* puertoNuevaMemoria, t_list* memoriasConocidas, t_log* logger){
 

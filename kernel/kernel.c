@@ -885,6 +885,22 @@ int obtenerLatenciaSegunTipoDeRequest(t_list* listaRequestsDeAlgunCriterio, char
 
 //GOSSIPING
 
+void conectarseANuevasMemorias(t_list* memoriasConocidas){
+
+    t_nodoMemoria* unNodoMemoria;
+    int fdNuevo;
+    void conectarseANodoMemoria(void* elemento){
+
+        if (elemento != NULL){
+            unNodoMemoria = (t_nodoMemoria*) elemento;
+            if (unNodoMemoria->fdNodoMemoria == 0){
+                fdNuevo = conectarseAMemoriaPrincipal(unNodoMemoria->ipNodoMemoria, unNodoMemoria->puertoNodoMemoria)
+            }
+        }
+
+    }
+    list_iterate(memoriasConocidas, );
+}
 void gossiping(parametros_gossiping* parametros){
 
 
@@ -892,7 +908,15 @@ void gossiping(parametros_gossiping* parametros){
     t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
     t_log* logger = (t_log*) parametros->logger;
 
-    
+
+    int i = 0;
+    while (1){
+        sleep(20);
+        conectarseANuevasMemorias(memoriasConocidas, logger);
+
+    }
+
+
 
 }
 pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_list* memoriasConocidas, t_log* logger){
@@ -933,6 +957,7 @@ void agregarIpMemoria(char* ipNuevaMemoria, char* puertoNuevaMemoria, t_list* me
         t_nodoMemoria* nuevoNodoMemoria = (t_nodoMemoria*)malloc(sizeof(t_nodoMemoria));
         nuevoNodoMemoria->ipNodoMemoria = ipNuevaMemoria;
         nuevoNodoMemoria->puertoNodoMemoria = atoi(puertoNuevaMemoria);
+        nuevoNodoMemoria->fdNodoMemoria = 0;
         list_add(memoriasConocidas, nuevoNodoMemoria);
         log_info(logger, "Nueva memoria agregada a lista de memorias conocidas");
     }else{

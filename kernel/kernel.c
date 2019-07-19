@@ -915,7 +915,7 @@ void agregarIpMemoria(char* ipNuevaMemoria, char* puertoNuevaMemoria, t_list* me
     }
 }
 
-void agregarMemoriasRecibidas(char* memoriasRecibidas, memoriasConocidas, logger){
+void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas, t_log* logger){
 
     int i = 0;
     char** listaDeMemorias = string_split(memoriasRecibidas, ";");

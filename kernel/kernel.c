@@ -885,7 +885,7 @@ int obtenerLatenciaSegunTipoDeRequest(t_list* listaRequestsDeAlgunCriterio, char
 
 //GOSSIPING
 
-void conectarseANuevasMemorias(t_list* memoriasConocidas){
+void conectarseANuevasMemorias(t_list* memoriasConocidas, GestorConexiones* misConexiones, t_log* logger){
 
     t_nodoMemoria* unNodoMemoria;
     int fdNuevo;
@@ -894,12 +894,15 @@ void conectarseANuevasMemorias(t_list* memoriasConocidas){
         if (elemento != NULL){
             unNodoMemoria = (t_nodoMemoria*) elemento;
             if (unNodoMemoria->fdNodoMemoria == 0){
-                fdNuevo = conectarseAMemoriaPrincipal(unNodoMemoria->ipNodoMemoria, unNodoMemoria->puertoNodoMemoria)
+                fdNuevo = conectarseAMemoriaPrincipal(unNodoMemoria->ipNodoMemoria, unNodoMemoria->puertoNodoMemoria, misConexiones, logger);
+                if(fdNuevo > 0 && fdNuevo != NULL){
+                    unNodoMemoria->fdNodoMemoria = fdNuevo;
+                }
             }
         }
 
     }
-    list_iterate(memoriasConocidas, );
+    list_iterate(memoriasConocidas, conectarseANodoMemoria);
 }
 void gossiping(parametros_gossiping* parametros){
 
@@ -912,7 +915,7 @@ void gossiping(parametros_gossiping* parametros){
     int i = 0;
     while (1){
         sleep(20);
-        conectarseANuevasMemorias(memoriasConocidas, logger);
+        conectarseANuevasMemorias(memoriasConocidas, misConexiones, logger);
 
     }
 

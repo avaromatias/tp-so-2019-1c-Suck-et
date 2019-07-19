@@ -30,6 +30,9 @@ typedef struct t_memoria_d t_memoria;
 typedef struct t_nodoMemoria nodoMemoria;
 typedef struct t_configuracion_d t_configuracion;
 typedef struct t_retardos_memoria_d t_retardos_memoria;
+#define EVENT_SIZE  ( sizeof (struct inotify_event) + 24 )
+#define BUF_LEN     ( 1024 * EVENT_SIZE )
+
 
 #include "conexiones.h"
 
@@ -101,6 +104,15 @@ typedef struct {
     t_log* logger;
     pthread_mutex_t* semaforoJournaling;
 } parametros_consola_memoria;
+
+typedef struct {
+ char* directorioAMonitorear;
+ t_retardos_memoria* retardos;
+ t_log* logger;
+ char* nombreArchivoDeConfiguracion;
+}parametros_hilo_monitor;
+
+
 pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, pthread_mutex_t* semaforoJournaling);
 
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
@@ -157,6 +169,13 @@ void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary 
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
 void vaciarMemoria(t_memoria* memoria, t_log* logger);
 pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, t_retardos_memoria* retardos, pthread_mutex_t* semaforoJournaling);
+
+//monitoreo
+
+void monitorearDirectorio(parametros_hilo_monitor* parametros);
+pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_retardos_memoria* retardos);
+
+//monitoreo
 
 //gossiping
 

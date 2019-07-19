@@ -4,7 +4,6 @@
 
 #ifndef TP_2019_1C_SUCK_ET_ARRAYDESTRING_H
 #define TP_2019_1C_SUCK_ET_GENERALES_H
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -15,11 +14,6 @@
 #include <commons/string.h>
 #include <sys/inotify.h>
 #include <unistd.h>
-
-
-
-#define EVENT_SIZE  ( sizeof (struct inotify_event) + 24 )
-#define BUF_LEN     ( 1024 * EVENT_SIZE )
 
 typedef enum {
     SELECT,
@@ -60,6 +54,6 @@ char **desarmarLinea(char *linea);
 int archivoVacio(char *path);
 void freeArrayDeStrings(char **array);
 void vaciarString(char** string);
-void monitorearDirectorio(char* nombreDirectorio);
+//void monitorearDirectorio(char* nombreDirectorio, char* nombreArchivoMemoria, t_log* logger, t_retardos_memoria* retardos);
 
 #endif //TP_2019_1C_SUCK_ET_ARRAYDESTRING_H

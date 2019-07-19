@@ -301,6 +301,8 @@ pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_con
 
     pthread_create(hiloRequest, NULL, &atenderRequestKernel, parametros);
 
+    pthread_detach(*hiloRequest);
+
     return hiloRequest;
 }
 

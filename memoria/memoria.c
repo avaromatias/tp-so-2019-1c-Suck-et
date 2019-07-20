@@ -27,7 +27,8 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
                 "TAM_MEM",
                 "RETARDO_JOURNAL",
                 "RETARDO_GOSSIPING",
-                "MEMORY_NUMBER"
+                "MEMORY_NUMBER",
+                "IP_MEMORIA"
         };
 
         for(int i = 0; i < COUNT_OF(clavesObligatorias); i++)	{
@@ -55,6 +56,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 		configuracion.retardoJournal = config_get_int_value(archivoConfig, "RETARDO_JOURNAL");
 		configuracion.retardoGossiping = config_get_int_value(archivoConfig, "RETARDO_GOSSIPING");
 		configuracion.cantidadDeMemorias = config_get_int_value(archivoConfig, "MEMORY_NUMBER");
+        configuracion.ipMemoria = string_duplicate(config_get_string_value(archivoConfig, "IP_FS"));
 
         config_destroy(archivoConfig);
 
@@ -990,7 +992,7 @@ int main(void) {
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
     //TODO Agregar "mi ip" al archivo de configuracion para que memorias tenga su propia ip en su lista de gossiping
-    agregarIpMemoria("10.5.58.157", string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
+    agregarIpMemoria(configuracion.ipMemoria, string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
 
     //pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, nombreArchivoConfiguracionConExtension, logger, retardos);
     pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);

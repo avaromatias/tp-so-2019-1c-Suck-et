@@ -56,6 +56,7 @@ struct t_configuracion_d{
     int retardoJournal;
     int retardoGossiping;
     int cantidadDeMemorias;
+    char* ipMemoria;
 };
 
 struct t_sincro_journaling_d {

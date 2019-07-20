@@ -33,6 +33,10 @@ void *atenderConexiones(void *parametrosThread) {
     pthread_mutex_t *mutexJournal = parametros->mutexJournal;
     t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
 
+    sem_t *semaforo_colaDeNew;
+    t_queue *colaDeNew;
+    sem_t* cantidadProcesosEnNew;
+
     char **direccionesNuevasMemorias;
     t_list *listaDeNodosMemorias = list_create();
 
@@ -58,8 +62,13 @@ void *atenderConexiones(void *parametrosThread) {
                         case 0:
                             // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                             // nombre_maravillosa_funcion();
-                            eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
                             desconectarCliente(fdConectado, unaConexion, logger);
+                            pthread_mutex_lock(mutexJournal);
+                            eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
+                            eliminarFileDescriptorDeNodosMemoriaConocidas(fdConectado, listaDeNodosMemorias, logger);
+                            //GestorConexiones* misConexiones, sem_t *semaforo_colaDeNew, t_queue *colaDeNew
+                            forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
+                            pthread_mutex_unlock(mutexJournal);
                             break;
                             // recibí algún mensaje
                         default:; // esto es lo más raro que vi pero tuve que hacerlo
@@ -74,9 +83,12 @@ void *atenderConexiones(void *parametrosThread) {
                             else if (bytesRecibidos == 0) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();
+                                desconectarCliente(fdConectado, unaConexion, logger);
+                                pthread_mutex_lock(mutexJournal);
                                 eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
                                 eliminarFileDescriptorDeNodosMemoriaConocidas(fdConectado, listaDeNodosMemorias, logger);
-                                desconectarCliente(fdConectado, unaConexion, logger);
+                                forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
+                                pthread_mutex_unlock(mutexJournal);
                             } else {
                                 switch (header.tipoMensaje) {
                                     case RESPUESTA:
@@ -265,6 +277,9 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
             actualizarMetadata(metadata, mensaje, logger);
             log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
+        case JOURNAL:
+            log_info(logger, "El Journal enviado a la memoria %i fue procesado correctamente.", fdMemoria);
+            break;
     }
     pthread_mutex_unlock(semaforoADesbloquear);
     free(PIDCasteado);
@@ -294,7 +309,27 @@ void borrarFdDeListaDeFdsConectados(int fdMemoria, t_dictionary *tablaDeMemorias
     }*/
 }
 
-void eliminarFileDescriptorDeNodosMemoriaConocidas(int fdConectado, t_list* listaDeNodosMemorias, t_log* logger){
+
+void eliminarFileDescriptorDeNodosMemoriaConocidas(int fdDesconectado, t_list* listaDeNodosMemorias, t_log* logger){
+
+
+    t_nodoMemoria* nodoMemoriaParaComparar = (t_nodoMemoria*)malloc(sizeof(t_nodoMemoria));
+    bool esNodoBuscado(void* elemento){
+        if (elemento!=NULL){
+            nodoMemoriaParaComparar = (t_nodoMemoria*)elemento;
+
+            if (nodoMemoriaParaComparar->fdNodoMemoria == fdDesconectado){
+                log_info(logger, string_from_format("Se eliminó el nodo de memoria con fd %i", fdDesconectado));
+                return true;
+            }else{
+                return false;
+            }
+        }else{
+            return false;
+        }
+    }
+    list_remove_by_condition(listaDeNodosMemorias, esNodoBuscado);
+    free(nodoMemoriaParaComparar);
 
 
 
@@ -318,6 +353,10 @@ void eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(int fdDesconec
     }
 
     log_info(logger, string_from_format("Se eliminó la memoria %i de las listas de criterios", fdDesconectado));
+
+    //pthread_mutex_unlock(mutexJournal);
+
+
 }
 
 char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping

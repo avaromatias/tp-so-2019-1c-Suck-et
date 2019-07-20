@@ -161,6 +161,17 @@ bool tenemosMemoriaEnListaDeMemorias(t_list *listaDeNodosMemorias, t_nodoMemoria
 
 }
 
+int conectarseANuevoNodoMemoria(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger) {
+    int fdMemoria = conectarseAServidor(ipMemoria, puertoMemoria, misConexiones, logger);
+    if (fdMemoria < 0) {
+        log_error(logger, "Hubo un error al intentar conectarse a la Memoria Principal. Cerrando el proceso...");
+    } else {
+        hacerHandshake(fdMemoria, KERNEL);
+        log_info(logger, "Conexión con Nodo Memoria establecida.");
+    }
+    return fdMemoria;
+}
+
 int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger) {
     int fdMemoria = conectarseAServidor(ipMemoria, puertoMemoria, misConexiones, logger);
     if (fdMemoria < 0) {

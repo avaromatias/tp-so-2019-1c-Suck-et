@@ -1101,7 +1101,7 @@ void conectarseANuevasMemorias(t_list* memoriasConocidas, GestorConexiones* misC
         if (elemento != NULL){
             unNodoMemoria = (t_nodoMemoria*) elemento;
             if (unNodoMemoria->fdNodoMemoria == 0){
-                fdNuevo = conectarseAMemoriaPrincipal(unNodoMemoria->ipNodoMemoria, unNodoMemoria->puertoNodoMemoria, misConexiones, logger);
+                fdNuevo = conectarseANuevoNodoMemoria(unNodoMemoria->ipNodoMemoria, unNodoMemoria->puertoNodoMemoria, misConexiones, logger);
                 if(fdNuevo > 0 && fdNuevo != NULL){
                     unNodoMemoria->fdNodoMemoria = fdNuevo;
                 }

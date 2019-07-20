@@ -31,7 +31,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 
     if (!existenTodasLasClavesObligatorias(archivoConfig, configuracion)) {
-        log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
+        //log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
         printf("Alguna de las claves obligatorias no están setteadas en el archivo de configuración.\n");
         exit(1); // settear algún código de error para cuando falte alguna key
     } else {
@@ -55,6 +55,7 @@ void atenderMensajes(void *parametrosRequest) {
     parametros_thread_request *parametros = (parametros_thread_request *) parametrosRequest;
     Header header = parametros->header;
     char *mensaje = parametros->mensaje;
+    //printf("%s\n", mensaje);
     char* request = string_duplicate(mensaje);
     char **comandoParseado = parser(mensaje);
     t_response *retorno;
@@ -62,12 +63,13 @@ void atenderMensajes(void *parametrosRequest) {
     retorno = gestionarRequest(comando);
     loguearRespuesta(request,retorno);
 
-    if (header.tipoRequest == CREATE && retorno->tipoRespuesta ==RESPUESTA) {
-        retorno->valor = concat(4, "CREATE OK |", comando.parametros[0], ";", comando.parametros[1]);
-    }
-    if(comando.tipoRequest == SELECT) {
-        if (strcmp(comandoParseado[1], "\"ANIMALS\"") && strcmp(comandoParseado[2], "112")) {
-            int i = 0;
+    if (header.tipoRequest == CREATE) {
+        if(retorno->tipoRespuesta ==RESPUESTA) {
+            retorno->valor = concat(4, "CREATE OK |", comando.parametros[0], ";", comando.parametros[1]);
+        }else{
+            if(string_contains(retorno->valor,"YA_EXISTE")) {
+                retorno->valor = concat(4, "CREATE ERROR |", comando.parametros[0], ";", comando.parametros[1]);
+            }
         }
     }
     enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, comando.tipoRequest, retorno->valor, header.pid);
@@ -241,7 +243,7 @@ void retardo() {
     if (config_has_property(archivoConfig, "RETARDO")) {
         int retardo = config_get_int_value(archivoConfig, "RETARDO");
         if (retardo < 0) {
-            log_error(logger, "El RETARDO no esta seteado en el Archivo de Configuracion.");
+            //log_error(logger, "El RETARDO no esta seteado en el Archivo de Configuracion.");
             printf("El RETARDO no esta seteado en el Archivo de Configuracion.\n");
             return;
         }
@@ -258,14 +260,14 @@ void lfsDump() {
         if (config_has_property(archivoConfig, "TIEMPO_DUMP")) {
             int tiempoDump = config_get_int_value(archivoConfig, "TIEMPO_DUMP");
             if (!tiempoDump) {
-                log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
+                //log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
                 printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
                 continue;
             }
             tiempoDump = tiempoDump / 1000;
             sleep(tiempoDump);
             config_destroy(archivoConfig);
-            log_info(logger,"Iniciando Proceso de Dump.");
+            //log_info(logger,"Iniciando Proceso de Dump.");
             void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
                 int nroDump = 0;
                 char *nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
@@ -302,7 +304,7 @@ void lfsDump() {
             }
             pthread_mutex_unlock(mutexMemtable);
         } else {
-            log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
+            //log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
             printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
             continue;
         }
@@ -509,11 +511,11 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
             // En caso que exista, se guardará el resultado en un archivo .log y se retorna un error indicando dicho resultado.
             if (!existeElArchivo(path)) {
                 crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
-                retorno->tipoRespuesta = ERR;
-                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe. Se creo su Metadata.");
+                retorno->tipoRespuesta = RESPUESTA;
+                retorno->valor = concat(3, "YA_EXISTE | La tabla ", nombreTabla, " ya existe. Se creo su Metadata.");
             } else {
-                retorno->tipoRespuesta = ERR;
-                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe.");
+                retorno->tipoRespuesta = RESPUESTA;
+                retorno->valor = concat(3, "YA_EXISTE | La tabla ", nombreTabla, " ya existe.");
             }
             free(path);
         } else {
@@ -602,7 +604,7 @@ void compactacion(void *parametrosThread) {
     int tiempoCompactacion = atoi(parametros->tiempoCompactacion) / 1000;
     while (1) {
         sleep(tiempoCompactacion);
-        log_info(logger,"Iniciando Proceso de Compactacion de tabla %s.",nombreTabla);
+        //log_info(logger,"Iniciando Proceso de Compactacion de tabla %s.",nombreTabla);
         pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
         time_t start1, end1, start2, end2;
         double total;
@@ -617,10 +619,11 @@ void compactacion(void *parametrosThread) {
             char *bloquesTemp = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
             char *bloquesTotales = string_new();
             if (!string_is_empty(bloquesBin)) {
-                bloquesTotales = concat(1, bloquesBin);
+                string_append(&bloquesTotales, bloquesBin);
             }
             if (!string_is_empty(bloquesTemp)) {
-                bloquesTotales = concat(3, bloquesTotales, ",", bloquesTemp);
+                string_append(&bloquesTotales, ",");
+                string_append(&bloquesTotales, bloquesTemp);
             }
             char **bloques = string_split(bloquesTotales, ",");
             char **lineas = obtenerLineasDeBloques(bloques);
@@ -631,8 +634,13 @@ void compactacion(void *parametrosThread) {
                 liberarBloques(bloques);
                 for (int j = 0; j < tamanioDeArrayDeStrings(lineasMaximas); j++) {
                     char **linea = desarmarLinea(lineasMaximas[j]);
-                    lfsInsertCompactacion(nombreTabla, string_duplicate(linea[1]), string_duplicate(linea[2]),
-                                          (time_t) strtol(string_duplicate(linea[0]), NULL, 10));
+                    char *keyString = string_duplicate(linea[1]);
+                    char *valorString = string_duplicate(linea[2]);
+                    char *timestampString = string_duplicate(linea[0]);
+                    lfsInsertCompactacion(nombreTabla, keyString, valorString, (time_t) strtol(timestampString, NULL, 10));
+                    free(keyString);
+                    free(valorString);
+                    free(timestampString);
                 }
                 eliminarArchivosSegunExtension(nombreTabla, ".tmpc");
                 eliminarArchivosSegunExtension(nombreTabla, ".bin");
@@ -641,10 +649,16 @@ void compactacion(void *parametrosThread) {
                 pthread_mutex_unlock(sem);
                 end2 = clock();
                 total += (double) (end2 - start2);
+                freeArrayDeStrings(lineasMaximas);
             }
+            free(bloquesBin);
+            free(bloquesTemp);
+            free(bloquesTotales);
+            freeArrayDeStrings(lineas);
         }
-        log_info(logger, "La tabla %s estuvo bloqueada por %f segundos.", nombreTabla,(double) (total / CLOCKS_PER_SEC));
+        //log_info(logger, "La tabla %s estuvo bloqueada por %f segundos.", nombreTabla,(double) (total / CLOCKS_PER_SEC));
     }
+    free(nombreTabla);
 }
 
 void eliminarArchivosSegunExtension(char *nombreTabla, char *extension) {
@@ -712,13 +726,16 @@ char **filtrarKeyMax(char **listaLineas) {
         char *mayorLinea = string_new();
         int mayorTimestamp = -1;
         for (int i = 0; i < tamanioDeArrayDeStrings(listaLineas); i++) {
-            char **linea = desarmarLinea(string_duplicate(listaLineas[i]));
+            char *listaLineasString = string_duplicate(listaLineas[i]);
+            char **linea = desarmarLinea(listaLineasString);
             char *key = linea[1];
             int timestamp = atoi(linea[0]);
-            if (strcmp(keyD, key) == 0 && timestamp > mayorTimestamp) {
+            if (strcmp(keyD, key) == 0 && timestamp >= mayorTimestamp) {
+                vaciarString(&mayorLinea);
                 mayorTimestamp = timestamp;
-                mayorLinea = string_duplicate(listaLineas[i]);
+                string_append(&mayorLinea, listaLineas[i]);
             }
+            free(listaLineasString);
         }
         lineasSinRepetir[tamanioDeArrayDeStrings(lineasSinRepetir)] = string_duplicate(mayorLinea);
     }
@@ -846,7 +863,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
                                          particion); // Aca creo que esta obteniendo un bloque disponible distinto al que la particion ya tiene asignado
         if (bloque == -1) {
             pthread_mutex_unlock(mutexAsignacionBloques);
-            log_error(logger, "No hay bloques disponibles.");
+            //log_error(logger, "No hay bloques disponibles.");
             printf("No hay bloques disponibles.\n");
             deleteFile(nombreArchivo);
             break;
@@ -868,7 +885,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
                 longitudArchivo++;
                 indice++;
             }
-            log_info(logger,"Se escribio en el archivo de bloque %s.bin",bloqueString);
+            //log_info(logger,"Se escribio en el archivo de bloque %s.bin",bloqueString);
             fclose(f);
             free(bloqueString);
             pthread_mutex_unlock(semBloque);
@@ -889,7 +906,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             char *tamanioString = string_itoa(tamanio);
             char *contenido = generarContenidoParaParticion(tamanioString, bloquesAsignadosAParticion);
             fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
-            log_info(logger,"Se escribio en el archivo %s.",nombreArchivo);
+            //log_info(logger,"Se escribio en el archivo %s.",nombreArchivo);
             fclose(fParticion);
             free(contenido);
             free(bloquesAsignadosAParticion);
@@ -916,7 +933,7 @@ int renombrarTemporales(char *nombreTabla) {
                 pthread_mutex_lock(semTmp);
                 if (rename(pathArchivo, newPathArchivo) == 0 && seRenombraron == 0) {
                     seRenombraron = 1;
-                    log_info(logger,"Se renombro el archivo %s a %sc.",nombreArchivo,nombreArchivo);
+                    //log_info(logger,"Se renombro el archivo %s a %sc.",nombreArchivo,nombreArchivo);
                 }
                 pthread_mutex_unlock(semTmp);
             }
@@ -1087,7 +1104,7 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
                     lineaContinuaEnOtroArchivo = false;
                     string_append(&timestampEncontrado, palabras[0]);
                     string_append(&keyEncontrado, palabras[1]);
-                    if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
+                    if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) >= mayorTimestamp)) {
                         mayorTimestamp = atoi(timestampEncontrado);
                         vaciarString(&mayorLinea);
                         string_append(&mayorLinea, linea);
@@ -1317,7 +1334,7 @@ t_metadata *obtenerMetadata(char *tabla) {
     t_config *config = abrirArchivoConfiguracion(metadataPath, logger);
 
     if (config == NULL) {
-        log_error(logger, "No se pudo obtener el archivo Metadata de la tabla %s", tabla);
+        //log_error(logger, "No se pudo obtener el archivo Metadata de la tabla %s", tabla);
         exit(1);
     }
 
@@ -1472,6 +1489,30 @@ void cargarBloquesAsignados(char *path) {
                         char **numeroParticion = string_split(nombreArchivo, ".");
                         particion = atoi(numeroParticion[0]);
                         freeArrayDeStrings(numeroParticion);
+                        char *pathArchivo = concat(3, pathTabla, "/", nombreArchivo);
+                        if (!archivoVacio(pathArchivo)) {
+                            char *bloquesArchivo = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo);
+                            char **arrayDeBloques = convertirStringDeBloquesAArray(bloquesArchivo);
+                            for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
+                                t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+                                bloque->tabla = string_duplicate(nombreTabla);
+                                bloque->particion = particion;
+                                pthread_mutex_lock(mutexAsignacionBloques);
+                                dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
+                                pthread_mutex_unlock(mutexAsignacionBloques);
+                            }
+                            freeArrayDeStrings(arrayDeBloques);
+                            free(bloquesArchivo);
+                        } else {
+                            if(sePuedeEscribirElArchivo(pathArchivo)) {
+                                char *bloqueDisponible = obtenerBloqueDisponible(nombreTabla, particion);
+                                generarContenidoParaParticion("0", bloqueDisponible);
+                                free(bloqueDisponible);
+                            } else {
+                                //log_error(logger, "No se pudo escribir en la particion %i", particion);
+                            }
+                        }
+                        free(pathArchivo);
                     } else {
                         particion = -1;
                         if (temporalesConflictivos == 0) {
@@ -1479,28 +1520,11 @@ void cargarBloquesAsignados(char *path) {
                                         "Se detectó que una compactación no pudo terminar su ejecución correctamente. Se procede a restaurar el File System a un estado consistente.");
                         }
                         char *pathArchivo = concat(3, pathTabla, "/", nombreArchivo);
-                        if (!archivoVacio(pathArchivo)) {
-                            char *bloqueTemporal = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo);
-                            char *pathBloque = obtenerPathBloque(atoi(bloqueTemporal));
-                            vaciarArchivo(pathBloque);
-                            //free(bloqueTemporal);
-                            free(pathBloque);
+                        if (archivoVacio(pathArchivo)) {
+                            deleteFile(pathArchivo);
                         }
-                        deleteFile(pathArchivo);
                         free(pathArchivo);
                     }
-                    char *bloquesArchivo = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo);
-                    char **arrayDeBloques = convertirStringDeBloquesAArray(bloquesArchivo);
-                    for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
-                        t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-                        bloque->tabla = string_duplicate(nombreTabla);
-                        bloque->particion = particion;
-                        pthread_mutex_lock(mutexAsignacionBloques);
-                        dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
-                        pthread_mutex_unlock(mutexAsignacionBloques);
-                    }
-                    freeArrayDeStrings(arrayDeBloques);
-                    free(bloquesArchivo);
                     free(nombreArchivo);
                 }
             }
@@ -1666,35 +1690,29 @@ void *atenderConexiones(void *parametrosThread) {
                 int fdConectado = *((int *) list_get(unaConexion->conexiones, i));
 
                 if (FD_ISSET(fdConectado, &emisores)) {
-                    int bytesRecibidos = recv(fdConectado, &headerSerializado, sizeof(Header), MSG_DONTWAIT);
+                    int bytesRecibidos = recv(fdConectado, &headerSerializado, sizeof(Header), MSG_WAITALL);
 
                     switch (bytesRecibidos) {
                         // hubo un error al recibir los datos
                         case -1:
-                            log_error(logger, "Hubo un error al recibir el header proveniente del socket %i",
-                                      fdConectado);
-                            break;
-                            // se desconectó
-                        case 0:
-                            // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
-                            // nombre_maravillosa_funcion();
                             desconectarCliente(fdConectado, unaConexion, logger);
                             break;
+                            // se desconectó
+//                        case 0:
+                            // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
+                            // nombre_maravillosa_funcion();
+//                            desconectarCliente(fdConectado, unaConexion, logger);
+//                            break;
                             // recibí algún mensaje
                         default:; // esto es lo más raro que vi pero tuve que hacerlo
                             Header header = deserializarHeader(&headerSerializado);
                             header.fdRemitente = fdConectado;
                             int pesoMensaje = header.tamanioMensaje * sizeof(char);
                             void *mensaje = (void *) malloc(pesoMensaje);
-                            bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
+                            bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_WAITALL);
                             if (bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
-                                log_error(logger, "Hubo un error al recibir el mensaje proveniente del socket %i",
-                                          fdConectado);
-                            else if (bytesRecibidos == 0) {
-                                // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
-                                // nombre_maravillosa_funcion();
                                 desconectarCliente(fdConectado, unaConexion, logger);
-                            } else {
+                            else {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
                                 if (header.tipoMensaje == HANDSHAKE) {

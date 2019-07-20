@@ -89,6 +89,9 @@ void *atenderConexiones(void *parametrosThread) {
                                         break;
                                     case CONEXION_ACEPTADA:
                                         //atenderHandshake(header, componente, parametros);
+                                        pthread_mutex_lock(mutexJournal);
+                                        forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
+                                        pthread_mutex_unlock(mutexJournal);
                                         log_info(logger,
                                                  "La memoria conectada recientemente ya se encuentra disponible para ser utilizada.\n");
                                         break;

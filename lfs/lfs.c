@@ -239,14 +239,14 @@ int obtenerBloqueDisponible(char *nombreTabla, int particion) {
 void retardo() {
     t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
     if (config_has_property(archivoConfig, "RETARDO")) {
-        int tiempoDump = config_get_int_value(archivoConfig, "RETARDO");
-        if (tiempoDump < 0) {
+        int retardo = config_get_int_value(archivoConfig, "RETARDO");
+        if (retardo < 0) {
             log_error(logger, "El RETARDO no esta seteado en el Archivo de Configuracion.");
             printf("El RETARDO no esta seteado en el Archivo de Configuracion.\n");
             return;
         }
-        tiempoDump = tiempoDump / 1000;
-        sleep(tiempoDump);
+        retardo = retardo / 1000;
+        sleep(retardo);
     }
     config_destroy(archivoConfig);
     return;
@@ -265,6 +265,7 @@ void lfsDump() {
             tiempoDump = tiempoDump / 1000;
             sleep(tiempoDump);
             config_destroy(archivoConfig);
+            log_info(logger,"Iniciando Proceso de Dump.");
             void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
                 int nroDump = 0;
                 char *nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
@@ -300,7 +301,6 @@ void lfsDump() {
                 dictionary_iterator(memTable, dumpTabla);
             }
             pthread_mutex_unlock(mutexMemtable);
-
         } else {
             log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
             printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
@@ -446,7 +446,7 @@ void vaciarArchivo(char *path) {
     pthread_mutex_unlock(semArchivo);
 }
 
-static void liberarTabla(t_dictionary *tablaDeKeys) {
+ void liberarTabla(t_dictionary *tablaDeKeys) {
     dictionary_destroy(tablaDeKeys);
 }
 
@@ -602,6 +602,7 @@ void compactacion(void *parametrosThread) {
     int tiempoCompactacion = atoi(parametros->tiempoCompactacion) / 1000;
     while (1) {
         sleep(tiempoCompactacion);
+        log_info(logger,"Iniciando Proceso de Compactacion de tabla %s.",nombreTabla);
         pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
         time_t start1, end1, start2, end2;
         double total;
@@ -642,8 +643,7 @@ void compactacion(void *parametrosThread) {
                 total += (double) (end2 - start2);
             }
         }
-        /*log_info(logger, "La tabla %s estuvo bloqueada por %f segundos.", nombreTabla,
-                 (double) (total / CLOCKS_PER_SEC));*/
+        log_info(logger, "La tabla %s estuvo bloqueada por %f segundos.", nombreTabla,(double) (total / CLOCKS_PER_SEC));
     }
 }
 
@@ -868,6 +868,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
                 longitudArchivo++;
                 indice++;
             }
+            log_info(logger,"Se escribio en el archivo de bloque %s.bin",bloqueString);
             fclose(f);
             free(bloqueString);
             pthread_mutex_unlock(semBloque);
@@ -888,6 +889,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             char *tamanioString = string_itoa(tamanio);
             char *contenido = generarContenidoParaParticion(tamanioString, bloquesAsignadosAParticion);
             fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
+            log_info(logger,"Se escribio en el archivo %s.",nombreArchivo);
             fclose(fParticion);
             free(contenido);
             free(bloquesAsignadosAParticion);
@@ -914,6 +916,7 @@ int renombrarTemporales(char *nombreTabla) {
                 pthread_mutex_lock(semTmp);
                 if (rename(pathArchivo, newPathArchivo) == 0 && seRenombraron == 0) {
                     seRenombraron = 1;
+                    log_info(logger,"Se renombro el archivo %s a %sc.",nombreArchivo,nombreArchivo);
                 }
                 pthread_mutex_unlock(semTmp);
             }

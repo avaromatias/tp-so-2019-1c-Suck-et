@@ -331,6 +331,8 @@ void* ejecutarConsola(void* parametrosConsola){
         comando = instanciarComando(comandoParseado);
         free(comandoParseado);
         if(validarComandosComunes(comando, logger))
+
+            //Retardo memoria
             log_info(logger, gestionarRequest(comando, memoria, conexionLissandra, logger, semaforoJournaling).mensaje);
 
     } while(comando.tipoRequest != EXIT);
@@ -367,7 +369,7 @@ void journaling(parametros_hilo_journal* parametros){
         pthread_mutex_lock(semaforoRetardos);
         int retardo = retardos->retardoJournaling;
         pthread_mutex_unlock(semaforoRetardos);
-        sleep(retardos->retardoJournaling / 1000);
+        sleep(retardo/ 1000);
         gestionarJournal(conexionLissandra , memoria, logger, semaforoJournaling);
     }
 }

@@ -7,7 +7,6 @@
  ============================================================================
  */
 
-
 #ifndef KERNEL_H_
 #define KERNEL_H_
 
@@ -35,38 +34,26 @@ typedef struct {
     int retardoEjecucion;
 } t_configuracion;
 
-//Estructura para manejar estadisticas de Requests de un FD
-typedef struct {
-    int fdMemoria;
-    double inicioRequest;
-    double finRequest;
-    double duracionEnSegundos;
-    char *tipoRequest;
-} estadisticasRequest;
-
-//Estructura necesaria para guardar las metricas de un solo FD
-typedef struct {
-    int fd;
-    int cantidadSelects;
-    int cantidadInserts;
-    double tiempoTotalSelects;
-    double tiempoTotalInserts;
-} metricasParaUnFd;
-
 //Estructura necesaria para el manejo de archivosLQL
 typedef struct {
     t_queue *colaDeRequests;//cada Request va a ser un t_comando
     int cantidadDeLineas;
     int PID;
-    int cantidadDeSelectProcesados;
-    int cantidadDeInsertProcesados;
 } t_archivoLQL;
+
+t_list *listaMetricasSC;
+t_list *listaMetricasSHC;
+t_list *listaMetricasEC;
 
 /******************************
  ** COMPORTAMIENTO DE KERNEL **
  ******************************/
 
 void inicializarSemyMutex();
+
+pthread_t *crearHiloMetricas(p_planificacion *paramPlanificacionGeneral);
+
+void mostrarMetricas(t_metricasDefinidas* metricasSC,t_metricasDefinidas* metricasSHC,t_metricasDefinidas* metricasEC, bool mostrarPorPantalla,t_log *logger);
 
 t_configuracion cargarConfiguracion(char *, t_log *);
 
@@ -75,6 +62,11 @@ void inicializarEstructurasKernel(t_dictionary *tablaDeMemoriasConCriterios);
 int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral,
                                pthread_mutex_t *mutexDeHiloRequest, estadisticasRequest *estadisticasRequest,
                                sem_t *semConcurrenciaMetricas);
+
+void calcularMetricas(bool mostrarPorPantalla, p_planificacion *paramPlanifGeneral);
+
+
+t_list *getListaMetricasPorCriterio(char *criterio);
 
 int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlanifGeneral);
 
@@ -94,7 +86,8 @@ bool esComandoValidoDeKernel(t_comando comando);
 
 void imprimirMensajeAdd(int numeroMemoria, char *criterio);
 
-int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID, estadisticasRequest *estadisticasRequest);
+int
+gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID, estadisticasRequest *estadisticasRequest);
 
 int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion,
                           int fdMemoria, int PID);
@@ -164,6 +157,11 @@ typedef struct {
     t_list *memoriasConocidas;
     GestorConexiones *misConexiones;
 } parametros_gossiping;
+
+typedef struct {
+    bool mostrarPorPantalla;
+    p_planificacion *paramPlanificacionGeneral;
+} parametrosMetricas;
 
 pthread_t *crearHiloGossiping(GestorConexiones *misConexiones, t_list *memoriasConocidas, t_log *logger);
 

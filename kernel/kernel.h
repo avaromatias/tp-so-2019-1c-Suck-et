@@ -73,7 +73,8 @@ t_configuracion cargarConfiguracion(char *, t_log *);
 void inicializarEstructurasKernel(t_dictionary *tablaDeMemoriasConCriterios);
 
 int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral,
-                               pthread_mutex_t *semaforoHilo);
+                               pthread_mutex_t *mutexDeHiloRequest, estadisticasRequest *estadisticasRequest,
+                               sem_t *semConcurrenciaMetricas);
 
 int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlanifGeneral);
 
@@ -93,12 +94,13 @@ bool esComandoValidoDeKernel(t_comando comando);
 
 void imprimirMensajeAdd(int numeroMemoria, char *criterio);
 
-int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID);
+int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID, estadisticasRequest *estadisticasRequest);
 
 int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion,
                           int fdMemoria, int PID);
 
-int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, int PID);
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, int PID,
+                          estadisticasRequest *estadisticasRequest);
 
 
 int gestionarDropKernel(char *nombreTabla, int fdMemoria, int PID);
@@ -158,14 +160,16 @@ planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *arch
 
 
 typedef struct {
-    t_log* logger;
-    t_list* memoriasConocidas;
-    GestorConexiones* misConexiones;
-}parametros_gossiping;
+    t_log *logger;
+    t_list *memoriasConocidas;
+    GestorConexiones *misConexiones;
+} parametros_gossiping;
 
-pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_list* memoriasConocidas, t_log* logger);
-void conectarseANuevasMemorias(t_list* memoriasConocidas, GestorConexiones* misConexiones, t_log* logger);
-void gossiping(parametros_gossiping* parametros);
+pthread_t *crearHiloGossiping(GestorConexiones *misConexiones, t_list *memoriasConocidas, t_log *logger);
+
+void conectarseANuevasMemorias(t_list *memoriasConocidas, GestorConexiones *misConexiones, t_log *logger);
+
+void gossiping(parametros_gossiping *parametros);
 
 
 #endif /* KERNEL_H_ */

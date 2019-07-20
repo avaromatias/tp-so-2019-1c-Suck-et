@@ -77,8 +77,9 @@ typedef struct {
     parametros_plp *parametrosPLP;
     parametros_pcp *parametrosPCP;
     t_dictionary *supervisorDeHilos;
-    t_metricas metricas;
+    t_metricas *metricas;
     int memoriasUtilizables;
+    double relojActual;
 } p_planificacion;
 
 //Estructura

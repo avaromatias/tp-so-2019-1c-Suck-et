@@ -108,8 +108,8 @@ int main(void) {
     t_list *estadisticasMemEC = list_create();
 
     t_metricas *metricasGenerales = (t_metricas *) malloc(sizeof(t_metricas));
-    t_metricas *metricasGenerales = {.estadisticasMemEC = estadisticasMemEC, .estadisticasMemSC = estadisticasMemSC,
-            .estadisticasMemSHC = estadisticasMemSHC};
+    //t_metricas *metricasGenerales = {.estadisticasMemEC = estadisticasMemEC, .estadisticasMemSC = estadisticasMemSC,
+            //.estadisticasMemSHC = estadisticasMemSHC};
 
     double relojActual = clock();
 
@@ -119,9 +119,9 @@ int main(void) {
     paramPlanificacionGeneral->supervisorDeHilos = supervisorDeHilos;
     paramPlanificacionGeneral->memoriasUtilizables = memoriasUtilizables;
     paramPlanificacionGeneral->metricas = metricasGenerales;
-    paramPlanificacionGeneral->relojActual = ((*relojActual)/CLOCKS_PER_SEC);
+//    paramPlanificacionGeneral->relojActual = ((*relojActual)/CLOCKS_PER_SEC);
 
-    pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
+//    pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
 
     for (int i = 0; i < configuracion.multiprocesamiento; i++) {
 //        paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo = semaforoHilo;
@@ -394,13 +394,11 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
     p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
     time_t tiempoFinRequest;
     double tiempoTotal;
-    char *criterioConsistencia;
-    int fdMemoria;
-    t_log *logger = pConsolaKernel->logger;
 
     char *criterioConsistencia;
     int fdMemoria;
     t_log *logger = pConsolaKernel->logger;
+
     if(paramPlanifGeneral->memoriasUtilizables > 0) {
         switch (requestParseada.tipoRequest) { //Analizar si cada gestionar va a tener que encolar en NEW, en lugar de enviarPaquete
             case SELECT:
@@ -408,11 +406,10 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     criterioConsistencia = criterioBuscado(requestParseada, pConsolaKernel->metadataTablas);
                     int key = atoi(requestParseada.parametros[1]);
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, key);
-                    int respuesta = gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1],
-                                                         fdMemoria, PID, estructuraMetricas);
+                    int respuesta = gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1], fdMemoria, PID, estadisticasRequest);
                     char *tipoRequest = "SELECT";
                     //actualizarMetricas(fdMemoria, paramPlanifGeneral, criterio, tipoRequest, mutexDeHiloRequest,
-                                       estadisticasRequest, semConcurrenciaMetricas);
+                                       //estadisticasRequest, semConcurrenciaMetricas);
                     return respuesta;
                 } else {
                     log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
@@ -429,8 +426,8 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                                                               requestParseada.parametros[2], fdMemoria, PID,
                                                               estadisticasRequest);
                         char *tipoRequest = "INSERT";
-                        //actualizarMetricas(fdMemoria, paramPlanifGeneral, criterio, tipoRequest, mutexDeHiloRequest,
-                                           estadisticasRequest, semConcurrenciaMetricas);
+//                        actualizarMetricas(fdMemoria, paramPlanifGeneral, criterio, tipoRequest, mutexDeHiloRequest,
+//                                           estadisticasRequest, semConcurrenciaMetricas);
                         return respuesta;
                     } else {
                         log_error(logger, "El criterio es nulo, no se puede analizar.");
@@ -479,7 +476,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                 return gestionarJournalKernel(paramPlanifGeneral);
         } //fin del switch
         pthread_mutex_lock(mutexDeHiloRequest); //hasta que me llega respuesta de request, ME BLOQUEO
-        paramPlanifGeneral->metricas.requestTotales++;
+//        paramPlanifGeneral->metricas.requestTotales++;
         pthread_mutex_unlock(mutexDeHiloRequest);
     } else {
         errorNoHayMemoriasAsociadas(logger);
@@ -502,7 +499,7 @@ int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlan
             if(paramPlanifGeneral->memoriasUtilizables > 0) {
                 gestionarRun(requestParseada.parametros[0], pConsolaKernel, parametrosPLP);
             } else {
-                errorNoHayMemoriasAsociadas(logger);
+                errorNoHayMemoriasAsociadas(pConsolaKernel->logger);
                 break;
             }
         case METRICS:
@@ -554,7 +551,7 @@ bool esComandoValidoDeKernel(t_comando comando) {
     }
 }
 
-int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID){
+int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID, estadisticasRequest *estadisticasRequest){
     char *request = string_from_format("SELECT %s %s", nombreTabla, key);
     enviarPaquete(fdMemoria, REQUEST, SELECT, request, PID);
     free(request);
@@ -569,7 +566,8 @@ int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones
     return 0;
 }
 
-int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, int PID){
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, int PID,
+                            estadisticasRequest *estadisticasRequest){
     char *request = string_from_format("INSERT %s %s %s", nombreTabla, key, valor);
     enviarPaquete(fdMemoria, REQUEST, INSERT, request, PID);
     free(request);
@@ -936,9 +934,13 @@ pthread_t *crearHiloPlanificadorCortoPlazo(p_planificacion *paramPlanificacionGe
 
 void
 planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t *semaforoHilo) {
+    estadisticasRequest *infoRequest = (estadisticasRequest*) malloc(sizeof(estadisticasRequest));
+    sem_t *semConcurrenciaMetricas = (sem_t *) malloc(sizeof(sem_t));
+    sem_init(semConcurrenciaMetricas, 0, 1);
     p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
     t_log *logger = paramPlanifGeneral->parametrosConsola->logger;
     int quantumMaximo = (int) paramPlanifGeneral->parametrosPCP->quantum;
+    time_t tiempoInicioRequest;
     t_archivoLQL *unLQL = archivoLQL;
     bool requestEsValida = true;
 
@@ -950,8 +952,10 @@ planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archivoLQL,
         requestEsValida = analizarRequest(*comando, pConsolaKernel);
         if (requestEsValida) {
             if ((diferenciarRequest(*comando) == 1)) { //Si es 1 es primitiva
-                gestionarRequestPrimitivas(*comando, paramPlanifGeneral, semaforoHilo);
-                actualizarCantRequest(archivoLQL, *comando); //para métricas
+                tiempoInicioRequest = clock();
+                infoRequest->inicioRequest = tiempoInicioRequest;
+                gestionarRequestPrimitivas(*comando, paramPlanifGeneral, semaforoHilo, infoRequest,
+                                          semConcurrenciaMetricas);
             } else { //Si es 0 es comando de Kernel
                 gestionarRequestKernel(*comando, paramPlanifGeneral);
             }
@@ -1135,7 +1139,7 @@ pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_list* memoria
 
 }
 
-void refreshMetadata(p_planificacion *paramPlanificacionGeneral, int tiempoDeRefresh, t_dictionary *metadataTablas,
+/*void refreshMetadata(p_planificacion *paramPlanificacionGeneral, int tiempoDeRefresh, t_dictionary *metadataTablas,
                      t_log *logger) {
     while (1) {
         sleep(tiempoDeRefresh);
@@ -1149,4 +1153,4 @@ void refreshMetadata(p_planificacion *paramPlanificacionGeneral, int tiempoDeRef
             log_error(logger, "No se ha actualizado correctamente la metadata del kernel.\n");
         }
     }
-}
+}*/

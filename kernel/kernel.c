@@ -226,6 +226,8 @@ bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
 
 int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral,
                                pthread_mutex_t *mutexDeHiloRequest) {
+
+    printf("gestionar request primivivas\n");
     int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
     char *PIDCasteado = string_itoa(PID);
     dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
@@ -240,7 +242,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
             case SELECT:
                 if (dictionary_has_key(pConsolaKernel->metadataTablas, requestParseada.parametros[0])) {
                     criterioConsistencia = criterioBuscado(requestParseada, pConsolaKernel->metadataTablas);
-                    int key = atoi(requestParseada.parametros[2]);
+                    int key = atoi(requestParseada.parametros[1]);
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, key);
                     return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                                  fdMemoria,
@@ -513,12 +515,12 @@ int gestionarAdd(char **parametrosDeRequest, p_planificacion *paramPlanificacion
     GestorConexiones *misConexiones = pConsolaKernel->conexiones;
     t_dictionary *tablaMemoriasConCriterios = pConsolaKernel->memoriasConCriterios;
 
-    bool haySuficientesMemorias = (list_size(misConexiones->conexiones) >= numeroMemoria);
+    bool haySuficientesMemorias = (list_size(misConexiones->conexiones) > numeroMemoria && (numeroMemoria >= 0));
 
     if (haySuficientesMemorias) {
 
-        //Busco la memoria se posicionBuscada -1
-        int *fdMemoriaSolicitada = (int *) list_get(misConexiones->conexiones, numeroMemoria - 1);
+        //BUSCO LA MEMORIA CORRESPONDIENTE A LA POSICION DESEADA
+        int *fdMemoriaSolicitada = (int *) list_get(misConexiones->conexiones, numeroMemoria);
         // hacemos -1 por la ubicación 0
 
         if ((strcmp("SC", criterio) == 0) || (strcmp("SHC", criterio) == 0) || (strcmp("EC", criterio) == 0)) {
@@ -624,15 +626,13 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
             } else if (strcmp("EC", criterio) == 0) {
                 int cantidadFDsAsociadosEC = list_size(memoriasDelCriterioPedido);
                 if (cantidadFDsAsociadosEC > 0) {
-                    int elementoBuscado = (cantidadFDsAsociadosEC -
-                                           (cantidadFDsAsociadosEC -
-                                            1));//Siempre el primero -ya se que tiene poco sentido-
-                    t_list *memoriasDisponibles = list_take_and_remove(memoriasDelCriterioPedido,
-                                                                       elementoBuscado); //Lista nueva
-                    int *fdMemoriaElegida = list_get(memoriasDisponibles, 0);
+                    //int elementoBuscado = (cantidadFDsAsociadosEC -(cantidadFDsAsociadosEC - 1));//Siempre el primero -ya se que tiene poco sentido-
+                    //int elementoBuscado = 1;
+                    t_list* primeraMemoriaDeLaLista = list_take_and_remove(memoriasDelCriterioPedido, 1); //Lista nueva
+                    int *fdMemoriaElegida = (int*)list_get(primeraMemoriaDeLaLista, 0);
                     list_add(memoriasDelCriterioPedido, fdMemoriaElegida);
 
-                    list_destroy(memoriasDisponibles);
+                    list_destroy(primeraMemoriaDeLaLista);
                     return *fdMemoriaElegida;
                 } else {
                     log_error(logger, "No existen memorias asociadas al criterio EC.");

@@ -62,12 +62,13 @@ void atenderMensajes(void *parametrosRequest) {
     retorno = gestionarRequest(comando);
     loguearRespuesta(request,retorno);
 
-    if (header.tipoRequest == CREATE && retorno->tipoRespuesta ==RESPUESTA) {
-        retorno->valor = concat(4, "CREATE OK |", comando.parametros[0], ";", comando.parametros[1]);
-    }
-    if(comando.tipoRequest == SELECT) {
-        if (strcmp(comandoParseado[1], "\"ANIMALS\"") && strcmp(comandoParseado[2], "112")) {
-            int i = 0;
+    if (header.tipoRequest == CREATE) {
+        if(retorno->tipoRespuesta ==RESPUESTA) {
+            retorno->valor = concat(4, "CREATE OK |", comando.parametros[0], ";", comando.parametros[1]);
+        }else{
+            if(string_contains(retorno->valor,"YA_EXISTE")) {
+                retorno->valor = concat(4, "CREATE ERROR |", comando.parametros[0], ";", comando.parametros[1]);
+            }
         }
     }
     enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, comando.tipoRequest, retorno->valor, header.pid);
@@ -509,11 +510,11 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
             // En caso que exista, se guardará el resultado en un archivo .log y se retorna un error indicando dicho resultado.
             if (!existeElArchivo(path)) {
                 crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
-                retorno->tipoRespuesta = ERR;
-                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe. Se creo su Metadata.");
+                retorno->tipoRespuesta = RESPUESTA;
+                retorno->valor = concat(3, "YA_EXISTE | La tabla ", nombreTabla, " ya existe. Se creo su Metadata.");
             } else {
-                retorno->tipoRespuesta = ERR;
-                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe.");
+                retorno->tipoRespuesta = RESPUESTA;
+                retorno->valor = concat(3, "YA_EXISTE | La tabla ", nombreTabla, " ya existe.");
             }
             free(path);
         } else {
@@ -715,7 +716,7 @@ char **filtrarKeyMax(char **listaLineas) {
             char **linea = desarmarLinea(string_duplicate(listaLineas[i]));
             char *key = linea[1];
             int timestamp = atoi(linea[0]);
-            if (strcmp(keyD, key) == 0 && timestamp > mayorTimestamp) {
+            if (strcmp(keyD, key) == 0 && timestamp >= mayorTimestamp) {
                 mayorTimestamp = timestamp;
                 mayorLinea = string_duplicate(listaLineas[i]);
             }

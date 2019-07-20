@@ -311,6 +311,8 @@ void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* pa
 
     t_retardos_memoria* retardosMemoria = (t_retardos_memoria*)parametros->retardoMemoria;
     sleep(retardosMemoria->retardoMemoria/1000);
+    /*printf("%s\n", (char *) mensaje);
+    fflush(stdout);*/
     char** comandoParseado = parser(mensaje);
     t_comando comando = instanciarComando(comandoParseado);
 

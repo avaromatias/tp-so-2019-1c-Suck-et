@@ -86,6 +86,7 @@ t_dictionary *hilosTablas;
 t_bitarray *bitarray;
 void *bitmap;
 pthread_mutex_t* mutexAsignacionBloques;
+pthread_mutex_t* mutexMemtable;
 
 
 //Header de funciones

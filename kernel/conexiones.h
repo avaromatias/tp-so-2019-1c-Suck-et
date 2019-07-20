@@ -11,6 +11,8 @@
 #include "../libs/sockets.h"
 #include "../libs/consola.h"
 
+//typedef struct t_archivoLQL_d t_archivoLQL;
+
 typedef struct {
     GestorConexiones *conexion;
     t_log *logger;
@@ -33,6 +35,9 @@ typedef struct {
     pthread_mutex_t *mutexSemaforoHilo;
     t_list* memoriasConocidas;
     t_log *logger;
+    sem_t *semaforo_colaDeNew;
+    t_queue *colaDeNew;
+    sem_t* cantidadProcesosEnNew;
 } parametros_thread_k;
 
 //Estructura necesaria para manejar las consistencias y la metadata
@@ -92,7 +97,7 @@ typedef struct {
 p_planificacion *paramPlanificacionGeneral;
 
 //Conexión con Memoria
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios, t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas);
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios, t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew);
 
 void *atenderConexiones(void *parametrosThread);
 
@@ -118,5 +123,16 @@ bool tenemosMemoriaEnListaDeMemorias(t_list *listaDeNodosMemorias, t_nodoMemoria
 
 void agregarIpMemoria(char* ipNuevaMemoria, int puertoNuevaMemoria, t_list* memoriasConocidas, t_log* logger);
 void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas, t_log* logger);
+void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_log* logger);
+
+//Estructura necesaria para el manejo de archivosLQL
+typedef struct {
+    t_queue *colaDeRequests;//cada Request va a ser un t_comando
+    int cantidadDeLineas;
+    int PID;
+    int cantidadDeSelectProcesados;
+    int cantidadDeInsertProcesados;
+} t_archivoLQL;
+
 
 #endif //KERNEL_CONEXIONES_H

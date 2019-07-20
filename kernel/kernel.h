@@ -54,13 +54,13 @@ typedef struct {
 } metricasParaUnFd;
 
 //Estructura necesaria para el manejo de archivosLQL
-typedef struct {
+/*typedef struct {
     t_queue *colaDeRequests;//cada Request va a ser un t_comando
     int cantidadDeLineas;
     int PID;
     int cantidadDeSelectProcesados;
     int cantidadDeInsertProcesados;
-} t_archivoLQL;
+} t_archivoLQL;*/
 
 /******************************
  ** COMPORTAMIENTO DE KERNEL **
@@ -170,7 +170,6 @@ pthread_t *crearHiloGossiping(GestorConexiones *misConexiones, t_list *memoriasC
 void conectarseANuevasMemorias(t_list *memoriasConocidas, GestorConexiones *misConexiones, t_log *logger);
 
 void gossiping(parametros_gossiping *parametros);
-void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_log* logger);
 
 int conectarseANuevoNodoMemoria(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger);
 

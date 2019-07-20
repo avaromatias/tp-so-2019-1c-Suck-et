@@ -63,8 +63,9 @@ int main(void) {
     t_nodoMemoria* nodoMemoriaPrincipal = list_get(memoriasConocidas, 0);
     nodoMemoriaPrincipal->fdNodoMemoria = fdMemoriaPrincipal;
 
+    //pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios, t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew)
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas,
-                                                    mutexJournal, supervisorDeHilos, memoriasConocidas);
+                                                    mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew);
 
     //refreshMetadata(configuracion.refreshMetadata, metadataTablas, logger);
 
@@ -1137,37 +1138,6 @@ pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_list* memoria
 
     pthread_create(hiloGossiping, NULL, &gossiping, parametros);
     return hiloGossiping;
-
-}
-
-void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_log* logger){
-
-
-    int* fdParaMandarJournaling = (int*)malloc(sizeof(int));
-
-    t_comando *requestJournal = (t_comando *) malloc(sizeof(t_comando));
-    char **comandoParseado = parser("JOURNAL");
-    *requestJournal = instanciarComando(comandoParseado);
-
-
-
-    void enviarJournal(void* elemento){
-        if(elemento != NULL){
-            fdParaMandarJournaling = (int*) elemento;
-
-
-            t_archivoLQL *unLQL = convertirRequestALQL(requestJournal);
-            sem_wait(semaforo_colaDeNew);
-            queue_push(colaDeNew, unLQL);
-            sem_post(cantidadProcesosEnNew);
-            sem_post(semaforo_colaDeNew);
-            enviarPaquete(*fdParaMandarJournaling, REQUEST, JOURNAL, "JOURNAL", -1);
-            log_info(logger, string_from_format("Se envió un journaling a la memoria con fd %i", *fdParaMandarJournaling));
-        }
-    }
-
-    list_iterate(misConexiones->conexiones, enviarJournal);
-    free(fdParaMandarJournaling);
 
 }
 

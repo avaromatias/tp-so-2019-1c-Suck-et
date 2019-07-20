@@ -429,3 +429,36 @@ void agregarIpMemoria(char* ipNuevaMemoria, int puertoNuevaMemoria, t_list* memo
 }
 
 
+void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_log* logger){
+
+
+    int* fdParaMandarJournaling = (int*)malloc(sizeof(int));
+
+    t_comando *requestJournal = (t_comando *) malloc(sizeof(t_comando));
+    char **comandoParseado = parser("JOURNAL");
+    *requestJournal = instanciarComando(comandoParseado);
+
+
+
+    void enviarJournal(void* elemento){
+        if(elemento != NULL){
+            fdParaMandarJournaling = (int*) elemento;
+
+
+            t_archivoLQL *unLQL = convertirRequestALQL(requestJournal);
+            sem_wait(semaforo_colaDeNew);
+            queue_push(colaDeNew, unLQL);
+            sem_post(cantidadProcesosEnNew);
+            sem_post(semaforo_colaDeNew);
+            //enviarPaquete(*fdParaMandarJournaling, REQUEST, JOURNAL, "JOURNAL", -1);
+            log_info(logger, string_from_format("Se envió un journaling a la memoria con fd %i", *fdParaMandarJournaling));
+        }
+    }
+
+    list_iterate(misConexiones->conexiones, enviarJournal);
+    //free(fdParaMandarJournaling);
+
+}
+
+
+

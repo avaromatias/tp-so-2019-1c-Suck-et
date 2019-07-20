@@ -56,7 +56,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 		configuracion.retardoJournal = config_get_int_value(archivoConfig, "RETARDO_JOURNAL");
 		configuracion.retardoGossiping = config_get_int_value(archivoConfig, "RETARDO_GOSSIPING");
 		configuracion.cantidadDeMemorias = config_get_int_value(archivoConfig, "MEMORY_NUMBER");
-        configuracion.ipMemoria = string_duplicate(config_get_string_value(archivoConfig, "IP_FS"));
+        configuracion.ipMemoria = string_duplicate(config_get_string_value(archivoConfig, "IP_MEMORIA"));
 
         config_destroy(archivoConfig);
 

@@ -11,6 +11,7 @@
 #ifndef KERNEL_H_
 #define KERNEL_H_
 
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -34,15 +35,23 @@ typedef struct {
     int retardoEjecucion;
 } t_configuracion;
 
-//Estructura para manejar metricas
+//Estructura para manejar estadisticas de Requests de un FD
 typedef struct {
     int fdMemoria;
-    //char* criteroAsociado;
-    long inicioRequest;
-    long finRequets;
-    long duracionEnSegundos;
+    double inicioRequest;
+    double finRequest;
+    double duracionEnSegundos;
     char *tipoRequest;
-} t_estadistica_request;
+} estadisticasRequest;
+
+//Estructura necesaria para guardar las metricas de un solo FD
+typedef struct {
+    int fd;
+    int cantidadSelects;
+    int cantidadInserts;
+    double tiempoTotalSelects;
+    double tiempoTotalInserts;
+} metricasParaUnFd;
 
 //Estructura necesaria para el manejo de archivosLQL
 typedef struct {

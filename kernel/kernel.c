@@ -66,6 +66,8 @@ int main(void) {
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas,
                                                     mutexJournal, supervisorDeHilos, memoriasConocidas);
 
+    //refreshMetadata(configuracion.refreshMetadata, metadataTablas, logger);
+
     p_consola_kernel *pConsolaKernel = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
     pConsolaKernel->conexiones = misConexiones;
@@ -95,16 +97,31 @@ int main(void) {
     parametrosPCP->mutexColaFinalizados = mutexListaFinalizados;
     parametrosPCP->cantidadProcesosEnReady = cantidadProcesosEnReady;
     parametrosPCP->colaDeFinalizados = colaDeFinalizados;
+    parametrosPCP->retardoEjecucion = (int *) configuracion.refreshMetadata;
     parametrosPCP->mutexJournal = mutexJournal;
     parametrosPCP->logger = logger;
 
     paramPlanificacionGeneral = (p_planificacion *) malloc(sizeof(p_planificacion));
+
+    t_list *estadisticasMemSC = list_create();
+    t_list *estadisticasMemSHC = list_create();
+    t_list *estadisticasMemEC = list_create();
+
+    t_metricas *metricasGenerales = (t_metricas *) malloc(sizeof(t_metricas));
+    t_metricas *metricasGenerales = {.estadisticasMemEC = estadisticasMemEC, .estadisticasMemSC = estadisticasMemSC,
+            .estadisticasMemSHC = estadisticasMemSHC};
+
+    double relojActual = clock();
 
     paramPlanificacionGeneral->parametrosConsola = pConsolaKernel;
     paramPlanificacionGeneral->parametrosPCP = parametrosPCP;
     paramPlanificacionGeneral->parametrosPLP = parametrosPLP;
     paramPlanificacionGeneral->supervisorDeHilos = supervisorDeHilos;
     paramPlanificacionGeneral->memoriasUtilizables = memoriasUtilizables;
+    paramPlanificacionGeneral->metricas = metricasGenerales;
+    paramPlanificacionGeneral->relojActual = ((*relojActual)/CLOCKS_PER_SEC);
+
+    pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
 
     for (int i = 0; i < configuracion.multiprocesamiento; i++) {
 //        paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo = semaforoHilo;
@@ -112,7 +129,6 @@ int main(void) {
     }
 
     ejecutarConsola(pConsolaKernel, configuracion, paramPlanificacionGeneral);
-
 
     pthread_join(*hiloRespuestas, NULL);
     pthread_join(*hiloGossiping, NULL);
@@ -129,6 +145,150 @@ int main(void) {
  *** COMPORTAMIENTO KERNEL***
  ****************************/
 
+/*pthread_t *crearHiloMetricas(p_planificacion *paramPlanificacionGeneral) {
+    pthread_t *hiloMetricas = (pthread_t *) malloc(sizeof(pthread_t));
+
+    pthread_create(hiloMetricas, NULL, &calcularMetricas, paramPlanificacionGeneral);
+
+    return hiloMetricas;
+}
+
+void actualizarMetricas(int fdMemoria, p_planificacion *paramPlanifGeneral, char *criterio, char *tipoRequest
+                        pthread_mutex_t *mutexDeHiloRequest, estadisticasRequest *estadisticasRequest,
+                        sem_t *semConcurrenciaMetricas) {
+
+    bool memoriaEncontrada(void *elemento) {
+        char *elementoAComparar = string_itoa((int *) elemento);
+
+        if (elemento != NULL) {
+            return (strcmp(fdADesconectar, elementoAComparar) == 0);
+        } else {
+            return false;
+        }
+    }
+
+    double relojActual = paramPlanifGeneral->relojActual;
+    double tiempoInicioRequest = estadisticasRequest->inicioRequest;
+    t_list *listadoDeCriterio = list_create();
+    //TODO La KEY de cada uno de estos diccionarios va a ser el FD.
+    if (strcmp(criterio, "SC")) {
+        listadoDeCriterio = paramPlanifGeneral->metricas.estadisticasMemSC;
+    } else if (strcmp(criterio, "SHC")) {
+        listadoDeCriterio = paramPlanifGeneral->metricas.estadisticasMemSHC;
+    } else {
+        listadoDeCriterio = paramPlanifGeneral->metricas.estadisticasMemEC;
+    }
+    pthread_mutex_lock(mutexDeHiloRequest); //hasta que me llega respuesta de request, ME BLOQUEO
+    tiempoFinRequest = clock();
+    double tiempoClock = (double) (tiempoFinRequest - tiempoInicioRequest);
+    tiempoTotal = (double) (tiempoClock / CLOCKS_PER_SEC);
+    t_list *listaFds = dictionary_get(paramPlanifGeneral->parametrosConsola->memoriasConCriterios, criterio);
+    int fdDeterminado = (int) list_find(listaFds, memoriaEncontrada);
+    estadisticasRequest->fdMemoria = fdDeterminado;
+    estadisticasRequest->tipoRequest = tipoRequest;
+    estadisticasRequest->inicioRequest = (tiempoInicioRequest/CLOCKS_PER_SEC);
+    estadisticasRequest->finRequest = (tiempoFinRequest/CLOCKS_PER_SEC);
+    estadisticasRequest->duracionEnSegundos = tiempoTotal;
+
+    char *fdEstadistica = string_itoa(fdDeterminado);
+
+    sem_wait(semConcurrenciaMetricas);
+    dictionary_put(diccionarioCriterio, fdEstadistica, estadisticasRequest);
+    sem_post(semConcurrenciaMetricas);
+    pthread_mutex_unlock(mutexDeHiloRequest);
+}
+
+void agregarFDsConEstadisticas(p_planificacion *paramPlanificacionGeneral, t_list *fdsConEstadisticas){
+    int tamanioListaMemoriasConectadas, cantidadInserts, cantidadSelect;
+    double tiempoTotalSelects, tiempoTotalInserts;
+    GestorConexiones *misConexiones = paramPlanificacionGeneral->parametrosConsola->conexiones;
+    t_list *listaDeMemoriasConectadas = misConexiones->conexiones;
+    tamanioListaMemoriasConectadas = list_size(listaDeMemoriasConectadas);
+
+    bool fdAFiltrar(void *elemento) {
+        char *elementoAComparar = string_itoa((int *) elemento);
+
+        if (elemento != NULL) {
+            return (strcmp(fdCasteado, elementoAComparar) == 0);
+        } else {
+            return false;
+        }
+    }
+
+    t_list *listaSC = paramPlanificacionGeneral->metricas.estadisticasMemSC;
+    for (int i = 0; i < tamanioListaMemoriasConectadas; i++) {
+        int fdMemoria = list_get(listaDeMemoriasConectadas, i);
+        char *fdCasteado = string_itoa(fdMemoria);
+        t_list *listaEstadisticasFDSeleccionado = list_filter(listaSC, fdAFiltrar((void *) fdCasteado));
+        int cantEstadisticasFDSeleccionado = list_size(listaEstadisticasFDSeleccionado);
+        int estructuraAnalizada = 0;
+        while (estructuraAnalizada < cantEstadisticasFDSeleccionado) {
+            estadisticasRequest *estadisticasRequest = (estadisticasRequest *) list_get(listaEstadisticasFDSeleccionado,
+                                                                                        estructuraAnalizada);
+            if (strcmp(estadisticasRequest->tipoRequest, "SELECT")) {
+                cantidadSelect++;
+                tiempoTotalSelects += estadisticasRequest->duracionEnSegundos;
+            } else if (strcmp(estadisticasRequest->tipoRequest, "INSERT")) {
+                cantidadInserts++;
+                tiempoTotalInserts += estadisticasRequest->duracionEnSegundos;
+            } else
+                estructuraAnalizada++;
+        }
+        metricasParaUnFd *unFD;
+        unFD->fd = fdMemoria;
+        unFD->cantidadInserts = cantidadInserts;
+        unFD->tiempoTotalInserts = (double) (tiempoTotalInserts / CLOCKS_PER_SEC);
+        unFD->cantidadSelects = cantidadSelects;
+        unFD->tiempoTotalSelects = (double) (tiempoTotalSelects / CLOCKS_PER_SEC);
+
+        list_add(fdsConEstadisticas, unFD);
+    }
+}
+
+void calcularMetricas(p_planificacion *paramPlanificacionGeneral, metrics) {
+
+    t_list *fdsConEstadisticasSC = list_create();
+    t_list *fdsConEstadisticasSHC = list_create();
+    t_list *fdsConEstadisticasEC = list_create();
+
+    while (1) {
+        sleep(30);
+        tiempoTotal = 0;
+        cantidadInserts = 0;
+        cantidadSelect = 0;
+        if (!list_is_empty(paramPlanificacionGeneral->metricas.estadisticasMemSC)) {
+
+            agregarFDsConEstadisticas(paramPlanificacionGeneral, fdsConEstadisticasSC);
+            mostrarMetricas(paramPlanificacionGeneral->relojActual, fdsConEstadisticasSC);
+
+        } else if (!list_is_empty(paramPlanificacionGeneral->metricas.estadisticasMemSHC)) {
+
+            agregarFDsConEstadisticas(paramPlanificacionGeneral, fdsConEstadisticasSHC);
+            mostrarMetricas(paramPlanificacionGeneral->relojActual, fdsConEstadisticasSHC);
+
+        } else (!list_is_empty(paramPlanificacionGeneral->metricas.estadisticasMemEC)) {
+
+            agregarFDsConEstadisticas(paramPlanificacionGeneral, fdsConEstadisticasEC);
+            mostrarMetricas(paramPlanificacionGeneral->relojActual, fdsConEstadisticasEC);
+
+        }
+    }
+}*/
+
+/*void mostrarMetricas(double relojActual, t_list *fdsConEstadisticas){
+
+    double tiempoReal = relojActual;
+    double ultimosTreintaSeg = (double) 30;
+    double tiempoMinimo = tiempoReal - ultimosTreintaSeg;
+
+    int tamanioListaFDs = list_size(fdsConEstadisticas);
+
+    for (int i = 0; i < tamanioListaFDs; i++) {
+        metricasParaUnFd *unFD = (metricasParaUnFd*) list_get(fdsConEstadisticas,i);
+        if(unFD.)
+    }
+
+}*/
 
 t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logger) {
     t_configuracion configuracion;
@@ -225,14 +385,18 @@ bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
 }
 
 int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral,
-                               pthread_mutex_t *mutexDeHiloRequest) {
-
-    printf("gestionar request primivivas\n");
+                               pthread_mutex_t *mutexDeHiloRequest, estadisticasRequest *estadisticasRequest,
+                               sem_t *semConcurrenciaMetricas) {
     int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
     char *PIDCasteado = string_itoa(PID);
     dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
     pthread_mutex_lock(mutexDeHiloRequest);
     p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
+    time_t tiempoFinRequest;
+    double tiempoTotal;
+    char *criterioConsistencia;
+    int fdMemoria;
+    t_log *logger = pConsolaKernel->logger;
 
     char *criterioConsistencia;
     int fdMemoria;
@@ -244,9 +408,12 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     criterioConsistencia = criterioBuscado(requestParseada, pConsolaKernel->metadataTablas);
                     int key = atoi(requestParseada.parametros[1]);
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, key);
-                    return gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1],
-                                                 fdMemoria,
-                                                 PID);
+                    int respuesta = gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1],
+                                                         fdMemoria, PID, estructuraMetricas);
+                    char *tipoRequest = "SELECT";
+                    //actualizarMetricas(fdMemoria, paramPlanifGeneral, criterio, tipoRequest, mutexDeHiloRequest,
+                                       estadisticasRequest, semConcurrenciaMetricas);
+                    return respuesta;
                 } else {
                     log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
                     return -1;
@@ -257,8 +424,14 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     if (criterioConsistencia != NULL) {
                         int key = atoi(requestParseada.parametros[2]);
                         fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, key);
-                        return gestionarInsertKernel(requestParseada.parametros[0], requestParseada.parametros[1],
-                                                     requestParseada.parametros[2], fdMemoria, PID);
+                        int respuesta = gestionarInsertKernel(requestParseada.parametros[0],
+                                                              requestParseada.parametros[1],
+                                                              requestParseada.parametros[2], fdMemoria, PID,
+                                                              estadisticasRequest);
+                        char *tipoRequest = "INSERT";
+                        //actualizarMetricas(fdMemoria, paramPlanifGeneral, criterio, tipoRequest, mutexDeHiloRequest,
+                                           estadisticasRequest, semConcurrenciaMetricas);
+                        return respuesta;
                     } else {
                         log_error(logger, "El criterio es nulo, no se puede analizar.");
                         return -1;
@@ -304,10 +477,17 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                 }
             case JOURNAL:
                 return gestionarJournalKernel(paramPlanifGeneral);
-        }
+        } //fin del switch
+        pthread_mutex_lock(mutexDeHiloRequest); //hasta que me llega respuesta de request, ME BLOQUEO
+        paramPlanifGeneral->metricas.requestTotales++;
+        pthread_mutex_unlock(mutexDeHiloRequest);
     } else {
-        log_error(pConsolaKernel->logger, "No hay memorias utilizables, asocie memorias previamente.");
+        errorNoHayMemoriasAsociadas(logger);
     }
+}
+
+void errorNoHayMemoriasAsociadas(t_log *logger){
+    log_error(logger, "No hay memorias utilizables, asocie memorias previamente.");
 }
 
 int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlanifGeneral) {
@@ -322,7 +502,7 @@ int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlan
             if(paramPlanifGeneral->memoriasUtilizables > 0) {
                 gestionarRun(requestParseada.parametros[0], pConsolaKernel, parametrosPLP);
             } else {
-                log_error(pConsolaKernel->logger, "No hay memorias utilizables, asocie memorias previamente.");
+                errorNoHayMemoriasAsociadas(logger);
                 break;
             }
         case METRICS:
@@ -366,7 +546,7 @@ bool esComandoValidoDeKernel(t_comando comando) {
                 } return false;
             } else return false;
         case RUN:
-            return (comando.cantidadParametros == 1 && esString(comando.parametros[0]));
+            return (comando.cantidadParametros == 1 && esString(comando.parametros[0]));//siempre recibe PATH
         case METRICS:
             return (comando.cantidadParametros == 0);
         default:
@@ -374,51 +554,50 @@ bool esComandoValidoDeKernel(t_comando comando) {
     }
 }
 
-int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID) {
+int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID){
     char *request = string_from_format("SELECT %s %s", nombreTabla, key);
     enviarPaquete(fdMemoria, REQUEST, SELECT, request, PID);
     free(request);
     return 0;
 }
 
-int
-gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion, int fdMemoria,
-                      int PID) {
+int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion,
+                            int fdMemoria, int PID){
     char *request = string_from_format("CREATE %s %s %s %s", tabla, consistencia, cantParticiones, tiempoCompactacion);
     enviarPaquete(fdMemoria, REQUEST, CREATE, request, PID);
     free(request);
     return 0;
 }
 
-int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, int PID) {
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, int PID){
     char *request = string_from_format("INSERT %s %s %s", nombreTabla, key, valor);
     enviarPaquete(fdMemoria, REQUEST, INSERT, request, PID);
     free(request);
     return 0;
 }
 
-int gestionarDropKernel(char *nombreTabla, int fdMemoria, int PID) {
+int gestionarDropKernel(char *nombreTabla, int fdMemoria, int PID){
     char *request = string_from_format("DROP %s", nombreTabla);
     enviarPaquete(fdMemoria, REQUEST, DROP, request, PID);
     free(request);
     return 0;
 }
 
-int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria, int PID) {
+int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria, int PID){
     char *request = string_from_format("DESCRIBE %s", nombreTabla);
     enviarPaquete(fdMemoria, REQUEST, DESCRIBE, request, PID);
     free(request);
     return 0;
 }
 
-int gestionarDescribeGlobalKernel(int fdMemoria, int PID) {
+int gestionarDescribeGlobalKernel(int fdMemoria, int PID){
     char *request = string_from_format("DESCRIBE");
     enviarPaquete(fdMemoria, REQUEST, DESCRIBE, request, PID);
     free(request);
     return 0;
 }
 
-int gestionarJournalKernel(p_planificacion *paramPlanifGeneral) {
+int gestionarJournalKernel(p_planificacion *paramPlanifGeneral){
     p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
     t_list *memoriasConectadas = pConsolaKernel->conexiones->conexiones;
     int cantidadMemoriasConectadas = list_size(memoriasConectadas);
@@ -520,7 +699,7 @@ int gestionarAdd(char **parametrosDeRequest, p_planificacion *paramPlanificacion
     if (haySuficientesMemorias) {
 
         //BUSCO LA MEMORIA CORRESPONDIENTE A LA POSICION DESEADA
-        int *fdMemoriaSolicitada = (int *) list_get(misConexiones->conexiones, numeroMemoria);
+        int *fdMemoriaSolicitada = (int *) list_get(misConexiones->conexiones, numeroMemoria - 1);
         // hacemos -1 por la ubicación 0
 
         if ((strcmp("SC", criterio) == 0) || (strcmp("SHC", criterio) == 0) || (strcmp("EC", criterio) == 0)) {
@@ -928,26 +1107,20 @@ void conectarseANuevasMemorias(t_list* memoriasConocidas, GestorConexiones* misC
     list_iterate(memoriasConocidas, conectarseANodoMemoria);
 }
 void gossiping(parametros_gossiping* parametros){
-
-
     GestorConexiones* misConexiones = (GestorConexiones*) parametros->misConexiones;
     t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
     t_log* logger = (t_log*) parametros->logger;
     t_nodoMemoria* nodoMemoriaPrincipal = list_get(memoriasConocidas, 0);
 
-
     int i = 0;
     while (1){
 
-        sleep(20);
+        sleep(200); //corregir para que se pueda ingresar por archivo configuracion
         enviarPaquete(nodoMemoriaPrincipal->fdNodoMemoria, GOSSIPING, INVALIDO, "DAME_LISTA_GOSSIPING", -1);
         conectarseANuevasMemorias(memoriasConocidas, misConexiones, logger);
         i++;
 
     }
-
-
-
 }
 pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_list* memoriasConocidas, t_log* logger){
     pthread_t* hiloGossiping = malloc(sizeof(pthread_t));
@@ -962,3 +1135,18 @@ pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_list* memoria
 
 }
 
+void refreshMetadata(p_planificacion *paramPlanificacionGeneral, int tiempoDeRefresh, t_dictionary *metadataTablas,
+                     t_log *logger) {
+    while (1) {
+        sleep(tiempoDeRefresh);
+        p_consola_kernel *pConsolaKernel = paramPlanificacionGeneral->parametrosConsola;
+        char *criterio = pConsolaKernel.
+        int fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, , NULL);
+        int resultado = gestionarDescribeGlobalKernel();
+        if (resultado == 0) {
+            log_info(logger, "Se actualizó correctamente la metadata del kernel.\n");
+        } else {
+            log_error(logger, "No se ha actualizado correctamente la metadata del kernel.\n");
+        }
+    }
+}

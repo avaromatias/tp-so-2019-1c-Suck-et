@@ -101,9 +101,9 @@ void *atenderConexiones(void *parametrosThread) {
 
                                     case ERR:;
                                         char *PID = string_itoa(header.pid);
-                                        pthread_mutex_t *semaforo = (pthread_mutex_t *) dictionary_get(
-                                                supervisorDeHilos, PID);
+                                        pthread_mutex_t *semaforo = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PID);
                                         pthread_mutex_unlock(semaforo);
+                                        printf("La Metadata del File System no existe o esta vacía.\n");
                                         free(PID);
                                         break;
                                 }

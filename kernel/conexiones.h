@@ -18,7 +18,13 @@ typedef struct {
 } parametros_thread_memoria;
 
 typedef struct {
-    t_log *logger;
+    t_list *estadisticasMemSC;
+    t_list *estadisticasMemSHC;
+    t_list *estadisticasMemEC;
+    int requestTotales;
+} t_metricas;
+
+typedef struct {
     GestorConexiones *conexion;
     t_dictionary *tablaDeMemoriasConCriterios;
     t_dictionary *metadataTabla;
@@ -26,6 +32,7 @@ typedef struct {
     t_dictionary *supervisorDeHilos;
     pthread_mutex_t *mutexSemaforoHilo;
     t_list* memoriasConocidas;
+    t_log *logger;
 } parametros_thread_k;
 
 //Estructura necesaria para manejar las consistencias y la metadata
@@ -53,14 +60,15 @@ typedef struct {
 //Estructura necesaria para el PCP
 typedef struct {
     int *quantum;
+    int *retardoEjecucion;
     t_queue *colaDeReady;
-    t_queue *colaDeFinalizados;
     sem_t *mutexColaDeReady;
+    t_queue *colaDeFinalizados;
     sem_t *mutexColaFinalizados;
-    t_log *logger;
     sem_t *cantidadProcesosEnReady;
     pthread_mutex_t *mutexJournal;
     pthread_mutex_t *mutexSemaforoHilo;
+    t_log *logger;
 } parametros_pcp;
 
 //Estructura hibrida necesaria para planificacion
@@ -69,6 +77,7 @@ typedef struct {
     parametros_plp *parametrosPLP;
     parametros_pcp *parametrosPCP;
     t_dictionary *supervisorDeHilos;
+    t_metricas metricas;
     int memoriasUtilizables;
 } p_planificacion;
 

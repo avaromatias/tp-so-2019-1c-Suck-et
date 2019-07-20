@@ -1087,7 +1087,7 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
                     lineaContinuaEnOtroArchivo = false;
                     string_append(&timestampEncontrado, palabras[0]);
                     string_append(&keyEncontrado, palabras[1]);
-                    if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) > mayorTimestamp)) {
+                    if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) >= mayorTimestamp)) {
                         mayorTimestamp = atoi(timestampEncontrado);
                         vaciarString(&mayorLinea);
                         string_append(&mayorLinea, linea);

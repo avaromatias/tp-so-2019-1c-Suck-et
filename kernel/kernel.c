@@ -346,6 +346,7 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
             continue;
         }
         *requestParseada = instanciarComando(comandoParseado);
+        free(comandoParseado);
         requestEsValida = analizarRequest(*requestParseada, parametros);
         if (requestEsValida == true) {
             seEncola = encolarDirectoNuevoPedido(*requestParseada);
@@ -362,7 +363,7 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
             log_error(parametros->logger, "No se pudo procesar la request solicitada.");
         }
         //free(leido);
-        //free(comandoParseado);
+
     } while (requestParseada->tipoRequest != EXIT);
     printf("Ya analizamos todo lo solicitado.\n");
 }

@@ -243,7 +243,7 @@ void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthre
 
         if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
             //printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, unaMemoria.fd);
-            log_info(logger, string_from_format("Envio las memorias que conozco %s", memoriasConocidasConcatenadas));
+            //log_info(logger, string_from_format("Envio las memorias que conozco %s", memoriasConocidasConcatenadas));
             enviarPaquete(unaMemoria.fd, RESPUESTA_GOSSIPING_2, INVALIDO, memoriasConocidasConcatenadas, -1);
         } else{
             log_info(logger, "Mi lista vacia");
@@ -265,21 +265,21 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
 
 
         if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
-            printf("Recibi un pedido de mi lista de gossiping de fd: %i, envio la respuesta\n", header.fdRemitente);
+            //printf("Recibi un pedido de mi lista de gossiping de fd: %i, envio la respuesta\n", header.fdRemitente);
 
             char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
 
             if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
-                printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, header.fdRemitente);
+                //printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, header.fdRemitente);
                 enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA_GOSSIPING, memoriasConocidasConcatenadas, -1);
             } else{
-                printf("Mi lista estaba vacia primera respuesta\n");
+                //printf("Mi lista estaba vacia primera respuesta\n");
                 enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA_GOSSIPING, "LISTA_VACIA", -1);
             }
 
         }else if (header.tipoMensaje == RESPUESTA_GOSSIPING_2){
             if (strcmp(mensaje, "LISTA_VACIA") != 0){
-                printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
+                //printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
                 agregarMemoriasRecibidas(mensaje, misConexiones, memoria, logger, semaforoMemoriasConocidas);
             } else{
                 printf("Recibi lista vacia como respuesta 2\n");

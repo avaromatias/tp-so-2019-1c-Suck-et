@@ -55,6 +55,7 @@ void atenderMensajes(void *parametrosRequest) {
     parametros_thread_request *parametros = (parametros_thread_request *) parametrosRequest;
     Header header = parametros->header;
     char *mensaje = parametros->mensaje;
+    //printf("%s\n", mensaje);
     char* request = string_duplicate(mensaje);
     char **comandoParseado = parser(mensaje);
     t_response *retorno;
@@ -618,10 +619,11 @@ void compactacion(void *parametrosThread) {
             char *bloquesTemp = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
             char *bloquesTotales = string_new();
             if (!string_is_empty(bloquesBin)) {
-                bloquesTotales = concat(1, bloquesBin);
+                string_append(&bloquesTotales, bloquesBin);
             }
             if (!string_is_empty(bloquesTemp)) {
-                bloquesTotales = concat(3, bloquesTotales, ",", bloquesTemp);
+                string_append(&bloquesTotales, ",");
+                string_append(&bloquesTotales, bloquesTemp);
             }
             char **bloques = string_split(bloquesTotales, ",");
             char **lineas = obtenerLineasDeBloques(bloques);
@@ -632,8 +634,13 @@ void compactacion(void *parametrosThread) {
                 liberarBloques(bloques);
                 for (int j = 0; j < tamanioDeArrayDeStrings(lineasMaximas); j++) {
                     char **linea = desarmarLinea(lineasMaximas[j]);
-                    lfsInsertCompactacion(nombreTabla, string_duplicate(linea[1]), string_duplicate(linea[2]),
-                                          (time_t) strtol(string_duplicate(linea[0]), NULL, 10));
+                    char *keyString = string_duplicate(linea[1]);
+                    char *valorString = string_duplicate(linea[2]);
+                    char *timestampString = string_duplicate(linea[0]);
+                    lfsInsertCompactacion(nombreTabla, keyString, valorString, (time_t) strtol(timestampString, NULL, 10));
+                    free(keyString);
+                    free(valorString);
+                    free(timestampString);
                 }
                 eliminarArchivosSegunExtension(nombreTabla, ".tmpc");
                 eliminarArchivosSegunExtension(nombreTabla, ".bin");
@@ -642,10 +649,16 @@ void compactacion(void *parametrosThread) {
                 pthread_mutex_unlock(sem);
                 end2 = clock();
                 total += (double) (end2 - start2);
+                freeArrayDeStrings(lineasMaximas);
             }
+            free(bloquesBin);
+            free(bloquesTemp);
+            free(bloquesTotales);
+            freeArrayDeStrings(lineas);
         }
         log_info(logger, "La tabla %s estuvo bloqueada por %f segundos.", nombreTabla,(double) (total / CLOCKS_PER_SEC));
     }
+    free(nombreTabla);
 }
 
 void eliminarArchivosSegunExtension(char *nombreTabla, char *extension) {
@@ -713,13 +726,16 @@ char **filtrarKeyMax(char **listaLineas) {
         char *mayorLinea = string_new();
         int mayorTimestamp = -1;
         for (int i = 0; i < tamanioDeArrayDeStrings(listaLineas); i++) {
-            char **linea = desarmarLinea(string_duplicate(listaLineas[i]));
+            char *listaLineasString = string_duplicate(listaLineas[i]);
+            char **linea = desarmarLinea(listaLineasString);
             char *key = linea[1];
             int timestamp = atoi(linea[0]);
             if (strcmp(keyD, key) == 0 && timestamp >= mayorTimestamp) {
+                vaciarString(&mayorLinea);
                 mayorTimestamp = timestamp;
-                mayorLinea = string_duplicate(listaLineas[i]);
+                string_append(&mayorLinea, listaLineas[i]);
             }
+            free(listaLineasString);
         }
         lineasSinRepetir[tamanioDeArrayDeStrings(lineasSinRepetir)] = string_duplicate(mayorLinea);
     }
@@ -1473,6 +1489,30 @@ void cargarBloquesAsignados(char *path) {
                         char **numeroParticion = string_split(nombreArchivo, ".");
                         particion = atoi(numeroParticion[0]);
                         freeArrayDeStrings(numeroParticion);
+                        char *pathArchivo = concat(3, pathTabla, "/", nombreArchivo);
+                        if (!archivoVacio(pathArchivo)) {
+                            char *bloquesArchivo = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo);
+                            char **arrayDeBloques = convertirStringDeBloquesAArray(bloquesArchivo);
+                            for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
+                                t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+                                bloque->tabla = string_duplicate(nombreTabla);
+                                bloque->particion = particion;
+                                pthread_mutex_lock(mutexAsignacionBloques);
+                                dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
+                                pthread_mutex_unlock(mutexAsignacionBloques);
+                            }
+                            freeArrayDeStrings(arrayDeBloques);
+                            free(bloquesArchivo);
+                        } else {
+                            if(sePuedeEscribirElArchivo(pathArchivo)) {
+                                char *bloqueDisponible = obtenerBloqueDisponible(nombreTabla, particion);
+                                generarContenidoParaParticion("0", bloqueDisponible);
+                                free(bloqueDisponible);
+                            } else {
+                                log_error(logger, "No se pudo escribir en la particion %i", particion);
+                            }
+                        }
+                        free(pathArchivo);
                     } else {
                         particion = -1;
                         if (temporalesConflictivos == 0) {
@@ -1480,28 +1520,11 @@ void cargarBloquesAsignados(char *path) {
                                         "Se detectó que una compactación no pudo terminar su ejecución correctamente. Se procede a restaurar el File System a un estado consistente.");
                         }
                         char *pathArchivo = concat(3, pathTabla, "/", nombreArchivo);
-                        if (!archivoVacio(pathArchivo)) {
-                            char *bloqueTemporal = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo);
-                            char *pathBloque = obtenerPathBloque(atoi(bloqueTemporal));
-                            vaciarArchivo(pathBloque);
-                            //free(bloqueTemporal);
-                            free(pathBloque);
+                        if (archivoVacio(pathArchivo)) {
+                            deleteFile(pathArchivo);
                         }
-                        deleteFile(pathArchivo);
                         free(pathArchivo);
                     }
-                    char *bloquesArchivo = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivo);
-                    char **arrayDeBloques = convertirStringDeBloquesAArray(bloquesArchivo);
-                    for (int j = 0; j < tamanioDeArrayDeStrings(arrayDeBloques); j++) {
-                        t_bloqueAsignado *bloque = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
-                        bloque->tabla = string_duplicate(nombreTabla);
-                        bloque->particion = particion;
-                        pthread_mutex_lock(mutexAsignacionBloques);
-                        dictionary_put(bloquesAsignados, arrayDeBloques[j], bloque);
-                        pthread_mutex_unlock(mutexAsignacionBloques);
-                    }
-                    freeArrayDeStrings(arrayDeBloques);
-                    free(bloquesArchivo);
                     free(nombreArchivo);
                 }
             }

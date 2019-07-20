@@ -5,7 +5,7 @@
 #include "conexiones.h"
 
 pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios,
-                               t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas) {
+                               t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew) {
     pthread_t *hiloConexiones = malloc(sizeof(pthread_t));
 
     parametros_thread_k *parametros = (parametros_thread_k *) malloc(sizeof(parametros_thread_k));
@@ -17,6 +17,9 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_d
     parametros->mutexJournal = mutexJournal;
     parametros->supervisorDeHilos = visorDeHilos;
     parametros->memoriasConocidas = memoriasConocidas;
+    parametros->semaforo_colaDeNew = semaforo_colaDeNew;
+    parametros->colaDeNew = colaDeNew;
+    parametros->cantidadProcesosEnNew = cantidadProcesosEnNew;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -33,9 +36,9 @@ void *atenderConexiones(void *parametrosThread) {
     pthread_mutex_t *mutexJournal = parametros->mutexJournal;
     t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
 
-    sem_t *semaforo_colaDeNew;
-    t_queue *colaDeNew;
-    sem_t* cantidadProcesosEnNew;
+    sem_t* semaforo_colaDeNew= (sem_t*)parametros->semaforo_colaDeNew;
+    t_queue* colaDeNew = (t_queue*)parametros->colaDeNew;
+    sem_t*  cantidadProcesosEnNew = (sem_t*) parametros->cantidadProcesosEnNew;
 
     char **direccionesNuevasMemorias;
     t_list *listaDeNodosMemorias = list_create();
@@ -50,18 +53,11 @@ void *atenderConexiones(void *parametrosThread) {
                 int fdConectado = *((int *) list_get(unaConexion->conexiones, i));
 
                 if (FD_ISSET(fdConectado, &emisores)) {
-                    int bytesRecibidos = recv(fdConectado, &headerSerializado, sizeof(Header), MSG_DONTWAIT);
+                    int bytesRecibidos = recv(fdConectado, &headerSerializado, sizeof(Header), MSG_WAITALL);
 
                     switch (bytesRecibidos) {
                         // hubo un error al recibir los datos
                         case -1:
-                            log_warning(logger, "Hubo un error al recibir el header proveniente del socket %i",
-                                        fdConectado);
-                            break;
-                            // se desconectó
-                        case 0:
-                            // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
-                            // nombre_maravillosa_funcion();
                             desconectarCliente(fdConectado, unaConexion, logger);
                             pthread_mutex_lock(mutexJournal);
                             eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
@@ -77,12 +73,7 @@ void *atenderConexiones(void *parametrosThread) {
                             int pesoMensaje = header.tamanioMensaje * sizeof(char);
                             char *mensaje = (char *) malloc(pesoMensaje);
                             bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
-                            if (bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
-                                log_warning(logger, "Hubo un error al recibir el mensaje proveniente del socket %i",
-                                            fdConectado);
-                            else if (bytesRecibidos == 0) {
-                                // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
-                                // nombre_maravillosa_funcion();
+                            if (bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)   {
                                 desconectarCliente(fdConectado, unaConexion, logger);
                                 pthread_mutex_lock(mutexJournal);
                                 eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
@@ -310,7 +301,7 @@ void borrarFdDeListaDeFdsConectados(int fdMemoria, t_dictionary *tablaDeMemorias
     t_list *listaDeMemoriasConectadasACriterio = dictionary_get(tablaDeMemoriasConCriterios, criterio);
 
     list_remove_by_condition(listaDeMemoriasConectadasACriterio, memoriaEncontrada);
-    free(enteroParaComparar);
+    //free(enteroParaComparar);
     //dictionary_remove(tablaDeMemoriasConCriterios, criterio);
     /*int indiceASacar = (int) list_find(listaDeMemoriasConectadasACriterio, memoriaEncontrada);
     if (indiceASacar != NULL && indiceASacar > 0) {

@@ -58,7 +58,7 @@ void *atenderConexiones(void *parametrosThread) {
                         case 0:
                             // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                             // nombre_maravillosa_funcion();
-                            eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
+                            eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
                             desconectarCliente(fdConectado, unaConexion, logger);
                             break;
                             // recibí algún mensaje
@@ -74,7 +74,8 @@ void *atenderConexiones(void *parametrosThread) {
                             else if (bytesRecibidos == 0) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();
-                                eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
+                                eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
+                                eliminarFileDescriptorDeNodosMemoriaConocidas(fdConectado, listaDeNodosMemorias, logger);
                                 desconectarCliente(fdConectado, unaConexion, logger);
                             } else {
                                 switch (header.tipoMensaje) {
@@ -272,14 +273,11 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
 void borrarFdDeListaDeFdsConectados(int fdMemoria, t_dictionary *tablaDeMemoriasConCriterios, char *criterio) {
 
 
+    int* enteroParaComparar = (int*)malloc(sizeof(int));
     bool memoriaEncontrada(void *elemento) {
         if (elemento != NULL) {
-            if(fdMemoria == (int) elemento){
-                 printf("Voy a eliminar a %i", fdMemoria);
-                 return true;
-            }else{
-                return false;
-            }
+            enteroParaComparar = (int*)elemento;
+            return fdMemoria == *enteroParaComparar;
         } else {
             return false;
         }
@@ -287,6 +285,7 @@ void borrarFdDeListaDeFdsConectados(int fdMemoria, t_dictionary *tablaDeMemorias
     t_list *listaDeMemoriasConectadasACriterio = dictionary_get(tablaDeMemoriasConCriterios, criterio);
 
     list_remove_by_condition(listaDeMemoriasConectadasACriterio, memoriaEncontrada);
+    free(enteroParaComparar);
     //dictionary_remove(tablaDeMemoriasConCriterios, criterio);
     /*int indiceASacar = (int) list_find(listaDeMemoriasConectadasACriterio, memoriaEncontrada);
     if (indiceASacar != NULL && indiceASacar > 0) {
@@ -295,8 +294,13 @@ void borrarFdDeListaDeFdsConectados(int fdMemoria, t_dictionary *tablaDeMemorias
     }*/
 }
 
-void eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(int fdDesconectado, t_dictionary *tablaDeMemoriasConCriterios,
-                                              pthread_mutex_t *mutexJournal) {
+void eliminarFileDescriptorDeNodosMemoriaConocidas(int fdConectado, t_list* listaDeNodosMemorias, t_log* logger){
+
+
+
+}
+
+void eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(int fdDesconectado, t_dictionary *tablaDeMemoriasConCriterios, pthread_mutex_t *mutexJournal, t_log* logger) {
 
     //pthread_mutex_lock(mutexJournal);
 
@@ -312,6 +316,8 @@ void eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(int fdDesconec
         char *criterio = "EC";
         borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
     }
+
+    log_info(logger, string_from_format("Se eliminó la memoria %i de las listas de criterios", fdDesconectado));
 }
 
 char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping

@@ -172,5 +172,7 @@ void conectarseANuevasMemorias(t_list *memoriasConocidas, GestorConexiones *misC
 void gossiping(parametros_gossiping *parametros);
 void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_log* logger);
 
+int conectarseANuevoNodoMemoria(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger);
+
 
 #endif /* KERNEL_H_ */

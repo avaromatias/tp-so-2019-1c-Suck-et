@@ -16,7 +16,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	t_config* archivoConfig = abrirArchivoConfiguracion(pathArchivoConfiguracion, logger);
 
     bool existenTodasLasClavesObligatorias(t_config* archivoConfig, t_configuracion configuracion)	{
-        char* clavesObligatorias[11] = {
+        char* clavesObligatorias[12] = {
                 "PUERTO",
                 "IP_FS",
                 "PUERTO_FS",
@@ -28,7 +28,8 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
                 "RETARDO_JOURNAL",
                 "RETARDO_GOSSIPING",
                 "MEMORY_NUMBER",
-                "IP_MEMORIA"
+                "IP_MEMORIA",
+                "DIRECTORIO_CONFIGURACION"
         };
 
         for(int i = 0; i < COUNT_OF(clavesObligatorias); i++)	{
@@ -57,6 +58,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 		configuracion.retardoGossiping = config_get_int_value(archivoConfig, "RETARDO_GOSSIPING");
 		configuracion.cantidadDeMemorias = config_get_int_value(archivoConfig, "MEMORY_NUMBER");
         configuracion.ipMemoria = string_duplicate(config_get_string_value(archivoConfig, "IP_MEMORIA"));
+        configuracion.directorioConfiguracion = string_duplicate(config_get_string_value(archivoConfig, "DIRECTORIO_CONFIGURACION"));
 
         config_destroy(archivoConfig);
 
@@ -356,16 +358,20 @@ void journaling(parametros_hilo_journal* parametros){
     t_log* logger = parametros->logger;
     t_control_conexion* conexionLissandra = (t_control_conexion*)parametros->conexionLissandra;
     t_retardos_memoria* retardos= parametros->retardos;
+    pthread_mutex_t* semaforoRetardos = (pthread_mutex_t*) parametros->semaforoRetardos;
     t_sincro_journaling* semaforoJournaling = parametros->semaforoJournaling;
 
 
     while (1){
         //sleep(15);
+        pthread_mutex_lock(semaforoRetardos);
+        int retardo = retardos->retardoJournaling;
+        pthread_mutex_unlock(semaforoRetardos);
         sleep(retardos->retardoJournaling / 1000);
         gestionarJournal(conexionLissandra , memoria, logger, semaforoJournaling);
     }
 }
-pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, t_retardos_memoria* retardos, t_sincro_journaling* semaforoJournaling){
+pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, t_retardos_memoria* retardos, t_sincro_journaling* semaforoJournaling, pthread_mutex_t* semaforoRetardos){
     pthread_t* hiloJournal = malloc(sizeof(pthread_t));
 
     parametros_hilo_journal* parametros = (parametros_hilo_journal*) malloc(sizeof(parametros_hilo_journal));
@@ -376,6 +382,8 @@ pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexio
     parametros->semaforoJournaling = semaforoJournaling;
     //retardo Journal
     parametros->retardos= retardos;
+
+    parametros->semaforoRetardos = semaforoRetardos;
 
     pthread_create(hiloJournal, NULL, &journaling, parametros);
 
@@ -516,10 +524,13 @@ void gossiping(parametros_gossiping* parametros){
     t_configuracion configuracion = (t_configuracion) parametros->archivoDeConfiguracion;
     GestorConexiones* misConexiones = (GestorConexiones*) parametros->misConexiones;
     pthread_mutex_t* semaforoMemoriasConocidas = parametros->semaforoMemoriasConocidas;
+    pthread_mutex_t* semaforoRetardos = (pthread_mutex_t*)parametros->semaforoRetardos;
+    t_retardos_memoria* retardos = (t_retardos_memoria*)parametros->retardosMemoria;
     while (1){
-        sleep(15);
-        //sleep(configuracion.retardoGossiping);
-        //Se conecta a memorias y las agrega como nodos de memoria
+        pthread_mutex_lock(semaforoRetardos);
+        int retardo = retardos->retardoMemoria;
+        pthread_mutex_unlock(semaforoRetardos);
+        sleep(retardo/1000);
         gestionarGossiping(misConexiones, configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria, semaforoMemoriasConocidas);
         intercambiarListaGossiping(memoria, semaforoMemoriasConocidas, logger, misConexiones);
         //mostrarMemoriasConocidasAlMomento(memoria->memoriasConocidas, semaforoMemoriasConocidas);
@@ -529,7 +540,7 @@ void gossiping(parametros_gossiping* parametros){
 
     }
 }
-pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t* semaforoMemoriasConocidas, t_sincro_journaling* semaforoJournaling, t_retardos_memoria* retardos){
+pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t* semaforoMemoriasConocidas, t_sincro_journaling* semaforoJournaling, t_retardos_memoria* retardos, pthread_mutex_t* semaforoRetardos){
     pthread_t* hiloGossiping = malloc(sizeof(pthread_t));
     parametros_gossiping* parametros = (parametros_gossiping*) malloc(sizeof(parametros_gossiping));
 
@@ -540,6 +551,7 @@ pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memo
     parametros->semaforoMemoriasConocidas = semaforoMemoriasConocidas;
     parametros->semaforoJournaling = semaforoJournaling;
     parametros->retardosMemoria = retardos;
+    parametros->semaforoRetardos = semaforoRetardos;
 
     pthread_create(hiloGossiping, NULL, &gossiping, parametros);
 
@@ -868,12 +880,15 @@ t_retardos_memoria* almacenarRetardosDeMemoria(t_configuracion configuracion){
     return retardos;
 }
 
-void monitorearDirectorio(parametros_hilo_monitor* parametros){
+void atenderInotify(parametros_hilo_monitor* parametros){
 
     char* nombreDirectorio = parametros->directorioAMonitorear;
     char* nombreArchivoDeConfiguracion = parametros->nombreArchivoDeConfiguracion;
     t_log* logger = parametros->logger;
     t_retardos_memoria* retardos = parametros->retardos;
+    pthread_mutex_t* semaforoRetardos = (pthread_mutex_t*) parametros->semaforoRetardos;
+
+    log_info(logger, "Inicio el hilo que atiende inofity");
     char buffer[BUF_LEN];
 
     int file_descriptor = inotify_init();
@@ -882,71 +897,114 @@ void monitorearDirectorio(parametros_hilo_monitor* parametros){
     }
 
     // Creamos un monitor sobre un path indicando que eventos queremos escuchar
-    int watch_descriptor = inotify_add_watch(file_descriptor, "/home/utnso/tp-2019-1c-Suck-et/memoria/cmake-build-debug/", IN_MODIFY | IN_CREATE | IN_DELETE);
+    int watch_descriptor = inotify_add_watch(file_descriptor, "/home/utnso/operativos/tp-2019-1c-Suck-et/memoria/", IN_MODIFY | IN_CREATE | IN_DELETE);
 
     // El file descriptor creado por inotify, es el que recibe la información sobre los eventos ocurridos
     // para leer esta información el descriptor se lee como si fuera un archivo comun y corriente pero
     // la diferencia esta en que lo que leemos no es el contenido de un archivo sino la información
     // referente a los eventos ocurridos
-    while (1){
-        int length = read(file_descriptor, buffer, BUF_LEN);
-        if (length < 0) {
-            perror("read");
-        }
+    int offset = 0;
+    int length = read(file_descriptor, buffer, BUF_LEN);
+    if (length < 0) {
+        perror("read");
+    }
 
 
-        int offset = 0;
 
-        // Luego del read buffer es un array de n posiciones donde cada posición contiene
-        // un eventos ( inotify_event ) junto con el nombre de este.
-        while (offset < length) {
 
-            // El buffer es de tipo array de char, o array de bytes. Esto es porque como los
-            // nombres pueden tener nombres mas cortos que 24 caracteres el tamaño va a ser menor
-            // a sizeof( struct inotify_event ) + 24.
-            struct inotify_event *event = (struct inotify_event *) &buffer[offset];
+    // Luego del read buffer es un array de n posiciones donde cada posición contiene
+    // un eventos ( inotify_event ) junto con el nombre de este.
+    while (offset < length) {
 
-            // El campo "len" nos indica la longitud del tamaño del nombre
-            if (event->len) {
-                // Dentro de "mask" tenemos el evento que ocurrio y sobre donde ocurrio
-                // sea un archivo o un directorio
-                if (event->mask & IN_CREATE) {
-                    if (event->mask & IN_ISDIR) {
-                        printf("Se creo el directorio %s .\n", event->name);
-                    } else {
-                        printf("Se creó el archivo%s.\n", event->name);
-                    }
-                } else if (event->mask & IN_DELETE) {
-                    if (event->mask & IN_ISDIR) {
-                        printf("Se eliminó el directorio%s.\n", event->name);
-                    } else {
-                        printf("Se eliminó el archivo%s.\n", event->name);
-                    }
-                } else if (event->mask & IN_MODIFY) {
-                    if (event->mask & IN_ISDIR) {
-                        printf("Se modificó el directorio %s.\n", event->name);
-                    } else {
+        // El buffer es de tipo array de char, o array de bytes. Esto es porque como los
+        // nombres pueden tener nombres mas cortos que 24 caracteres el tamaño va a ser menor
+        // a sizeof( struct inotify_event ) + 24.
+        struct inotify_event *event = (struct inotify_event *) &buffer[offset];
 
-                        printf("Se modificó el archivo%s.\n", event->name);
-                        log_info(logger, string_from_format("Retardo Memoria anterior: %i. Retardo Gossiping Anterior: %i. Retardo Journaling Anterior: %i. Retardo Filesystem Anterior: %i", retardos->retardoMemoria, retardos->retardoGossiping, retardos->retardoJournaling, retardos->retardoFileSystem));
-                        t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
-                        retardos->retardoMemoria = nuevaConfiguracion.retardoMemoria;
-                        retardos->retardoJournaling = nuevaConfiguracion.retardoJournal;
-                        retardos->retardoFileSystem = nuevaConfiguracion.retardoFileSystem;
-                        retardos->retardoGossiping = nuevaConfiguracion.retardoGossiping;
-                        log_info(logger, string_from_format("Retardo Memoria nuevo: %i. Retardo Gossiping nuevo: %i. Retardo Journaling nuevo: %i. Retardo Filesystem nuevo: %i", retardos->retardoMemoria, retardos->retardoGossiping, retardos->retardoJournaling, retardos->retardoFileSystem));
-                    }
+        // El campo "len" nos indica la longitud del tamaño del nombre
+        if (event->len) {
+            // Dentro de "mask" tenemos el evento que ocurrio y sobre donde ocurrio
+            // sea un archivo o un directorio
+            if (event->mask & IN_CREATE) {
+                if (event->mask & IN_ISDIR) {
+                    printf("Se creo el directorio %s .\n", event->name);
+                } else {
+                    //printf("Se creó el archivo%s.\n", event->name);
+                    //printf("Se modificó el archivo%s.\n", event->name);
+                    pthread_mutex_lock(semaforoRetardos);
+                    log_info(logger, string_from_format("Retardo Memoria anterior: %i. Retardo Gossiping Anterior: %i. Retardo Journaling Anterior: %i. Retardo Filesystem Anterior: %i", retardos->retardoMemoria, retardos->retardoGossiping, retardos->retardoJournaling, retardos->retardoFileSystem));
+                    t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
+                    retardos->retardoMemoria = nuevaConfiguracion.retardoMemoria;
+                    retardos->retardoJournaling = nuevaConfiguracion.retardoJournal;
+                    retardos->retardoFileSystem = nuevaConfiguracion.retardoFileSystem;
+                    retardos->retardoGossiping = nuevaConfiguracion.retardoGossiping;
+                    log_info(logger, string_from_format("Retardo Memoria nuevo: %i. Retardo Gossiping nuevo: %i. Retardo Journaling nuevo: %i. Retardo Filesystem nuevo: %i", retardos->retardoMemoria, retardos->retardoGossiping, retardos->retardoJournaling, retardos->retardoFileSystem));
+                    pthread_mutex_unlock(semaforoRetardos);
+                }
+            } else if (event->mask & IN_DELETE) {
+                if (event->mask & IN_ISDIR) {
+                    printf("Se eliminó el directorio%s.\n", event->name);
+                } else {
+                    //printf("Se eliminó el archivo%s.\n", event->name);
+                    //printf("Se modificó el archivo%s.\n", event->name);
+                    pthread_mutex_lock(semaforoRetardos);
+                    log_info(logger, string_from_format("Retardo Memoria anterior: %i. Retardo Gossiping Anterior: %i. Retardo Journaling Anterior: %i. Retardo Filesystem Anterior: %i", retardos->retardoMemoria, retardos->retardoGossiping, retardos->retardoJournaling, retardos->retardoFileSystem));
+                    t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
+                    retardos->retardoMemoria = nuevaConfiguracion.retardoMemoria;
+                    retardos->retardoJournaling = nuevaConfiguracion.retardoJournal;
+                    retardos->retardoFileSystem = nuevaConfiguracion.retardoFileSystem;
+                    retardos->retardoGossiping = nuevaConfiguracion.retardoGossiping;
+                    log_info(logger, string_from_format("Retardo Memoria nuevo: %i. Retardo Gossiping nuevo: %i. Retardo Journaling nuevo: %i. Retardo Filesystem nuevo: %i", retardos->retardoMemoria, retardos->retardoGossiping, retardos->retardoJournaling, retardos->retardoFileSystem));
+                    pthread_mutex_unlock(semaforoRetardos);
+                }
+            } else if (event->mask & IN_MODIFY) {
+                if (event->mask & IN_ISDIR) {
+                    //printf("Se modificó el directorio %s.\n", event->name);
+                    //printf("Se modificó el archivo%s.\n", event->name);
+                    pthread_mutex_lock(semaforoRetardos);
+                    log_info(logger, string_from_format("Retardo Memoria anterior: %i. Retardo Gossiping Anterior: %i. Retardo Journaling Anterior: %i. Retardo Filesystem Anterior: %i", retardos->retardoMemoria, retardos->retardoGossiping, retardos->retardoJournaling, retardos->retardoFileSystem));
+                    t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
+                    retardos->retardoMemoria = nuevaConfiguracion.retardoMemoria;
+                    retardos->retardoJournaling = nuevaConfiguracion.retardoJournal;
+                    retardos->retardoFileSystem = nuevaConfiguracion.retardoFileSystem;
+                    retardos->retardoGossiping = nuevaConfiguracion.retardoGossiping;
+                    log_info(logger, string_from_format("Retardo Memoria nuevo: %i. Retardo Gossiping nuevo: %i. Retardo Journaling nuevo: %i. Retardo Filesystem nuevo: %i", retardos->retardoMemoria, retardos->retardoGossiping, retardos->retardoJournaling, retardos->retardoFileSystem));
+                    pthread_mutex_unlock(semaforoRetardos);
+                } else {
+
+                    //printf("Se modificó el archivo%s.\n", event->name);
+                    pthread_mutex_lock(semaforoRetardos);
+                    log_info(logger, string_from_format("Retardo Memoria anterior: %i. Retardo Gossiping Anterior: %i. Retardo Journaling Anterior: %i. Retardo Filesystem Anterior: %i", retardos->retardoMemoria, retardos->retardoGossiping, retardos->retardoJournaling, retardos->retardoFileSystem));
+                    t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
+                    retardos->retardoMemoria = nuevaConfiguracion.retardoMemoria;
+                    retardos->retardoJournaling = nuevaConfiguracion.retardoJournal;
+                    retardos->retardoFileSystem = nuevaConfiguracion.retardoFileSystem;
+                    retardos->retardoGossiping = nuevaConfiguracion.retardoGossiping;
+                    log_info(logger, string_from_format("Retardo Memoria nuevo: %i. Retardo Gossiping nuevo: %i. Retardo Journaling nuevo: %i. Retardo Filesystem nuevo: %i", retardos->retardoMemoria, retardos->retardoGossiping, retardos->retardoJournaling, retardos->retardoFileSystem));
+                    pthread_mutex_unlock(semaforoRetardos);
                 }
             }
-            offset += sizeof (struct inotify_event) + event->len;
         }
+        offset += sizeof (struct inotify_event) + event->len;
     }
 
     inotify_rm_watch(file_descriptor, watch_descriptor);
     close(file_descriptor);
+    log_info(logger, "Finalizo el hilo que atiende inofity");
 }
 
-pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_retardos_memoria* retardos){
+void monitorearDirectorio(parametros_hilo_monitor* parametros){
+
+    while(1){
+        //pthread_create(hiloInotify, NULL, &atenderInotify, parametros);
+
+        //pthread_detach(*hiloInotify);
+        atenderInotify(parametros);
+    }
+
+}
+
+pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_retardos_memoria* retardos, pthread_mutex_t* semaforoRetardos){
     pthread_t* hiloMonitor= malloc(sizeof(pthread_t));
     parametros_hilo_monitor* parametros = (parametros_hilo_monitor*) malloc(sizeof(parametros_hilo_monitor));
 
@@ -954,11 +1012,14 @@ pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConf
     parametros->retardos= retardos;
     parametros->directorioAMonitorear= directorioAMonitorear;
     parametros->nombreArchivoDeConfiguracion = nombreArchivoConfiguracionConExtension;
+    parametros->semaforoRetardos = semaforoRetardos;
 
     pthread_create(hiloMonitor, NULL, &monitorearDirectorio, parametros);
     return hiloMonitor;
 
 }
+
+
 int main(void) {
     char* nombreArchivoConfiguracion = readline("Escriba el nombre del archivo de configuración que desee cargar (el mismo deberá estar en el mismo directorio que el ejecutable).\n");
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
@@ -967,9 +1028,6 @@ int main(void) {
 	//free(nombreArchivoConfiguracionConExtension);
 
     t_retardos_memoria* retardos = almacenarRetardosDeMemoria(configuracion);
-
-    char* directorioAMonitorear = "/home/utnso/tp-2019-1c-Suck-et/memoria/";
-    //monitorearDirectorio("/home/utnso/tp-2019-1c-Suck-et/memoria/", nombreArchivoConfiguracionConExtension, logger, retardos);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
     t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};
@@ -980,8 +1038,12 @@ int main(void) {
     pthread_mutex_t* semaforoMemoriasConocidas = malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(semaforoMemoriasConocidas, NULL);
 
+    pthread_mutex_t* semaforoRetardos = malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(semaforoRetardos, NULL);
+
     t_sincro_journaling* semaforoJournaling = (t_sincro_journaling*) malloc(sizeof(t_sincro_journaling));
     semaforoJournaling->cantidadRequestsEnParalelo = 3;
+
     sem_init(&semaforoJournaling->semaforoJournaling, 0, semaforoJournaling->cantidadRequestsEnParalelo);
     pthread_mutex_init(&semaforoJournaling->mutexNivel, NULL);
 
@@ -990,18 +1052,15 @@ int main(void) {
     t_memoria* memoriaPrincipal = inicializarMemoriaPrincipal(configuracion, tamanioValue, logger);
 	GestorConexiones* misConexiones = inicializarConexion();
     levantarServidor(configuracion.puerto, misConexiones, logger);
-
-    //TODO Agregar "mi ip" al archivo de configuracion para que memorias tenga su propia ip en su lista de gossiping
     agregarIpMemoria(configuracion.ipMemoria, string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
 
-    //pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, nombreArchivoConfiguracionConExtension, logger, retardos);
+    pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(configuracion.directorioConfiguracion, nombreArchivoConfiguracionConExtension, logger, retardos, semaforoRetardos);
     pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);
     pthread_t* hiloConsola = (pthread_t*) crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra, semaforoJournaling);
-    pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, retardos, semaforoJournaling);
-    pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos);
+    pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, retardos, semaforoJournaling, semaforoRetardos);
+    pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos, semaforoRetardos);
 
-    //pthread_join(*hiloMonitor, NULL);
-
+    pthread_join(*hiloMonitor, NULL);
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
     pthread_join(*hiloJournal, NULL);

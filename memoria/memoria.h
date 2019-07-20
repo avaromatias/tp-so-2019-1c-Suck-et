@@ -32,7 +32,7 @@ typedef struct t_configuracion_d t_configuracion;
 typedef struct t_retardos_memoria_d t_retardos_memoria;
 typedef struct t_sincro_journaling_d t_sincro_journaling;
 #define EVENT_SIZE  ( sizeof (struct inotify_event) + 24 )
-#define BUF_LEN     ( 1024 * EVENT_SIZE )
+#define BUF_LEN     ( 512 * EVENT_SIZE )
 
 
 #include "conexiones.h"
@@ -57,6 +57,7 @@ struct t_configuracion_d{
     int retardoGossiping;
     int cantidadDeMemorias;
     char* ipMemoria;
+    char* directorioConfiguracion;
 };
 
 struct t_sincro_journaling_d {
@@ -119,6 +120,7 @@ typedef struct {
     t_retardos_memoria* retardos;
     t_log* logger;
     char* nombreArchivoDeConfiguracion;
+    pthread_mutex_t* semaforoRetardos;
 }parametros_hilo_monitor;
 
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
@@ -169,17 +171,18 @@ typedef struct {
     t_log* logger;
     t_retardos_memoria* retardos;
     t_sincro_journaling* semaforoJournaling;
+    pthread_mutex_t* semaforoRetardos;
 } parametros_hilo_journal;
 
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
 void vaciarMemoria(t_memoria* memoria, t_log* logger);
-pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, t_retardos_memoria* retardos, t_sincro_journaling* semaforoJournaling);
+pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_retardos_memoria* retardos, pthread_mutex_t* semaforoRetardos);
 
 //monitoreo
 
 void monitorearDirectorio(parametros_hilo_monitor* parametros);
-pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_retardos_memoria* retardos);
+pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_retardos_memoria* retardos, pthread_mutex_t* semaforoRetardos);
 
 //monitoreo
 
@@ -192,6 +195,7 @@ typedef struct {
     t_configuracion archivoDeConfiguracion;
     pthread_mutex_t* semaforoMemoriasConocidas;
     t_sincro_journaling* semaforoJournaling;
+    pthread_mutex_t* semaforoRetardos;
     t_retardos_memoria* retardosMemoria;
 }parametros_gossiping;
 
@@ -202,7 +206,7 @@ struct t_nodoMemoria{
 };
 
 void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_log* logger);
-pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t* semaforoMemoriasConocidas, t_sincro_journaling* semaforoJournaling, t_retardos_memoria* retardos);
+pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t* semaforoMemoriasConocidas, t_sincro_journaling* semaforoJournaling, t_retardos_memoria* retardos, pthread_mutex_t* semaforoRetardos);
 
 void eliminarNodoMemoria(int fdNodoMemoria, t_list* nodosMemoria);
 void eliminarMemoriaConocida(t_memoria* memoria, nodoMemoria* unNodoMemoria);

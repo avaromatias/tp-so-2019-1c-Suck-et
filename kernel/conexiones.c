@@ -58,8 +58,7 @@ void *atenderConexiones(void *parametrosThread) {
                         case 0:
                             // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                             // nombre_maravillosa_funcion();
-                            eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios,
-                                                                     mutexJournal);
+                            eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
                             desconectarCliente(fdConectado, unaConexion, logger);
                             break;
                             // recibí algún mensaje
@@ -75,8 +74,7 @@ void *atenderConexiones(void *parametrosThread) {
                             else if (bytesRecibidos == 0) {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();
-                                eliminarFileDescriptorDeTablasDeMemorias(fdConectado, tablaDeMemoriasConCriterios,
-                                                                         mutexJournal);
+                                eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal);
                                 desconectarCliente(fdConectado, unaConexion, logger);
                             } else {
                                 switch (header.tipoMensaje) {
@@ -131,31 +129,6 @@ void *atenderConexiones(void *parametrosThread) {
     }
 }
 
-/*void identificarMemorias(t_list *listaDeNodosMemorias, char **direccionesNuevasMemorias, t_log *logger) {
-
-    int cantidadMemoriasReconocidas = tamanioDeArrayDeStrings(direccionesNuevasMemorias);
-    char **ipYPuerto;
-
-    for (int i = 0; i < cantidadMemoriasReconocidas; i++) {
-        t_nodoMemoria *nodoDatosDeMemoria = (t_nodoMemoria *) malloc(sizeof(t_nodoMemoria));
-        ipYPuerto = string_split(direccionesNuevasMemorias[i], ":");
-
-        if (esString(ipYPuerto[0]) && esEntero(ipYPuerto[1])) {
-            nodoDatosDeMemoria->ipNodoMemoria = ipYPuerto[0];
-            nodoDatosDeMemoria->puertoNodoMemoria = ipYPuerto[1];
-            if (tenemosMemoriaEnListaDeMemorias(listaDeNodosMemorias, nodoDatosDeMemoria)) {
-                log_warning(logger,
-                            "La memoria ya se está en nuestra lista de memorias. No procederemos a conectarnos.\n");
-            } else {
-                list_add(listaDeNodosMemorias, nodoDatosDeMemoria);
-            }
-        }
-    }
-}
-
-void conectarseANodosPorGossiping(t_list *listaDeNodosMemorias, ) {
-
-}
 
 bool tenemosMemoriaEnListaDeMemorias(t_list *listaDeNodosMemorias, t_nodoMemoria *nodoDatosDeMemoria) {
 
@@ -169,11 +142,11 @@ bool tenemosMemoriaEnListaDeMemorias(t_list *listaDeNodosMemorias, t_nodoMemoria
             return false;
         }
     }
-    if (list_find(listaDeNodosMemorias, memoriaEncontrada(nodoDatosDeMemoria)) != NULL) {
+    if (list_find(listaDeNodosMemorias, memoriaEncontrada) != NULL) {
         return true;
     } else return false;
 
-}*/
+}
 
 int conectarseAMemoriaPrincipal(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger) {
     int fdMemoria = conectarseAServidor(ipMemoria, puertoMemoria, misConexiones, logger);
@@ -296,44 +269,48 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
     free(PIDCasteado);
 }
 
-/*void borrarFdDeListaDeFdsConectados(int fdMemoria, t_dictionary *tablaDeMemoriasConCriterios, char *criterio) {
+void borrarFdDeListaDeFdsConectados(int fdMemoria, t_dictionary *tablaDeMemoriasConCriterios, char *criterio) {
 
-    char *fdADesconectar = string_itoa(fdMemoria);
 
     bool memoriaEncontrada(void *elemento) {
-        char *elementoAComparar = string_itoa((int) elemento);
-
         if (elemento != NULL) {
-            return (strcmp(fdADesconectar, elementoAComparar) == 0);
+            if(fdMemoria == (int) elemento){
+                 printf("Voy a eliminar a %i", fdMemoria);
+                 return true;
+            }else{
+                return false;
+            }
         } else {
             return false;
         }
     }
     t_list *listaDeMemoriasConectadasACriterio = dictionary_get(tablaDeMemoriasConCriterios, criterio);
-    dictionary_remove(tablaDeMemoriasConCriterios, criterio);
-    int indiceASacar = (int) list_find(listaDeMemoriasConectadasACriterio, memoriaEncontrada(fdADesconectar));
-    if (indiceASacar != 0) {
+
+    list_remove_by_condition(listaDeMemoriasConectadasACriterio, memoriaEncontrada);
+    //dictionary_remove(tablaDeMemoriasConCriterios, criterio);
+    /*int indiceASacar = (int) list_find(listaDeMemoriasConectadasACriterio, memoriaEncontrada);
+    if (indiceASacar != NULL && indiceASacar > 0) {
         list_remove(listaDeMemoriasConectadasACriterio, indiceASacar);
         dictionary_put(tablaDeMemoriasConCriterios, criterio, listaDeMemoriasConectadasACriterio);
-    }
-}*/
+    }*/
+}
 
-void eliminarFileDescriptorDeTablasDeMemorias(int fdDesconectado, t_dictionary *tablaDeMemoriasConCriterios,
+void eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(int fdDesconectado, t_dictionary *tablaDeMemoriasConCriterios,
                                               pthread_mutex_t *mutexJournal) {
 
-    pthread_mutex_lock(mutexJournal);
+    //pthread_mutex_lock(mutexJournal);
 
     if (dictionary_has_key(tablaDeMemoriasConCriterios, "SC")) {
         char *criterio = "SC";
-        //borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
+        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
     }
     if (dictionary_has_key(tablaDeMemoriasConCriterios, "SHC")) {
         char *criterio = "SHC";
-        //borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
+        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
     }
     if (dictionary_has_key(tablaDeMemoriasConCriterios, "EC")) {
         char *criterio = "EC";
-        //borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
+        borrarFdDeListaDeFdsConectados(fdDesconectado, tablaDeMemoriasConCriterios, criterio);
     }
 }
 

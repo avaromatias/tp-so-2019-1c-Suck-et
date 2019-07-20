@@ -259,7 +259,6 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
             //incrementoCantidadSelects procesados para metricas;
             log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente. Respuesta recibida: %s",
                      fdMemoria, mensaje);
-            printf("hola");
             break;
         case INSERT:
             //incrementoCantidadInserts procesados para metricas;

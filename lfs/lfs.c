@@ -65,6 +65,11 @@ void atenderMensajes(void *parametrosRequest) {
     if (header.tipoRequest == CREATE && retorno->tipoRespuesta ==RESPUESTA) {
         retorno->valor = concat(4, "CREATE OK |", comando.parametros[0], ";", comando.parametros[1]);
     }
+    if(comando.tipoRequest == SELECT) {
+        if (strcmp(comandoParseado[1], "\"ANIMALS\"") && strcmp(comandoParseado[2], "112")) {
+            int i = 0;
+        }
+    }
     enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, comando.tipoRequest, retorno->valor, header.pid);
     // TODO: No deberiamos hacer un free(retorno->valor)?
     free(request);
@@ -127,15 +132,16 @@ void crearMetadata(char *nombreTabla, char *tipoConsistencia, char *particiones,
 }
 
 void crearBinarios(char *nombreTabla, int particiones) {
-    pthread_mutex_lock(mutexAsignacionBloques);
     for (int i = 0; i < particiones; i++) {
         t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
         bloqueA->tabla = concat(1, nombreTabla);
         bloqueA->particion = i;
+        pthread_mutex_lock(mutexAsignacionBloques);
         int bloque = obtenerBloqueDisponible(nombreTabla, i);
         if (bloque != -1) {
             char *bloqueString = string_itoa(bloque);
             dictionary_put(bloquesAsignados, bloqueString, bloqueA);
+            pthread_mutex_unlock(mutexAsignacionBloques);
             char *nombreArchivo = string_itoa(i);
             string_append(&nombreArchivo, ".bin");
             char * pathArchivo=obtenerPathArchivo(nombreTabla, nombreArchivo);
@@ -155,15 +161,17 @@ void crearBinarios(char *nombreTabla, int particiones) {
             free(nombreArchivo);
             free(bloqueString);
             free(tamanioString);
+        }else{
+            pthread_mutex_unlock(mutexAsignacionBloques);
         }
     }
-    pthread_mutex_unlock(mutexAsignacionBloques);
 }
 
 char *obtenerBloquesAsignados(char *nombreTabla, int particion) {
     char *bloquesAsignadosParticion = string_duplicate("[");
     for (int i = 0; i < obtenerCantidadBloques(configuracion.puntoMontaje); i++) {
         char *bloqueString = string_itoa(i);
+        pthread_mutex_lock(mutexAsignacionBloques);
         if (bloquesAsignados->elements_amount > 0) {
             t_bloqueAsignado *bloque = dictionary_get(bloquesAsignados, bloqueString);
             if (strcmp(bloque->tabla, nombreTabla) == 0 && bloque->particion == particion) {
@@ -171,6 +179,7 @@ char *obtenerBloquesAsignados(char *nombreTabla, int particion) {
                 string_append(&bloquesAsignadosParticion, ",");
             }
         }
+        pthread_mutex_unlock(mutexAsignacionBloques);
         free(bloqueString);
     }
     char *retorno = string_substring_until(bloquesAsignadosParticion, strlen(bloquesAsignadosParticion) - 1);
@@ -180,7 +189,7 @@ char *obtenerBloquesAsignados(char *nombreTabla, int particion) {
         return retorno;
     } else {
         free(retorno);
-        return "";
+        return string_new();
     }
 }
 
@@ -190,15 +199,9 @@ int obtenerTamanioBloque(int bloque) {
         free(pathBloque);
         return 0;
     } else {
-        FILE *bloque = fopen(pathBloque, "r");
-        char ch;
-        int count = 0;
-        while ((ch = fgetc(bloque)) != EOF) {
-            count++;
-        }
-        fclose(bloque);
-        free(pathBloque);
-        return count;
+        struct stat st;
+        if (stat(pathBloque, &st) == 0)
+            return (int) st.st_size;
     }
 }
 
@@ -273,16 +276,16 @@ void lfsDump() {
                     nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
                 }
                 pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
-                pthread_mutex_lock(sem);
+                pthread_mutex_lock(sem); // Este semaforo comento Fer
                 pthread_mutex_t *semArchivo = obtenerSemaforoPath(nombreArchivo);
                 void _dumpKey(char *key, t_list *listaDeRegistros) {
                     int index = 0;
                     void _dumpRegistro(char *linea) {
-//                        pthread_mutex_lock(semArchivo);
+                        pthread_mutex_lock(semArchivo);
                         FILE *archivoDump = fopen(nombreArchivo, "a");
                         fclose(archivoDump);
                         escribirEnBloque(linea, nombreDump, -1, nombreArchivo);
-//                        pthread_mutex_unlock(semArchivo);
+                        pthread_mutex_unlock(semArchivo);
                         list_remove(listaDeRegistros, index);
                     }
                     list_iterate(listaDeRegistros, _dumpRegistro);
@@ -292,9 +295,11 @@ void lfsDump() {
                 pthread_mutex_unlock(sem);
                 free(nombreArchivo);
             }
+            pthread_mutex_lock(mutexMemtable);
             if (!dictionary_is_empty(memTable)) {
                 dictionary_iterator(memTable, dumpTabla);
             }
+            pthread_mutex_unlock(mutexMemtable);
 
         } else {
             log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
@@ -474,9 +479,11 @@ t_response *lfsDrop(char *nombreTabla) {
             retorno->tipoRespuesta = ERR;
             retorno->valor = concat(3, "Ocurrio un error al eliminar la tabla ", nombreTabla, ".");
         } else {
+            pthread_mutex_lock(mutexMemtable);
             if (dictionary_has_key(memTable, nombreTabla)) {
                 dictionary_remove_and_destroy(memTable, nombreTabla, liberarTabla);
             }
+            pthread_mutex_unlock(mutexMemtable);
             retorno->tipoRespuesta = RESPUESTA;
             retorno->valor = concat(3, "La tabla ", nombreTabla, " fue eliminada con exito.");
         }
@@ -511,7 +518,9 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
             free(path);
         } else {
             t_dictionary *keysEnTabla = dictionary_create();
+            pthread_mutex_lock(mutexMemtable);
             dictionary_put(memTable, nombreTabla, keysEnTabla);
+            pthread_mutex_unlock(mutexMemtable);
             pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
             int init = pthread_mutex_init(semaforoTabla, NULL);
             pthread_mutex_unlock(semaforoTabla);
@@ -628,13 +637,13 @@ void compactacion(void *parametrosThread) {
                 eliminarArchivosSegunExtension(nombreTabla, ".bin");
                 t_metadata *meta = obtenerMetadata(nombreTabla);
                 crearBinarios(nombreTabla, meta->partitions);
+                pthread_mutex_unlock(sem);
                 end2 = clock();
                 total += (double) (end2 - start2);
-                pthread_mutex_unlock(sem);
             }
         }
-        log_info(logger, "La tabla %s estuvo bloqueada por %f segundos.", nombreTabla,
-                 (double) (total / CLOCKS_PER_SEC));
+        /*log_info(logger, "La tabla %s estuvo bloqueada por %f segundos.", nombreTabla,
+                 (double) (total / CLOCKS_PER_SEC));*/
     }
 }
 
@@ -729,6 +738,7 @@ pthread_t *crearHiloCompactacion(char *nombreTabla, char *tiempoCompactacion) {
     parametros->tiempoCompactacion = string_duplicate(tiempoCompactacion);
 
     pthread_create(hiloCompactacion, NULL, &compactacion, parametros);
+    pthread_detach(*hiloCompactacion);
 
     return hiloCompactacion;
 }
@@ -774,6 +784,7 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
             if (existeElArchivo(path)) {
                 char *linea = armarLinea(key, valor, timestamp);
                 t_dictionary *keysEnTabla;
+                pthread_mutex_lock(mutexMemtable);
                 if (dictionary_has_key(memTable, nombreTabla)) {
                     keysEnTabla = dictionary_get(memTable, nombreTabla);
                 } else {
@@ -788,6 +799,7 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
                     dictionary_put(keysEnTabla, key, listaDeRegistros);
                 }
                 list_add(listaDeRegistros, linea);
+                pthread_mutex_unlock(mutexMemtable);
                 retorno->tipoRespuesta = RESPUESTA;
                 retorno->valor = concat(1, "Se inserto el valor con exito.");
             } else {
@@ -936,18 +948,18 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
 
     //1. Verificar que la tabla exista en el File System
     if (existeTabla(nombreTabla) == 0) {
-        if (dictionary_has_key(tablasEnUso, nombreTabla)) {
-            pthread_mutex_t *semaforoTabla = dictionary_get(tablasEnUso, nombreTabla);
-            pthread_mutex_lock(semaforoTabla);
-            pthread_mutex_unlock(semaforoTabla);
-        } else {
-            pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
-            int init = pthread_mutex_init(semaforoTabla, NULL);
-            pthread_mutex_unlock(semaforoTabla);
-            dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
-            pthread_mutex_lock(semaforoTabla);
-            pthread_mutex_unlock(semaforoTabla);
-        }
+//        if (dictionary_has_key(tablasEnUso, nombreTabla)) {
+//            pthread_mutex_t *semaforoTabla = dictionary_get(tablasEnUso, nombreTabla);
+//            pthread_mutex_lock(semaforoTabla);
+//            pthread_mutex_unlock(semaforoTabla);
+//        } else {
+//            pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
+//            int init = pthread_mutex_init(semaforoTabla, NULL);
+//            pthread_mutex_unlock(semaforoTabla);
+//            dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
+//            pthread_mutex_lock(semaforoTabla);
+//            pthread_mutex_unlock(semaforoTabla);
+//        }
 
         char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
         if (existeElArchivo(path)) {
@@ -983,6 +995,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             char *mayorLinea = string_duplicate(obtenerLineaMasReciente(bloques, key));
 
             //7. Escaneo la memoria temporal de la tabla
+            pthread_mutex_lock(mutexMemtable);
             if (dictionary_has_key(memTable, nombreTabla)) {
                 t_dictionary *tabla = dictionary_get(memTable, nombreTabla);
                 if (dictionary_has_key(tabla, key)) {
@@ -1007,6 +1020,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                     }
                 }
             }
+            pthread_mutex_unlock(mutexMemtable);
 
             //8. Encontradas las entradas para dicha Key, se retorna el valor con el Timestamp más grande
             if (strcmp(mayorLinea, "") != 0) {
@@ -1078,11 +1092,11 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
                 } else {
                     lineaContinuaEnOtroArchivo = true;
                 }
+                if (palabras != NULL) freeArrayDeStrings(palabras);
             }
         }
         fclose(binarioBloque);
         pthread_mutex_unlock(semBloque);
-        if (palabras != NULL) freeArrayDeStrings(palabras);
         vaciarString(&blockPath);
     }
     free(linea);
@@ -1341,6 +1355,7 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, int tamanioValue, 
     parametros->tamanioValue = tamanioValue;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
+    pthread_detach(*hiloConexiones);
 
     return hiloConexiones;
 }
@@ -1353,6 +1368,7 @@ pthread_t *crearHiloRequest(Header header, char *mensaje) {
     parametros->header = header;
     parametros->mensaje = mensaje;
     pthread_create(hiloRequest, NULL, &atenderMensajes, parametros);
+    pthread_detach(*hiloRequest);
 
     return hiloRequest;
 }
@@ -1364,6 +1380,7 @@ pthread_t *crearHiloDump(t_log *logger) {
     parametros->logger = logger;
 
     pthread_create(hiloConexiones, NULL, &lfsDump, parametros);
+    pthread_detach(*hiloConexiones);
 
     return hiloConexiones;
 }
@@ -1717,7 +1734,9 @@ int main(void) {
     hilosTablas = dictionary_create();
     bloquesAsignados = dictionary_create();
     mutexAsignacionBloques = malloc(sizeof(pthread_mutex_t));
+    mutexMemtable = malloc(sizeof(pthread_mutex_t));
     int init = pthread_mutex_init(mutexAsignacionBloques, NULL);
+    int init1 = pthread_mutex_init(mutexMemtable, NULL);
     inicializarLFS(configuracion.puntoMontaje);
 
     log_info(logger, "Puerto Escucha: %i", configuracion.puertoEscucha);

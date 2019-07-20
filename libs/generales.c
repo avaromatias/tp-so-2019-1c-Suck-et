@@ -232,7 +232,7 @@ int obtenerCantidadParametros(char **request) {
 
 void freeArrayDeStrings(char **array) {
     for (int i = 0; i < tamanioDeArrayDeStrings(array); i++) {
-        free(array[i]);
+        if(array[i]) free(array[i]);
     }
     free(array);
 }

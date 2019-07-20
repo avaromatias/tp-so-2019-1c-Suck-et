@@ -28,6 +28,7 @@ typedef struct {
     pthread_mutex_t* semaforoMemoriasConocidas;
     t_sincro_journaling* semaforoJournaling;
     t_retardos_memoria* retardoMemoria;
+    pthread_mutex_t* semaforoRetardos;
 } parametros_thread_memoria;
 
 struct  t_paquete_d {
@@ -43,6 +44,8 @@ struct parametros_thread_requests_d {
     t_control_conexion* conexionLissandra;
     pthread_mutex_t* semaforoJournaling;
     int pid;
+    pthread_mutex_t* semaforoRetardos;
+    t_retardos_memoria* retardosMemoria;
 };
 
 void* atenderConexiones(void* parametrosThread);

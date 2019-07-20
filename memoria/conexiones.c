@@ -280,6 +280,9 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
 
 void* atenderRequestKernel(void* parametrosRequest)    {
     parametros_thread_request* parametros = (parametros_thread_request*) parametrosRequest;
+    //t_retardos_memoria* retardosMemoria = (t_retardos_memoria*)parametros->retardosMemoria;
+    //Retardo memoria
+
     t_paquete resultado = gestionarRequest(parametros->comando, parametros->memoria, parametros->conexionLissandra, parametros->logger, parametros->semaforoJournaling);
 
     if(parametros->conexionKernel->fd > 0)  {
@@ -287,7 +290,7 @@ void* atenderRequestKernel(void* parametrosRequest)    {
     }
 }
 
-pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoJournaling, int pid)   {
+pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoJournaling, int pid, pthread_mutex_t* semaforoRetardos, t_retardos_memoria* retardos)   {
     pthread_t* hiloRequest = (pthread_t*) malloc(sizeof(pthread_t));
 
     parametros_thread_request* parametros = (parametros_thread_request*) malloc(sizeof(parametros_thread_request));
@@ -299,6 +302,8 @@ pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_con
     parametros->conexionLissandra = conexionLissandra;
     parametros->semaforoJournaling = semaforoJournaling;
     parametros->pid = pid;
+    /*parametros->retardoMemoria = retardos;
+    parametros->semaforoRetardos = semaforoRetardos;*/
 
     pthread_create(hiloRequest, NULL, &atenderRequestKernel, parametros);
 
@@ -310,13 +315,18 @@ pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_con
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros)    {
 
     t_retardos_memoria* retardosMemoria = (t_retardos_memoria*)parametros->retardoMemoria;
-    sleep(retardosMemoria->retardoMemoria/1000);
+    pthread_mutex_t* semaforoRetardos = (pthread_mutex_t*)parametros->semaforoRetardos;
+
+    pthread_mutex_lock(semaforoRetardos);
+    int retardoMemoria = retardosMemoria->retardoMemoria;
+    pthread_mutex_unlock(semaforoRetardos);
+    sleep(retardoMemoria/1000);
     /*printf("%s\n", (char *) mensaje);
     fflush(stdout);*/
     char** comandoParseado = parser(mensaje);
     t_comando comando = instanciarComando(comandoParseado);
 
-    pthread_t* hiloRequest = crearHiloRequest(comando, parametros->memoria, parametros->conexionKernel, parametros->conexionLissandra, parametros->logger, parametros->semaforoJournaling, header.pid);
+    pthread_t* hiloRequest = crearHiloRequest(comando, parametros->memoria, parametros->conexionKernel, parametros->conexionLissandra, parametros->logger, parametros->semaforoJournaling, header.pid, parametros->semaforoRetardos, parametros->retardoMemoria);
     pthread_join(*hiloRequest, NULL);
 }
 

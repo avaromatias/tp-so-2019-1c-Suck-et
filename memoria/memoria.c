@@ -990,7 +990,7 @@ int main(void) {
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
     //TODO Agregar "mi ip" al archivo de configuracion para que memorias tenga su propia ip en su lista de gossiping
-    agregarIpMemoria(configuracion.ipFileSystem, string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
+    agregarIpMemoria("10.5.58.157", string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
 
     //pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, nombreArchivoConfiguracionConExtension, logger, retardos);
     pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);

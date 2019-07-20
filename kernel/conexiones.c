@@ -227,7 +227,7 @@ void crearTablaEnMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *lo
     dataCreateEnLissandra = mensaje; //“CREATE OK|tabla;consistencia”
     if ((dataCreateEnLissandra != NULL)) {
         infoCreate = string_split(dataCreateEnLissandra, "|");
-        if (string_contains(infoCreate[0], "CREATE OK")) {
+        if (string_contains(infoCreate[0], "CREATE OK") || string_contains(infoCreate[0], "CREATE ERROR")) {
             tablaConsistencia = infoCreate[1];
         } else {
             log_warning(logger, "El CREATE para la tabla/consistencia no se pudo crear.");

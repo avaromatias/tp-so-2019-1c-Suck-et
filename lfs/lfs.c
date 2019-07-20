@@ -62,12 +62,13 @@ void atenderMensajes(void *parametrosRequest) {
     retorno = gestionarRequest(comando);
     loguearRespuesta(request,retorno);
 
-    if (header.tipoRequest == CREATE && retorno->tipoRespuesta ==RESPUESTA) {
-        retorno->valor = concat(4, "CREATE OK |", comando.parametros[0], ";", comando.parametros[1]);
-    }
-    if(comando.tipoRequest == SELECT) {
-        if (strcmp(comandoParseado[1], "\"ANIMALS\"") && strcmp(comandoParseado[2], "112")) {
-            int i = 0;
+    if (header.tipoRequest == CREATE) {
+        if(retorno->tipoRespuesta ==RESPUESTA) {
+            retorno->valor = concat(4, "CREATE OK |", comando.parametros[0], ";", comando.parametros[1]);
+        }else{
+            if(string_contains(retorno->valor,"YA_EXISTE")) {
+                retorno->valor = concat(4, "CREATE ERROR |", comando.parametros[0], ";", comando.parametros[1]);
+            }
         }
     }
     enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, comando.tipoRequest, retorno->valor, header.pid);
@@ -509,11 +510,11 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
             // En caso que exista, se guardará el resultado en un archivo .log y se retorna un error indicando dicho resultado.
             if (!existeElArchivo(path)) {
                 crearMetadata(nombreTabla, tipoConsistencia, particiones, tiempoCompactacion);
-                retorno->tipoRespuesta = ERR;
-                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe. Se creo su Metadata.");
+                retorno->tipoRespuesta = RESPUESTA;
+                retorno->valor = concat(3, "YA_EXISTE | La tabla ", nombreTabla, " ya existe. Se creo su Metadata.");
             } else {
-                retorno->tipoRespuesta = ERR;
-                retorno->valor = concat(3, "La tabla ", nombreTabla, " ya existe.");
+                retorno->tipoRespuesta = RESPUESTA;
+                retorno->valor = concat(3, "YA_EXISTE | La tabla ", nombreTabla, " ya existe.");
             }
             free(path);
         } else {
@@ -715,7 +716,7 @@ char **filtrarKeyMax(char **listaLineas) {
             char **linea = desarmarLinea(string_duplicate(listaLineas[i]));
             char *key = linea[1];
             int timestamp = atoi(linea[0]);
-            if (strcmp(keyD, key) == 0 && timestamp > mayorTimestamp) {
+            if (strcmp(keyD, key) == 0 && timestamp >= mayorTimestamp) {
                 mayorTimestamp = timestamp;
                 mayorLinea = string_duplicate(listaLineas[i]);
             }
@@ -1666,35 +1667,29 @@ void *atenderConexiones(void *parametrosThread) {
                 int fdConectado = *((int *) list_get(unaConexion->conexiones, i));
 
                 if (FD_ISSET(fdConectado, &emisores)) {
-                    int bytesRecibidos = recv(fdConectado, &headerSerializado, sizeof(Header), MSG_DONTWAIT);
+                    int bytesRecibidos = recv(fdConectado, &headerSerializado, sizeof(Header), MSG_WAITALL);
 
                     switch (bytesRecibidos) {
                         // hubo un error al recibir los datos
                         case -1:
-                            log_error(logger, "Hubo un error al recibir el header proveniente del socket %i",
-                                      fdConectado);
-                            break;
-                            // se desconectó
-                        case 0:
-                            // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
-                            // nombre_maravillosa_funcion();
                             desconectarCliente(fdConectado, unaConexion, logger);
                             break;
+                            // se desconectó
+//                        case 0:
+                            // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
+                            // nombre_maravillosa_funcion();
+//                            desconectarCliente(fdConectado, unaConexion, logger);
+//                            break;
                             // recibí algún mensaje
                         default:; // esto es lo más raro que vi pero tuve que hacerlo
                             Header header = deserializarHeader(&headerSerializado);
                             header.fdRemitente = fdConectado;
                             int pesoMensaje = header.tamanioMensaje * sizeof(char);
                             void *mensaje = (void *) malloc(pesoMensaje);
-                            bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
+                            bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_WAITALL);
                             if (bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
-                                log_error(logger, "Hubo un error al recibir el mensaje proveniente del socket %i",
-                                          fdConectado);
-                            else if (bytesRecibidos == 0) {
-                                // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
-                                // nombre_maravillosa_funcion();
                                 desconectarCliente(fdConectado, unaConexion, logger);
-                            } else {
+                            else {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
                                 if (header.tipoMensaje == HANDSHAKE) {

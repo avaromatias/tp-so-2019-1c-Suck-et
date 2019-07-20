@@ -7,6 +7,7 @@
  ============================================================================
  */
 
+
 #ifndef KERNEL_H_
 #define KERNEL_H_
 
@@ -33,13 +34,6 @@ typedef struct {
     int refreshMetadata;
     int retardoEjecucion;
 } t_configuracion;
-
-//Estructura necesaria para el manejo de archivosLQL
-typedef struct {
-    t_queue *colaDeRequests;//cada Request va a ser un t_comando
-    int cantidadDeLineas;
-    int PID;
-} t_archivoLQL;
 
 t_list *listaMetricasSC;
 t_list *listaMetricasSHC;
@@ -86,8 +80,7 @@ bool esComandoValidoDeKernel(t_comando comando);
 
 void imprimirMensajeAdd(int numeroMemoria, char *criterio);
 
-int
-gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID, estadisticasRequest *estadisticasRequest);
+int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID, estadisticasRequest *estadisticasRequest);
 
 int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion,
                           int fdMemoria, int PID);

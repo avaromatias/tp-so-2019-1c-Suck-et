@@ -67,7 +67,8 @@ int main(void) {
     nodoMemoriaPrincipal->fdNodoMemoria = fdMemoriaPrincipal;
 
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas,
-                                                    mutexJournal, supervisorDeHilos, memoriasConocidas);
+                                                    mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew,
+                                                    colaDeNew, cantidadProcesosEnNew);
 
     //refreshMetadata(configuracion.refreshMetadata, metadataTablas, logger);
 
@@ -111,7 +112,7 @@ int main(void) {
     paramPlanificacionGeneral->supervisorDeHilos = supervisorDeHilos;
     paramPlanificacionGeneral->memoriasUtilizables = memoriasUtilizables;
 
-    pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
+//    pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
 
     for (int i = 0; i < configuracion.multiprocesamiento; i++) {
 //        paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo = semaforoHilo;
@@ -278,8 +279,8 @@ void calcularMetricas(bool mostrarPorPantalla, p_planificacion *paramPlanifGener
         mostrarMetricas(metricasMPorCriterioSC, metricasMPorCriterioSHC, metricasMPorCriterioEC, mostrarPorPantalla,
                         logger);
     }
-
 }
+
 
 void mostrarMetricas(t_metricasDefinidas *metricasSC, t_metricasDefinidas *metricasSHC, t_metricasDefinidas *metricasEC,
                      bool mostrarPorPantalla, t_log *logger) {
@@ -351,6 +352,7 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
             continue;
         }
         *requestParseada = instanciarComando(comandoParseado);
+        free(comandoParseado);
         requestEsValida = analizarRequest(*requestParseada, parametros);
         if (requestEsValida == true) {
             seEncola = encolarDirectoNuevoPedido(*requestParseada);
@@ -446,8 +448,6 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                         actualizarEstructurasMetricas(fdMemoria, listaCriterio, requestParseada.tipoRequest,
                                                       estadisticasRequest);
                         char *tipoRequest = "INSERT";
-//                        actualizarMetricas(fdMemoria, paramPlanifGeneral, criterio, tipoRequest, mutexDeHiloRequest,
-//                                           estadisticasRequest, semConcurrenciaMetricas);
                         return respuesta;
                     } else {
                         log_error(logger, "El criterio es nulo, no se puede analizar.");
@@ -712,7 +712,7 @@ int gestionarAdd(char **parametrosDeRequest, p_planificacion *paramPlanificacion
     GestorConexiones *misConexiones = pConsolaKernel->conexiones;
     t_dictionary *tablaMemoriasConCriterios = pConsolaKernel->memoriasConCriterios;
 
-    bool haySuficientesMemorias = (list_size(misConexiones->conexiones) > numeroMemoria && (numeroMemoria >= 0));
+    bool haySuficientesMemorias = (list_size(misConexiones->conexiones) >= numeroMemoria && (numeroMemoria > 0));
 
     if (haySuficientesMemorias) {
 
@@ -950,8 +950,7 @@ pthread_t *crearHiloPlanificadorCortoPlazo(p_planificacion *paramPlanificacionGe
     return hiloPCP;
 }
 
-void
-planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t *semaforoHilo) {
+void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t *semaforoHilo) {
     estadisticasRequest *infoRequest = (estadisticasRequest *) malloc(sizeof(estadisticasRequest));
     sem_t *semConcurrenciaMetricas = (sem_t *) malloc(sizeof(sem_t));
     sem_init(semConcurrenciaMetricas, 0, 1);

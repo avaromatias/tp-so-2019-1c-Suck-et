@@ -1667,35 +1667,29 @@ void *atenderConexiones(void *parametrosThread) {
                 int fdConectado = *((int *) list_get(unaConexion->conexiones, i));
 
                 if (FD_ISSET(fdConectado, &emisores)) {
-                    int bytesRecibidos = recv(fdConectado, &headerSerializado, sizeof(Header), MSG_DONTWAIT);
+                    int bytesRecibidos = recv(fdConectado, &headerSerializado, sizeof(Header), MSG_WAITALL);
 
                     switch (bytesRecibidos) {
                         // hubo un error al recibir los datos
                         case -1:
-                            log_error(logger, "Hubo un error al recibir el header proveniente del socket %i",
-                                      fdConectado);
-                            break;
-                            // se desconectó
-                        case 0:
-                            // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
-                            // nombre_maravillosa_funcion();
                             desconectarCliente(fdConectado, unaConexion, logger);
                             break;
+                            // se desconectó
+//                        case 0:
+                            // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
+                            // nombre_maravillosa_funcion();
+//                            desconectarCliente(fdConectado, unaConexion, logger);
+//                            break;
                             // recibí algún mensaje
                         default:; // esto es lo más raro que vi pero tuve que hacerlo
                             Header header = deserializarHeader(&headerSerializado);
                             header.fdRemitente = fdConectado;
                             int pesoMensaje = header.tamanioMensaje * sizeof(char);
                             void *mensaje = (void *) malloc(pesoMensaje);
-                            bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
+                            bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_WAITALL);
                             if (bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
-                                log_error(logger, "Hubo un error al recibir el mensaje proveniente del socket %i",
-                                          fdConectado);
-                            else if (bytesRecibidos == 0) {
-                                // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
-                                // nombre_maravillosa_funcion();
                                 desconectarCliente(fdConectado, unaConexion, logger);
-                            } else {
+                            else {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
                                 if (header.tipoMensaje == HANDSHAKE) {

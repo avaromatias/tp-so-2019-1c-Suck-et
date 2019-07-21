@@ -463,5 +463,21 @@ void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *
 
 }
 
+//Inotify
+
+void avisoNuevoNivelDeMultiProcesamiento(char* nuevoNivelDeMP, t_list* memoriasConocidas)  {
+    //char* componenteStr = string_itoa(componente);
+
+    t_nodoMemoria* unNodoMemoria;
+    void avisoNuevoNivelMP(void* elemento){
+        if(elemento != NULL){
+            unNodoMemoria = (t_nodoMemoria*)elemento;
+            enviarPaquete(unNodoMemoria->fdNodoMemoria, NIVEL_MULTIPROCESAMIENTO, REQUEST, nuevoNivelDeMP, -1);
+        }
+    }
+
+    list_iterate(memoriasConocidas, avisoNuevoNivelMP);
+}
+
 
 

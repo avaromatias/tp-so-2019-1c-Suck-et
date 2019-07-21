@@ -97,7 +97,7 @@ int main(void) {
     parametrosPLP->logger = logger;
 
 
-    pthread_t*  hiloMonitor = (pthread_t*)crearHiloMonitor(configuracion.directorioAMonitorear, "kernel.cfg", logger, datosConfiguracion, mutexDatosConfiguracion);
+    pthread_t*  hiloMonitor = (pthread_t*)crearHiloMonitor(configuracion.directorioAMonitorear, "kernel.cfg", logger, datosConfiguracion, mutexDatosConfiguracion, memoriasConocidas);
     pthread_t *hiloPlanificadorLargoPlazo = crearHiloPlanificadorLargoPlazo(parametrosPLP);
     pthread_t *hiloGossiping = (pthread_t *) crearHiloGossiping(misConexiones, memoriasConocidas, logger);
 
@@ -1127,6 +1127,7 @@ void atenderInotify(parametros_hilo_monitor* parametros){
     t_log* logger = (t_log*) parametros->logger;
     t_datos_configuracion* datosConfiguracion =(t_datos_configuracion*) parametros->datosConfiguracion;
     pthread_mutex_t* mutexDatosConfiguracion = (pthread_mutex_t*) parametros->mutexDatosConfiguracion;
+    t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
 
     log_info(logger, "Inicio el hilo que atiende inofity");
     char buffer[BUF_LEN];
@@ -1170,6 +1171,13 @@ void atenderInotify(parametros_hilo_monitor* parametros){
                     pthread_mutex_lock(mutexDatosConfiguracion);
                     //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
                     t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
+
+                    //Si cambió el nivel de multiprocesamiento
+                    if (nuevaConfiguracion.multiprocesamiento != datosConfiguracion->nivelDeMultiProcesamiento){
+                        //enviarMensajeAMemorias
+                        avisoNuevoNivelDeMultiProcesamiento(string_itoa(nuevaConfiguracion.multiprocesamiento), memoriasConocidas);
+                    }
+
                     datosConfiguracion->retardoEjecucion = nuevaConfiguracion.retardoEjecucion;
                     datosConfiguracion->nivelDeMultiProcesamiento = nuevaConfiguracion.multiprocesamiento;
                     datosConfiguracion->Quantum= nuevaConfiguracion.quantum;
@@ -1187,6 +1195,10 @@ void atenderInotify(parametros_hilo_monitor* parametros){
                     pthread_mutex_lock(mutexDatosConfiguracion);
                     //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
                     t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
+                    if (nuevaConfiguracion.multiprocesamiento != datosConfiguracion->nivelDeMultiProcesamiento){
+                        //enviarMensajeAMemorias
+                        avisoNuevoNivelDeMultiProcesamiento(string_itoa(nuevaConfiguracion.multiprocesamiento), memoriasConocidas);
+                    }
                     datosConfiguracion->retardoEjecucion = nuevaConfiguracion.retardoEjecucion;
                     datosConfiguracion->nivelDeMultiProcesamiento = nuevaConfiguracion.multiprocesamiento;
                     datosConfiguracion->Quantum= nuevaConfiguracion.quantum;
@@ -1202,6 +1214,10 @@ void atenderInotify(parametros_hilo_monitor* parametros){
                     pthread_mutex_lock(mutexDatosConfiguracion);
                     //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
                     t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
+                    if (nuevaConfiguracion.multiprocesamiento != datosConfiguracion->nivelDeMultiProcesamiento){
+                        //enviarMensajeAMemorias
+                        avisoNuevoNivelDeMultiProcesamiento(string_itoa(nuevaConfiguracion.multiprocesamiento), memoriasConocidas);
+                    }
                     datosConfiguracion->retardoEjecucion = nuevaConfiguracion.retardoEjecucion;
                     datosConfiguracion->nivelDeMultiProcesamiento = nuevaConfiguracion.multiprocesamiento;
                     datosConfiguracion->Quantum= nuevaConfiguracion.quantum;
@@ -1215,6 +1231,10 @@ void atenderInotify(parametros_hilo_monitor* parametros){
                     pthread_mutex_lock(mutexDatosConfiguracion);
                     //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
                     t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
+                    if (nuevaConfiguracion.multiprocesamiento != datosConfiguracion->nivelDeMultiProcesamiento){
+                        //enviarMensajeAMemorias
+                        avisoNuevoNivelDeMultiProcesamiento(string_itoa(nuevaConfiguracion.multiprocesamiento), memoriasConocidas);
+                    }
                     datosConfiguracion->retardoEjecucion = nuevaConfiguracion.retardoEjecucion;
                     datosConfiguracion->nivelDeMultiProcesamiento = nuevaConfiguracion.multiprocesamiento;
                     datosConfiguracion->Quantum= nuevaConfiguracion.quantum;
@@ -1244,7 +1264,7 @@ void monitorearDirectorio(parametros_hilo_monitor* parametros){
 
 }
 
-pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion){
+pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion, t_list* memoriasConocidas){
     pthread_t* hiloMonitor= malloc(sizeof(pthread_t));
     parametros_hilo_monitor* parametros = (parametros_hilo_monitor*) malloc(sizeof(parametros_hilo_monitor));
 
@@ -1253,6 +1273,7 @@ pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConf
     parametros->directorioAMonitorear = directorioAMonitorear;
     parametros->mutexDatosConfiguracion = mutexDatosConfiguracion;
     parametros->datosConfiguracion = datosConfiguracion;
+    parametros->memoriasConocidas = memoriasConocidas;
 
     pthread_create(hiloMonitor, NULL, &monitorearDirectorio, parametros);
     return hiloMonitor;

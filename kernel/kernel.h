@@ -185,11 +185,12 @@ typedef struct{
     char* nombreArchivoDeConfiguracion;
     pthread_mutex_t* mutexDatosConfiguracion;
     t_datos_configuracion* datosConfiguracion;
+    t_list* memoriasConocidas;
 
 }parametros_hilo_monitor;
 
 
-pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion);
+pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion, t_list* memoriasConocidas);
 t_datos_configuracion* instanciarDatosConfiguracion(t_configuracion* configuracion);
 
 

@@ -143,6 +143,11 @@ void agregarIpMemoria(char* ipNuevaMemoria, int puertoNuevaMemoria, t_list* memo
 void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas, t_log* logger);
 void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_log* logger);
 
+//Inotify
+
+void avisoNuevoNivelDeMultiProcesamiento(char* nuevoNivelDeMP, t_list* memoriasConocidas);
+
+
 //Estructura necesaria para el manejo de archivosLQL
 typedef struct {
     t_queue *colaDeRequests;//cada Request va a ser un t_comando

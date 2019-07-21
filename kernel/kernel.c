@@ -32,6 +32,12 @@ int main(void) {
 
     t_configuracion configuracion = cargarConfiguracion("kernel.cfg", logger);
 
+
+    t_datos_configuracion* datosConfiguracion = (t_datos_configuracion*) malloc(sizeof(t_datos_configuracion));
+    pthread_mutex_t *mutexDatosConfiguracion= malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(mutexDatosConfiguracion, NULL);
+
+
     log_info(logger, "IP Memoria: %s", configuracion.ipMemoria);
     log_info(logger, "Puerto Memoria: %i", configuracion.puertoMemoria);
     log_info(logger, "Quantum: %i", configuracion.quantum);
@@ -45,7 +51,6 @@ int main(void) {
     t_list *listaDeCriteriosSC = list_create();
     t_list *listaDeCriteriosSHC = list_create();
     t_list *listaDeCriteriosEC = list_create();
-
     t_list* memoriasConocidas = list_create();
 
     //voy a tener relacion de criterio con un t_list* de FDs
@@ -87,8 +92,12 @@ int main(void) {
     parametrosPLP->contadorPID = contadorPIDs;
     parametrosPLP->logger = logger;
 
+
+    //pthread_t*  hiloMonitor = (pthread_t*)crearHiloMonitor(configuracion.directorioAMonitorear, "kernel.cfg", logger, datosConfiguracion, mutexDatosConfiguracion);
     pthread_t *hiloPlanificadorLargoPlazo = crearHiloPlanificadorLargoPlazo(parametrosPLP);
     pthread_t* hiloGossiping = (pthread_t*)crearHiloGossiping(misConexiones, memoriasConocidas, logger);
+
+
 
     parametros_pcp *parametrosPCP = (parametros_pcp *) malloc(sizeof(parametros_pcp));
 
@@ -134,6 +143,7 @@ int main(void) {
     pthread_join(*hiloRespuestas, NULL);
     pthread_join(*hiloGossiping, NULL);
     pthread_join(*hiloPlanificadorLargoPlazo, NULL);
+    //pthread_join(*hiloMonitor, NULL);
 
     free(pConsolaKernel);
     free(parametrosPCP);
@@ -304,7 +314,8 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
                 "QUANTUM",
                 "MULTIPROCESAMIENTO",
                 "METADATA_REFRESH",
-                "SLEEP_EJECUCION"
+                "SLEEP_EJECUCION",
+                "DIRECTORIO_CONFIGURACION"
         };
 
         for (int i = 0; i < COUNT_OF(clavesObligatorias); i++) {
@@ -1140,6 +1151,142 @@ pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_list* memoria
     return hiloGossiping;
 
 }
+
+void atenderInotify(parametros_hilo_monitor* parametros){
+
+    char* nombreDirectorio = (char*) parametros->directorioAMonitorear;
+    char* nombreArchivoDeConfiguracion = (char*) parametros->nombreArchivoDeConfiguracion;
+    t_log* logger = (t_log*) parametros->logger;
+    t_datos_configuracion* datosConfiguracion =(t_datos_configuracion*) parametros->datosConfiguracion;
+    pthread_mutex_t* mutexDatosConfiguracion = (pthread_mutex_t*) parametros->mutexDatosConfiguracion;
+
+    log_info(logger, "Inicio el hilo que atiende inofity");
+    char buffer[BUF_LEN];
+
+    int file_descriptor = inotify_init();
+    if (file_descriptor < 0) {
+        perror("inotify_init");
+    }
+
+    // Creamos un monitor sobre un path indicando que eventos queremos escuchar
+    int watch_descriptor = inotify_add_watch(file_descriptor, "/home/utnso/operativos/tp-2019-1c-Suck-et/kernel/", IN_MODIFY | IN_CREATE | IN_DELETE);
+
+    // El file descriptor creado por inotify, es el que recibe la información sobre los eventos ocurridos
+    // para leer esta información el descriptor se lee como si fuera un archivo comun y corriente pero
+    // la diferencia esta en que lo que leemos no es el contenido de un archivo sino la información
+    // referente a los eventos ocurridos
+    int offset = 0;
+    int length = read(file_descriptor, buffer, BUF_LEN);
+    if (length < 0) {
+        perror("read");
+    }
+    // Luego del read buffer es un array de n posiciones donde cada posición contiene
+    // un eventos ( inotify_event ) junto con el nombre de este.
+    while (offset < length) {
+
+        // El buffer es de tipo array de char, o array de bytes. Esto es porque como los
+        // nombres pueden tener nombres mas cortos que 24 caracteres el tamaño va a ser menor
+        // a sizeof( struct inotify_event ) + 24.
+        struct inotify_event *event = (struct inotify_event *) &buffer[offset];
+
+        // El campo "len" nos indica la longitud del tamaño del nombre
+        if (event->len) {
+            // Dentro de "mask" tenemos el evento que ocurrio y sobre donde ocurrio
+            // sea un archivo o un directorio
+            if (event->mask & IN_CREATE) {
+                if (event->mask & IN_ISDIR) {
+                    printf("Se creo el directorio %s .\n", event->name);
+                } else {
+                    //printf("Se creó el archivo%s.\n", event->name);
+                    //printf("Se modificó el archivo%s.\n", event->name);
+                    pthread_mutex_lock(mutexDatosConfiguracion);
+                    //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", ));
+                    t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
+                    datosConfiguracion->sleep = nuevaConfiguracion.retardoEjecucion;
+                    datosConfiguracion->nivelDeMultiProcesamiento = nuevaConfiguracion.multiprocesamiento;
+                    datosConfiguracion->Quantum= nuevaConfiguracion.quantum;
+                    datosConfiguracion->refreshMetadata = nuevaConfiguracion.refreshMetadata;
+                    //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", ));
+                    pthread_mutex_unlock(mutexDatosConfiguracion);
+                }
+            } else if (event->mask & IN_DELETE) {
+                if (event->mask & IN_ISDIR) {
+                    printf("Se eliminó el directorio%s.\n", event->name);
+                } else {
+                    //printf("Se eliminó el archivo%s.\n", event->name);
+                    //printf("Se modificó el archivo%s.\n", event->name);
+                    pthread_mutex_lock(mutexDatosConfiguracion);
+                    //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", ));
+                    t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
+                    datosConfiguracion->sleep = nuevaConfiguracion.retardoEjecucion;
+                    datosConfiguracion->nivelDeMultiProcesamiento = nuevaConfiguracion.multiprocesamiento;
+                    datosConfiguracion->Quantum= nuevaConfiguracion.quantum;
+                    datosConfiguracion->refreshMetadata = nuevaConfiguracion.refreshMetadata;
+                    //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", ));
+                    pthread_mutex_unlock(mutexDatosConfiguracion);
+                }
+            } else if (event->mask & IN_MODIFY) {
+                if (event->mask & IN_ISDIR) {
+                    //printf("Se modificó el directorio %s.\n", event->name);
+                    //printf("Se modificó el archivo%s.\n", event->name);
+                    pthread_mutex_lock(mutexDatosConfiguracion);
+                    //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", ));
+                    t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
+                    datosConfiguracion->sleep = nuevaConfiguracion.retardoEjecucion;
+                    datosConfiguracion->nivelDeMultiProcesamiento = nuevaConfiguracion.multiprocesamiento;
+                    datosConfiguracion->Quantum= nuevaConfiguracion.quantum;
+                    datosConfiguracion->refreshMetadata = nuevaConfiguracion.refreshMetadata;
+                    //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", ));
+                    pthread_mutex_unlock(mutexDatosConfiguracion);
+                } else {
+
+                    //printf("Se modificó el archivo%s.\n", event->name);
+                    pthread_mutex_lock(mutexDatosConfiguracion);
+                    //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", ));
+                    t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
+                    datosConfiguracion->sleep = nuevaConfiguracion.retardoEjecucion;
+                    datosConfiguracion->nivelDeMultiProcesamiento = nuevaConfiguracion.multiprocesamiento;
+                    datosConfiguracion->Quantum= nuevaConfiguracion.quantum;
+                    datosConfiguracion->refreshMetadata = nuevaConfiguracion.refreshMetadata;
+                    //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", ));
+                    pthread_mutex_unlock(mutexDatosConfiguracion);
+                }
+            }
+        }
+        offset += sizeof (struct inotify_event) + event->len;
+    }
+
+    inotify_rm_watch(file_descriptor, watch_descriptor);
+    close(file_descriptor);
+    log_info(logger, "Finalizo el hilo que atiende inofity");
+}
+
+void monitorearDirectorio(parametros_hilo_monitor* parametros){
+
+    while(1){
+        //pthread_create(hiloInotify, NULL, &atenderInotify, parametros);
+
+        //pthread_detach(*hiloInotify);
+        atenderInotify(parametros);
+    }
+
+}
+
+pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion){
+    pthread_t* hiloMonitor= malloc(sizeof(pthread_t));
+    parametros_hilo_monitor* parametros = (parametros_hilo_monitor*) malloc(sizeof(parametros_hilo_monitor));
+
+    parametros->logger = logger;
+    parametros->nombreArchivoDeConfiguracion= nombreArchivoConfiguracionConExtension;
+    parametros->directorioAMonitorear = directorioAMonitorear;
+    parametros->mutexDatosConfiguracion = mutexDatosConfiguracion;
+    parametros->datosConfiguracion = datosConfiguracion;
+
+    pthread_create(hiloMonitor, NULL, &monitorearDirectorio, parametros);
+    return hiloMonitor;
+
+}
+
 
 /*void refreshMetadata(p_planificacion *paramPlanificacionGeneral, int tiempoDeRefresh, t_dictionary *metadataTablas,
                      t_log *logger) {

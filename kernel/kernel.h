@@ -25,6 +25,9 @@
 #include "../libs/sockets.h"
 #include "conexiones.h"
 
+#define EVENT_SIZE  ( sizeof (struct inotify_event) + 24 )
+#define BUF_LEN     ( 512 * EVENT_SIZE )
+
 //Estructura necesaria para el archivo de configuración
 typedef struct {
     char *ipMemoria;
@@ -33,6 +36,7 @@ typedef struct {
     int multiprocesamiento;
     int refreshMetadata;
     int retardoEjecucion;
+    char* directorioAMonitorear;
 } t_configuracion;
 
 //Estructura para manejar estadisticas de Requests de un FD
@@ -172,6 +176,29 @@ void conectarseANuevasMemorias(t_list *memoriasConocidas, GestorConexiones *misC
 void gossiping(parametros_gossiping *parametros);
 
 int conectarseANuevoNodoMemoria(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger);
+
+//Estructura que guarda los tiempos de refresh
+
+typedef  struct{
+    int nivelDeMultiProcesamiento;
+    int refreshMetadata;
+    int Quantum;
+    int sleep;
+}t_datos_configuracion;
+
+typedef struct{
+
+    char* directorioAMonitorear;
+
+    t_log* logger;
+    char* nombreArchivoDeConfiguracion;
+    pthread_mutex_t* mutexDatosConfiguracion;
+    t_datos_configuracion* datosConfiguracion;
+
+}parametros_hilo_monitor;
+
+
+pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion);
 
 
 #endif /* KERNEL_H_ */

@@ -62,8 +62,7 @@ void *atenderConexiones(void *parametrosThread) {
                             pthread_mutex_lock(mutexJournal);
                             eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
                             eliminarFileDescriptorDeNodosMemoriaConocidas(fdConectado, listaDeNodosMemorias, logger);
-                            //GestorConexiones* misConexiones, sem_t *semaforo_colaDeNew, t_queue *colaDeNew
-                            forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
+                            //forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
                             pthread_mutex_unlock(mutexJournal);
                             break;
                             // recibí algún mensaje
@@ -78,7 +77,7 @@ void *atenderConexiones(void *parametrosThread) {
                                 pthread_mutex_lock(mutexJournal);
                                 eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
                                 eliminarFileDescriptorDeNodosMemoriaConocidas(fdConectado, listaDeNodosMemorias, logger);
-                                forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
+                                //forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
                                 pthread_mutex_unlock(mutexJournal);
                             } else {
                                 switch (header.tipoMensaje) {
@@ -89,8 +88,9 @@ void *atenderConexiones(void *parametrosThread) {
                                         break;
                                     case CONEXION_ACEPTADA:
                                         //atenderHandshake(header, componente, parametros);
+                                        //TODO los semaforos de las queues sirven para bloquear la ejecucion?
                                         pthread_mutex_lock(mutexJournal);
-                                        forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
+                                        //forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
                                         pthread_mutex_unlock(mutexJournal);
                                         log_info(logger,
                                                  "La memoria conectada recientemente ya se encuentra disponible para ser utilizada.\n");

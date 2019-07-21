@@ -10,7 +10,7 @@
 #include "kernel.h"
 
 int main(void) {
-    t_log *logger = log_create("../kernel.log", "kernel", false, LOG_LEVEL_INFO);
+    t_log *logger = log_create("../kernel.log", "kernel", true, LOG_LEVEL_INFO);
     log_info(logger, "Iniciando el proceso Kernel");
 
     t_dictionary *supervisorDeHilos = dictionary_create();//Va a tener como KEY el PID, y la data el SEMÁFORO de c/hilo

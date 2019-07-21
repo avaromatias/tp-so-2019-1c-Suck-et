@@ -11,20 +11,38 @@
 #include "../libs/sockets.h"
 #include "../libs/consola.h"
 
-//typedef struct t_archivoLQL_d t_archivoLQL;
+//Estructura para manejar estadisticas de Requests de un FD
+typedef struct {
+    int fdMemoria;
+    time_t inicioRequest;
+    time_t finRequest;
+    double duracionEnSegundos;
+    TipoRequest tipoRequest;
+} estadisticasRequest;
+
+//Estructura necesaria para guardar las metricas de un solo FD
+typedef struct {
+    char *criterio;
+    int cantidadSelects;
+    int cantidadInserts;
+    double tiempoTotalSelects;
+    double tiempoTotalInserts;
+} metricasParaCriterios;
+
+//Estructura necesaria para guardar las metricas de un solo FD
+typedef struct {
+    char *criterio;
+    double readLatency;
+    double writeLatency;
+    int reads;
+    int writes;
+    t_list *fds
+} t_metricasDefinidas;
 
 typedef struct {
-    GestorConexiones *conexion;
-    t_log *logger;
-    int *fdMemoria;
-} parametros_thread_memoria;
-
-typedef struct {
-    t_list *estadisticasMemSC;
-    t_list *estadisticasMemSHC;
-    t_list *estadisticasMemEC;
-    int requestTotales;
-} t_metricas;
+    t_list *estadisticas;
+    metricasParaCriterios *metricas;
+   } t_metricas;
 
 typedef struct {
     GestorConexiones *conexion;
@@ -130,8 +148,6 @@ typedef struct {
     t_queue *colaDeRequests;//cada Request va a ser un t_comando
     int cantidadDeLineas;
     int PID;
-    int cantidadDeSelectProcesados;
-    int cantidadDeInsertProcesados;
 } t_archivoLQL;
 
 

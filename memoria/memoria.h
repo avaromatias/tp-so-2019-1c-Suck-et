@@ -9,6 +9,8 @@
 
 #ifndef MEMORIA_H_
 #define MEMORIA_H_
+#define EVENT_SIZE  ( sizeof (struct inotify_event) + 24 )
+#define BUF_LEN     ( 1024 * EVENT_SIZE )
 
 #include <stdio.h>
 #include <string.h>
@@ -31,20 +33,23 @@ typedef struct t_nodoMemoria nodoMemoria;
 typedef struct t_configuracion_d t_configuracion;
 typedef struct t_retardos_memoria_d t_retardos_memoria;
 typedef struct t_sincro_journaling_d t_sincro_journaling;
-#define EVENT_SIZE  ( sizeof (struct inotify_event) + 24 )
-#define BUF_LEN     ( 512 * EVENT_SIZE )
+typedef struct t_parametros_conexion_lissandra_d t_parametros_conexion_lissandra;
 
+struct t_parametros_conexion_lissandra_d {
+    char* ip;
+    int puerto;
+};
 
 #include "conexiones.h"
 
-
-struct t_retardos_memoria_d{
+struct t_retardos_memoria_d {
     int retardoMemoria;
     int retardoGossiping;
     int retardoJournaling;
     int retardoFileSystem;
 };
-struct t_configuracion_d{
+
+struct t_configuracion_d    {
     int puerto;
     char* ipFileSystem;
     int puertoFileSystem;
@@ -57,13 +62,13 @@ struct t_configuracion_d{
     int retardoGossiping;
     int cantidadDeMemorias;
     char* ipMemoria;
-    char* directorioConfiguracion;
 };
 
 struct t_sincro_journaling_d {
     sem_t semaforoJournaling;
     int cantidadRequestsEnParalelo;
     pthread_mutex_t mutexNivel;
+    pthread_mutex_t ejecutandoJournaling;
 };
 
 typedef struct {
@@ -108,30 +113,36 @@ struct t_memoria_d {
 };
 
 typedef struct {
-    t_memoria* memoria;
-    struct t_control_conexion* conexionLissandra;
-    t_log* logger;
-    t_sincro_journaling* semaforoJournaling;
-} parametros_consola_memoria;
-pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, t_sincro_journaling* semaforoJournaling);
-
-typedef struct {
     char* directorioAMonitorear;
     t_retardos_memoria* retardos;
     t_log* logger;
     char* nombreArchivoDeConfiguracion;
-    pthread_mutex_t* semaforoRetardos;
 }parametros_hilo_monitor;
+
+typedef struct {
+    t_memoria* memoria;
+    t_log* logger;
+    t_retardos_memoria* retardos;
+    t_sincro_journaling* semaforoJournaling;
+    t_parametros_conexion_lissandra conexionLissandra;
+} parametros_hilo_journal;
+
+typedef struct {
+    t_memoria* memoria;
+    t_parametros_conexion_lissandra conexionLissandra;
+    t_log* logger;
+    t_sincro_journaling* semaforoJournaling;
+} parametros_consola_memoria;
 
 t_configuracion cargarConfiguracion(char* path, t_log* logger);
 
-t_paquete gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger, t_sincro_journaling* semaforoJournalingf);
+t_paquete gestionarRequest(t_comando comando, t_memoria* memoria, int conexionLissandra, t_log* logger, t_sincro_journaling* semaforoJournalingf);
 
 t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamanioPagina, t_log* logger);
 
 int calcularTamanioDePagina(int tamanioValue);
 //Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS
-int getTamanioValue(t_control_conexion* conexionLissandra, t_log* logger);
+int getTamanioValue(t_parametros_conexion_lissandra conexionLissandra, t_log* logger);
 int cantidadTotalMarcosMemoria(t_memoria memoria);
 void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal);
 void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* value, int tamanioPagina, t_dictionary* tablaDePaginas);
@@ -139,7 +150,7 @@ t_pagina* crearPagina(char* key, t_memoria* memoria);
 char* formatearPagina(char* key, char* value, char* timestamp, t_memoria* memoria);
 bool hayMarcosLibres(t_memoria* memoria);
 t_marco* getMarcoLibre(t_memoria* memoria);
-t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger,  t_control_conexion* conexionLissandra, t_sincro_journaling* semaforoJournaling);
+t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger, int conexionLissandra, t_sincro_journaling* semaforoJournaling);
 t_pagina* insertarNuevaPagina(char* key, char* value, t_dictionary* tablaDePaginas, t_memoria* memoria, bool recibiTimestamp);
 t_segmento* crearSegmento(char* nombreTabla, t_memoria* memoria);
 t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dictionary* tablaDePaginas);
@@ -147,12 +158,15 @@ t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria);
 
 //void logearValorDeSemaforo(sem_t* unSemaforo, t_log* logger, char* unString);
 
-t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *conexionLissandra, t_memoria *memoria, t_log *logger, t_sincro_journaling* semaforoJournaling);
-t_paquete gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, t_sincro_journaling* semaforoJournaling);
-t_paquete gestionarCreate(char* nombreTabla, char* tipoConsistencia, char* cantidadParticiones, char* tiempoCompactacion, t_control_conexion* conexionLissandra, t_log* logger);
+t_paquete gestionarSelect(char *nombreTabla, char *key, int conexionLissandra, t_memoria *memoria, t_log *logger,
+                          t_sincro_journaling *semaforoJournaling);
+t_paquete gestionarInsert(char *nombreTabla, char *key, char *valueConComillas, t_memoria *memoria, t_log *logger,
+                          int conexionLissandra, t_sincro_journaling *semaforoJournaling);
+t_paquete gestionarCreate(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones,
+                          char *tiempoCompactacion, int conexionLissandra, t_log *logger);
 
 // drop
-t_paquete gestionarDrop(char* nombreTabla, t_control_conexion* conexionLissandra, t_memoria* memoria, t_log* logger);
+t_paquete gestionarDrop(char *nombreTabla, int conexionLissandra, t_memoria *memoria, t_log *logger);
 char* drop(char* nombreTabla, t_memoria* memoria);
 void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria);
 void eliminarPagina(void* pagina);
@@ -161,28 +175,20 @@ void eliminarSegmento(void* segmento);
 //JOURNAL
 typedef  struct {
     char* nombreTabla;
-    t_control_conexion* conexionLissandra;
+    int conexionLissandra;
     t_log* logger;
 
 }parametros_journal;
-typedef struct {
-    t_memoria* memoria;
-    struct t_control_conexion* conexionLissandra;
-    t_log* logger;
-    t_retardos_memoria* retardos;
-    t_sincro_journaling* semaforoJournaling;
-    pthread_mutex_t* semaforoRetardos;
-} parametros_hilo_journal;
 
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
 void vaciarMemoria(t_memoria* memoria, t_log* logger);
-pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_retardos_memoria* retardos, pthread_mutex_t* semaforoRetardos);
+pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_parametros_conexion_lissandra conexionLissandra, t_retardos_memoria* retardos, t_sincro_journaling* semaforoJournaling);
 
 //monitoreo
 
-void monitorearDirectorio(parametros_hilo_monitor* parametros);
-pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_retardos_memoria* retardos, pthread_mutex_t* semaforoRetardos);
+void* monitorearDirectorio(void* parametros);
+pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_retardos_memoria* retardos);
 
 //monitoreo
 
@@ -195,9 +201,8 @@ typedef struct {
     t_configuracion archivoDeConfiguracion;
     pthread_mutex_t* semaforoMemoriasConocidas;
     t_sincro_journaling* semaforoJournaling;
-    pthread_mutex_t* semaforoRetardos;
     t_retardos_memoria* retardosMemoria;
-}parametros_gossiping;
+} parametros_gossiping;
 
 struct t_nodoMemoria{
     char* ipNodoMemoria;
@@ -206,7 +211,7 @@ struct t_nodoMemoria{
 };
 
 void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_log* logger);
-pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t* semaforoMemoriasConocidas, t_sincro_journaling* semaforoJournaling, t_retardos_memoria* retardos, pthread_mutex_t* semaforoRetardos);
+pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t* semaforoMemoriasConocidas, t_sincro_journaling* semaforoJournaling, t_retardos_memoria* retardos);
 
 void eliminarNodoMemoria(int fdNodoMemoria, t_list* nodosMemoria);
 void eliminarMemoriaConocida(t_memoria* memoria, nodoMemoria* unNodoMemoria);
@@ -219,3 +224,5 @@ char* getKeyFromContenidoPagina(char* contenidoPagina);
 char* getTimestampFromContenidoPagina(char* contenidoPagina);
 
 t_retardos_memoria* iniciarRetardos(t_configuracion configuracion);
+
+pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_parametros_conexion_lissandra conexionLissandra, t_sincro_journaling* semaforoJournaling);

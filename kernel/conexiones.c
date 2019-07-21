@@ -46,7 +46,7 @@ void *atenderConexiones(void *parametrosThread) {
     sem_t*  cantidadProcesosEnNew = (sem_t*) parametros->cantidadProcesosEnNew;
 
     char **direccionesNuevasMemorias;
-    t_list *listaDeNodosMemorias = list_create();
+    //t_list *listaDeNodosMemorias = list_create();
 
     fd_set emisores;
 
@@ -66,7 +66,7 @@ void *atenderConexiones(void *parametrosThread) {
                             desconectarCliente(fdConectado, unaConexion, logger);
                             pthread_mutex_lock(mutexJournal);
                             eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
-                            eliminarFileDescriptorDeNodosMemoriaConocidas(fdConectado, listaDeNodosMemorias, logger);
+                            eliminarFileDescriptorDeNodosMemoriaConocidas(fdConectado, memoriasConocidas, logger);
                             //forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
                             pthread_mutex_unlock(mutexJournal);
                             break;
@@ -81,7 +81,7 @@ void *atenderConexiones(void *parametrosThread) {
                                 desconectarCliente(fdConectado, unaConexion, logger);
                                 pthread_mutex_lock(mutexJournal);
                                 eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
-                                eliminarFileDescriptorDeNodosMemoriaConocidas(fdConectado, listaDeNodosMemorias, logger);
+                                eliminarFileDescriptorDeNodosMemoriaConocidas(fdConectado, memoriasConocidas, logger);
                                 //forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
                                 pthread_mutex_unlock(mutexJournal);
                             } else {

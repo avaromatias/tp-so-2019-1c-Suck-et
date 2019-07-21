@@ -1078,6 +1078,8 @@ void conectarseANuevasMemorias(t_list* memoriasConocidas, GestorConexiones* misC
     list_iterate(memoriasConocidas, conectarseANodoMemoria);
 }
 void gossiping(parametros_gossiping* parametros){
+
+    //Solo le pide su lista de gossiping a la primera memoria agregada que corresponde con la memoria princiapal
     GestorConexiones* misConexiones = (GestorConexiones*) parametros->misConexiones;
     t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
     t_log* logger = (t_log*) parametros->logger;

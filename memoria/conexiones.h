@@ -23,11 +23,11 @@ typedef struct {
     GestorConexiones* conexion;
     t_log* logger;
     t_control_conexion* conexionKernel;
-    t_control_conexion* conexionLissandra;
     t_memoria* memoria;
     pthread_mutex_t* semaforoMemoriasConocidas;
     t_sincro_journaling* semaforoJournaling;
     t_retardos_memoria* retardoMemoria;
+    t_parametros_conexion_lissandra conexionLissandra;
 } parametros_thread_memoria;
 
 struct  t_paquete_d {
@@ -40,20 +40,23 @@ struct parametros_thread_requests_d {
     t_control_conexion* conexionKernel;
     t_log* logger;
     t_memoria* memoria;
-    t_control_conexion* conexionLissandra;
-    pthread_mutex_t* semaforoJournaling;
+    t_parametros_conexion_lissandra conexionLissandra;
+    t_sincro_journaling* semaforoJournaling;
     int pid;
 };
 
 void* atenderConexiones(void* parametrosThread);
 
-pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoMemoriasConocidas, t_sincro_journaling* semaforoJournaling, t_retardos_memoria* retardos);
+pthread_t* crearHiloConexiones(GestorConexiones *unaConexion, t_memoria *memoria, t_control_conexion *conexionKernel,
+                               t_parametros_conexion_lissandra conexionLissandra, t_log *logger,
+                               pthread_mutex_t *semaforoMemoriasConocidas, t_sincro_journaling *semaforoJournaling,
+                               t_retardos_memoria *retardos);
 
 void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* parametros);
 void atenderHandshake(Header header, Componente componente, parametros_thread_memoria* parametros);
 void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros);
 
-t_paquete recibirMensajeDeLissandra(t_control_conexion *conexion);
+t_paquete recibirMensajeDeLissandra(int conexion);
 
 void conectarseALissandra(t_control_conexion* conexionLissandra, char* ipLissandra, int puertoLissandra, t_log* logger);
 
@@ -63,6 +66,7 @@ void agregarMemoriasRecibidas(char* memoriasRecibidas, GestorConexiones* misCone
 void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas, t_log* logger, GestorConexiones* misConexiones);
 
 t_paquete recibirMensajeGossipingMemoria(t_control_conexion *conexion);
+void actualizarNivelMultiprocesamiento(void* mensaje, t_sincro_journaling* semaforoJournaling);
 
 
 #endif //MEMORIA_CONEXIONES_H

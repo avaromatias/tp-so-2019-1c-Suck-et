@@ -112,7 +112,7 @@ int crearSocketCliente(char *ipServidor, int puerto, t_log* logger) {
         return ERROR;
     }
     else {
-        log_info(logger, "Se estableció correctamente la conexión con el servidor a través del socket %i.", cliente);
+//        log_info(logger, "Se estableció correctamente la conexión con el servidor a través del socket %i.", cliente);
         return cliente;
     }
 }

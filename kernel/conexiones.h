@@ -36,13 +36,23 @@ typedef struct {
     double writeLatency;
     int reads;
     int writes;
-    t_list *fds
+    t_list *fds;
 } t_metricasDefinidas;
 
 typedef struct {
     t_list *estadisticas;
     metricasParaCriterios *metricas;
    } t_metricas;
+
+//Estructura que guarda los tiempos de refresh
+
+typedef  struct{
+    int nivelDeMultiProcesamiento;
+    int refreshMetadata;
+    int Quantum;
+    int retardoEjecucion;
+}t_datos_configuracion;
+
 
 typedef struct {
     GestorConexiones *conexion;
@@ -56,6 +66,8 @@ typedef struct {
     sem_t *semaforo_colaDeNew;
     t_queue *colaDeNew;
     sem_t* cantidadProcesosEnNew;
+    t_datos_configuracion* datosConfiguracion;
+    pthread_mutex_t* mutexDatosConfiguracion
 } parametros_thread_k;
 
 //Estructura necesaria para manejar las consistencias y la metadata
@@ -115,7 +127,8 @@ typedef struct {
 p_planificacion *paramPlanificacionGeneral;
 
 //Conexión con Memoria
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios, t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew);
+//crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion);
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios, t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion);
 
 void *atenderConexiones(void *parametrosThread);
 
@@ -142,6 +155,11 @@ bool tenemosMemoriaEnListaDeMemorias(t_list *listaDeNodosMemorias, t_nodoMemoria
 void agregarIpMemoria(char* ipNuevaMemoria, int puertoNuevaMemoria, t_list* memoriasConocidas, t_log* logger);
 void agregarMemoriasRecibidas(char* memoriasRecibidas, t_list* memoriasConocidas, t_log* logger);
 void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_log* logger);
+
+//Inotify
+
+void avisoNuevoNivelDeMultiProcesamiento(char* nuevoNivelDeMP, t_list* memoriasConocidas);
+
 
 //Estructura necesaria para el manejo de archivosLQL
 typedef struct {

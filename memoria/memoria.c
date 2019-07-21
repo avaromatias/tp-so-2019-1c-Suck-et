@@ -16,7 +16,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 	t_config* archivoConfig = abrirArchivoConfiguracion(pathArchivoConfiguracion, logger);
 
     bool existenTodasLasClavesObligatorias(t_config* archivoConfig, t_configuracion configuracion)	{
-        char* clavesObligatorias[11] = {
+        char* clavesObligatorias[12] = {
                 "PUERTO",
                 "IP_FS",
                 "PUERTO_FS",
@@ -27,7 +27,8 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
                 "TAM_MEM",
                 "RETARDO_JOURNAL",
                 "RETARDO_GOSSIPING",
-                "MEMORY_NUMBER"
+                "MEMORY_NUMBER",
+                "IP_MEMORIA"
         };
 
         for(int i = 0; i < COUNT_OF(clavesObligatorias); i++)	{
@@ -55,6 +56,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 		configuracion.retardoJournal = config_get_int_value(archivoConfig, "RETARDO_JOURNAL");
 		configuracion.retardoGossiping = config_get_int_value(archivoConfig, "RETARDO_GOSSIPING");
 		configuracion.cantidadDeMemorias = config_get_int_value(archivoConfig, "MEMORY_NUMBER");
+        configuracion.ipMemoria = string_duplicate(config_get_string_value(archivoConfig, "IP_MEMORIA"));
 
         config_destroy(archivoConfig);
 
@@ -96,7 +98,8 @@ void inicializarTablaDeMarcos(t_memoria* memoriaPrincipal)  {
     }
 }
 
-t_paquete gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, t_sincro_journaling* semaforoJournaling)    {
+t_paquete gestionarInsert(char *nombreTabla, char *key, char *valueConComillas, t_memoria *memoria, t_log *logger,
+                          int conexionLissandra, t_sincro_journaling *semaforoJournaling)    {
     char* value = string_substring(valueConComillas, 1, strlen(valueConComillas) - 2);
     free(valueConComillas);
     t_pagina* nuevaPagina = insert(nombreTabla, key, value, memoria, NULL, logger, conexionLissandra, semaforoJournaling);
@@ -104,7 +107,8 @@ t_paquete gestionarInsert(char* nombreTabla, char* key, char* valueConComillas, 
     return respuesta;
 }
 
-t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *conexionLissandra, t_memoria *memoria, t_log *logger, t_sincro_journaling* semaforoJournaling) {
+t_paquete gestionarSelect(char *nombreTabla, char *key, int conexionLissandra, t_memoria *memoria, t_log *logger,
+                          t_sincro_journaling *semaforoJournaling) {
     t_paquete respuesta;
     pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     t_pagina* paginaEncontrada = cmdSelect(nombreTabla, key, memoria);
@@ -117,11 +121,9 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *cone
     pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
     char* request = string_from_format("SELECT %s %s", nombreTabla, key);
     log_info(logger, "Valor no encontrado en memoria. Se enviará la siguiente request a Lissandra: %s", request);
-    sem_wait(conexionLissandra->semaforo);
-    enviarPaquete(conexionLissandra->fd, REQUEST, SELECT, request, -1);
+    enviarPaquete(conexionLissandra, REQUEST, SELECT, request, -1);
     free(request);
     respuesta = recibirMensajeDeLissandra(conexionLissandra);
-    sem_post(conexionLissandra->semaforo);
     if(respuesta.tipoMensaje == RESPUESTA)   {
         char** componentesSelect = string_split(respuesta.mensaje, ";");
         insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger, conexionLissandra, semaforoJournaling);
@@ -132,25 +134,22 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, t_control_conexion *cone
     return respuesta;
 }
 
-t_paquete gestionarCreate(char* nombreTabla, char* tipoConsistencia, char* cantidadParticiones, char* tiempoCompactacion, t_control_conexion* conexionLissandra, t_log* logger)   {
+t_paquete gestionarCreate(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones,
+                          char *tiempoCompactacion, int conexionLissandra, t_log *logger)   {
     char* request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones, tiempoCompactacion);
-    sem_wait(conexionLissandra->semaforo);
-    enviarPaquete(conexionLissandra->fd, REQUEST, CREATE, request, -1);
+    enviarPaquete(conexionLissandra, REQUEST, CREATE, request, -1);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
-    sem_post(conexionLissandra->semaforo);
     return respuesta;
 }
 
-t_paquete gestionarDrop(char* nombreTabla, t_control_conexion* conexionLissandra, t_memoria* memoria, t_log* logger)   {
+t_paquete gestionarDrop(char *nombreTabla, int conexionLissandra, t_memoria *memoria, t_log *logger)   {
     char* resultado = drop(nombreTabla, memoria);
     log_info(logger, resultado);
     char* request = string_from_format("DROP %s", nombreTabla);
-    sem_wait(conexionLissandra->semaforo);
-    enviarPaquete(conexionLissandra->fd, REQUEST, DROP, request, -1);
+    enviarPaquete(conexionLissandra, REQUEST, DROP, request, -1);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
-    sem_post(conexionLissandra->semaforo);
     if(respuesta.tipoMensaje == ERR)  {
         free(respuesta.mensaje);
         respuesta.mensaje = resultado;
@@ -179,12 +178,10 @@ void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, cha
 
 
     log_info(logger, request);
-    sem_wait(parametrosJournal->conexionLissandra->semaforo);
-    enviarPaquete(parametrosJournal->conexionLissandra->fd, REQUEST, INSERT, request, -1);
+    enviarPaquete(parametrosJournal->conexionLissandra, REQUEST, INSERT, request, -1);
     free(request);
 
     t_paquete respuesta = recibirMensajeDeLissandra(parametrosJournal->conexionLissandra);
-    sem_post(parametrosJournal->conexionLissandra->semaforo);
     if(respuesta.tipoMensaje == RESPUESTA)   {
         log_info(logger, respuesta.mensaje);
     } else{
@@ -231,11 +228,13 @@ void iterarSegmentos(parametros_journal* parametrosJournal, char* key, void* val
 }
 
 
-t_paquete gestionarJournal(t_control_conexion *conexionConLissandra, t_memoria *memoria, t_log *logger, t_sincro_journaling* semaforoJournaling){
+t_paquete gestionarJournal(int conexionConLissandra, t_memoria *memoria, t_log *logger, t_sincro_journaling* semaforoJournaling){
 
     parametros_journal* parametrosJournal = (parametros_journal*)malloc(sizeof(parametros_journal));
     parametrosJournal->logger = logger;
     parametrosJournal->conexionLissandra = conexionConLissandra;
+
+    pthread_mutex_lock(&semaforoJournaling->ejecutandoJournaling);
 
     pthread_mutex_lock(&semaforoJournaling->mutexNivel);
     sem_wait_n(&semaforoJournaling->semaforoJournaling, semaforoJournaling->cantidadRequestsEnParalelo);
@@ -250,25 +249,25 @@ t_paquete gestionarJournal(t_control_conexion *conexionConLissandra, t_memoria *
     sem_post_n(&semaforoJournaling->semaforoJournaling, semaforoJournaling->cantidadRequestsEnParalelo);
     pthread_mutex_unlock(&semaforoJournaling->mutexNivel);
 
+    pthread_mutex_unlock(&semaforoJournaling->ejecutandoJournaling);
+
     t_paquete resultado = {.mensaje = "Se gestionó el journal", .tipoMensaje = RESPUESTA };
 
     return resultado;
 }
 
-t_paquete gestionarDescribe(char *nombreTabla, t_control_conexion *conexionLissandra)  {
+t_paquete gestionarDescribe(char *nombreTabla, int conexionLissandra)  {
     char* request = string_from_format("DESCRIBE");
     if(nombreTabla != NULL) {
         request = string_from_format("DESCRIBE %s", nombreTabla);
     }
-    sem_wait(conexionLissandra->semaforo);
-    enviarPaquete(conexionLissandra->fd, REQUEST, DESCRIBE, request, -1);
+    enviarPaquete(conexionLissandra, REQUEST, DESCRIBE, request, -1);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
-    sem_post(conexionLissandra->semaforo);
     return respuesta;
 }
 
-t_paquete gestionarRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionLissandra, t_log* logger, t_sincro_journaling* semaforoJournaling) {
+t_paquete gestionarRequest(t_comando comando, t_memoria* memoria, int conexionLissandra, t_log* logger, t_sincro_journaling* semaforoJournaling) {
     t_paquete respuesta;
     switch(comando.tipoRequest) {
         case SELECT:
@@ -313,10 +312,11 @@ void* ejecutarConsola(void* parametrosConsola){
 
     t_memoria* memoria = parametros->memoria;
     t_log* logger = parametros->logger;
-    t_control_conexion* conexionLissandra = (t_control_conexion*) parametros->conexionLissandra;
     t_comando comando;
     t_sincro_journaling* semaforoJournaling = (t_sincro_journaling*)parametros->semaforoJournaling;
+    t_parametros_conexion_lissandra parametrosLissandra = parametros->conexionLissandra;
 
+    int conexionLissandra = crearSocketCliente(parametrosLissandra.ip, parametrosLissandra.puerto, logger);
 
     do {
         char* leido = readline("\nMemoria@suck-ets:~$ ");
@@ -326,14 +326,18 @@ void* ejecutarConsola(void* parametrosConsola){
 
         comando = instanciarComando(comandoParseado);
         free(comandoParseado);
-        if(validarComandosComunes(comando, logger))
-            log_info(logger, gestionarRequest(comando, memoria, conexionLissandra, logger, semaforoJournaling).mensaje);
+        if(validarComandosComunes(comando, logger)) {
+            char* respuesta = gestionarRequest(comando, memoria, conexionLissandra, logger, semaforoJournaling).mensaje;
+            log_info(logger, respuesta);
+            printf("%s", respuesta);
+        }
 
     } while(comando.tipoRequest != EXIT);
     log_info(logger, "Ya analizamos todo los solicitado");
+    cerrarSocket(conexionLissandra, logger);
 }
 
-pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, t_sincro_journaling* semaforoJournaling){
+pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_parametros_conexion_lissandra conexionLissandra, t_sincro_journaling* semaforoJournaling){
 
     pthread_t* hiloConsola = malloc(sizeof(pthread_t));
     parametros_consola_memoria* parametros = (parametros_consola_memoria*) malloc(sizeof(parametros_consola_memoria));
@@ -348,14 +352,16 @@ pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_control_conexio
     return hiloConsola;
 }
 
-void journaling(parametros_hilo_journal* parametros){
+void* journaling(void* parametrosJournal){
+    parametros_hilo_journal* parametros = (parametros_hilo_journal*) parametrosJournal;
 
     t_memoria* memoria = parametros->memoria;
     t_log* logger = parametros->logger;
-    t_control_conexion* conexionLissandra = (t_control_conexion*)parametros->conexionLissandra;
     t_retardos_memoria* retardos= parametros->retardos;
     t_sincro_journaling* semaforoJournaling = parametros->semaforoJournaling;
+    t_parametros_conexion_lissandra parametrosLissandra = parametros->conexionLissandra;
 
+    int conexionLissandra = crearSocketCliente(parametrosLissandra.ip, parametrosLissandra.puerto, logger);
 
     while (1){
         //sleep(15);
@@ -363,7 +369,7 @@ void journaling(parametros_hilo_journal* parametros){
         gestionarJournal(conexionLissandra , memoria, logger, semaforoJournaling);
     }
 }
-pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexion* conexionLissandra, t_retardos_memoria* retardos, t_sincro_journaling* semaforoJournaling){
+pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_parametros_conexion_lissandra conexionLissandra, t_retardos_memoria* retardos, t_sincro_journaling* semaforoJournaling){
     pthread_t* hiloJournal = malloc(sizeof(pthread_t));
 
     parametros_hilo_journal* parametros = (parametros_hilo_journal*) malloc(sizeof(parametros_hilo_journal));
@@ -379,6 +385,7 @@ pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_control_conexio
 
     return hiloJournal;
 }
+
 void agregarIpMemoria(char* ipMemoriaSeed, char* puertoMemoriaSeed, t_list* memoriasConocidas, t_log* logger){
     char* ipAAgregar= string_new();
     //Agregar direccion ip:puerto de memoria conocida a la lista
@@ -473,8 +480,8 @@ void conectarYAgregarNuevaMemoria(char* ipNuevaMemoria, GestorConexiones* misCon
     }
     if(!list_any_satisfy(memoria->memoriasConocidas, _sonMismoString)){
         char** direccionIp = string_split(ipNuevaMemoria, ":");
-        fdNodoMemoria = conectarseAServidor(direccionIp[0], atoi(direccionIp[1]), misConexiones, logger );
-        if (fdNodoMemoria != NULL && fdNodoMemoria >0){
+        fdNodoMemoria = crearSocketCliente(direccionIp[0], atoi(direccionIp[1]), logger);
+        if (fdNodoMemoria > 0){
             log_info(logger, "Nueva conexion establecida con la memoria %s:%s", direccionIp[0], direccionIp[1]);
 
             nodoMemoria* unNodoMemoria = (nodoMemoria*)malloc(sizeof(nodoMemoria));
@@ -488,16 +495,13 @@ void conectarYAgregarNuevaMemoria(char* ipNuevaMemoria, GestorConexiones* misCon
     }
 }
 
-void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** puertoSeeds, t_log* logger, t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas){
+void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, int* puertoSeeds, t_log* logger, t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas){
     int i = 0;
     //t_list* memoriasConocidas = (t_list*) memoria->memoriasConocidas;
 
-    while (ipSeeds[i] != NULL && puertoSeeds[i] != NULL){
+    while (ipSeeds[i] != NULL){
 
-        char* ipNuevaMemoria = string_new();
-        string_append(&ipNuevaMemoria, ipSeeds[i]);
-        string_append(&ipNuevaMemoria, ":");
-        string_append(&ipNuevaMemoria, puertoSeeds[i]);
+        char* ipNuevaMemoria = string_from_format("%s:%i", ipSeeds[i], puertoSeeds[i]);
 
         pthread_mutex_lock(semaforoMemoriasConocidas);
 
@@ -507,7 +511,8 @@ void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, char** 
     }
 
 }
-void gossiping(parametros_gossiping* parametros){
+void* gossiping(void* parametrosGossiping){
+    parametros_gossiping* parametros = (parametros_gossiping*) parametrosGossiping;
 
     t_memoria* memoria = (t_memoria*) parametros->memoria;
     t_log* logger = (t_log*)parametros->logger;
@@ -571,20 +576,13 @@ char* formatearPagina(char* key, char* value, char* timestamp, t_memoria* memori
         time_t tiempoActual;
         tiempo = (long) time(&tiempoActual);
     } else
-        tiempo = atol(timestamp);
-    char* puntero1 = puntero;
+        tiempo = atol(timestamp);   
     memcpy(puntero, &tiempo, sizeof(time_t));
     puntero += sizeof(time_t);
-    char* puntero2 = puntero;
     u_int16_t keyCasteada = (u_int16_t) atoi(key);
     memcpy(puntero, &keyCasteada, sizeof(u_int16_t));
     puntero += sizeof(u_int16_t);
-    char* puntero3 = puntero;
-    memcpy(puntero, value, memoria->tamanioValue * sizeof(char));
-
-    char* taimstamp = getTimestampFromContenidoPagina(contenidoPagina);
-    char* qui = getKeyFromContenidoPagina(contenidoPagina);
-    char* valiu = getValueFromContenidoPagina(contenidoPagina);
+    memcpy(puntero, value, (strlen(value) + 1) * sizeof(char));
 
     return contenidoPagina;
 }
@@ -689,7 +687,7 @@ t_pagina* lru(t_dictionary* tablaDePaginas) {
     }
 }
 
-t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger,  t_control_conexion* conexionLissandra, t_sincro_journaling* semaforoJournaling){
+t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, char* timestamp, t_log* logger,  int conexionLissandra, t_sincro_journaling* semaforoJournaling){
     char* contenidoPagina = formatearPagina(key, value, timestamp, memoria);
     bool recibiTimestamp = timestamp != NULL;
 
@@ -818,9 +816,10 @@ int calcularTamanioDePagina(int tamanioValue){
 }
 
 //Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS
-int getTamanioValue(t_control_conexion* conexionLissandra, t_log* logger){
-    if(conexionLissandra->fd > 0) {
-        hacerHandshake(conexionLissandra->fd, MEMORIA);
+int getTamanioValue(t_parametros_conexion_lissandra parametrosLissandra, t_log* logger){
+    int conexionLissandra = crearSocketCliente(parametrosLissandra.ip, parametrosLissandra.puerto, logger);
+    if(conexionLissandra > 0) {
+        hacerHandshake(conexionLissandra, MEMORIA);
         t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
         if (respuesta.mensaje != NULL)  {
             int tamanioValue = atoi(respuesta.mensaje);
@@ -832,6 +831,7 @@ int getTamanioValue(t_control_conexion* conexionLissandra, t_log* logger){
             exit(-1);
         }
     }
+    cerrarSocket(conexionLissandra, logger);
 }
 
 t_marco* getMarcoLibre(t_memoria* memoria)   {
@@ -866,7 +866,8 @@ t_retardos_memoria* almacenarRetardosDeMemoria(t_configuracion configuracion){
     return retardos;
 }
 
-void monitorearDirectorio(parametros_hilo_monitor* parametros){
+void* monitorearDirectorio(void* parametrosMonitor){
+    parametros_hilo_monitor* parametros = (parametros_hilo_monitor*) parametrosMonitor;
 
     char* nombreDirectorio = parametros->directorioAMonitorear;
     char* nombreArchivoDeConfiguracion = parametros->nombreArchivoDeConfiguracion;
@@ -962,6 +963,7 @@ int main(void) {
     t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
     char* nombreArchivoConfiguracionConExtension = string_from_format("%s.cfg", nombreArchivoConfiguracion);
 	t_configuracion configuracion = cargarConfiguracion(nombreArchivoConfiguracionConExtension, logger);
+	t_parametros_conexion_lissandra conexionLissandra = {.ip = string_duplicate(configuracion.ipFileSystem), .puerto = conexionLissandra.puerto = configuracion.puertoFileSystem};
 	//free(nombreArchivoConfiguracionConExtension);
 
     t_retardos_memoria* retardos = almacenarRetardosDeMemoria(configuracion);
@@ -970,10 +972,10 @@ int main(void) {
     //monitorearDirectorio("/home/utnso/tp-2019-1c-Suck-et/memoria/", nombreArchivoConfiguracionConExtension, logger, retardos);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
-    t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};
+//    t_control_conexion conexionLissandra = {.semaforo = (sem_t*) malloc(sizeof(sem_t))};
 
     sem_init(conexionKernel.semaforo, 0, 0);
-    sem_init(conexionLissandra.semaforo, 0, 0);
+//    sem_init(conexionLissandra.semaforo, 0, 0);
 
     pthread_mutex_t* semaforoMemoriasConocidas = malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(semaforoMemoriasConocidas, NULL);
@@ -982,28 +984,29 @@ int main(void) {
     semaforoJournaling->cantidadRequestsEnParalelo = 3;
     sem_init(&semaforoJournaling->semaforoJournaling, 0, semaforoJournaling->cantidadRequestsEnParalelo);
     pthread_mutex_init(&semaforoJournaling->mutexNivel, NULL);
+    pthread_mutex_init(&semaforoJournaling->ejecutandoJournaling, NULL);
 
-	conectarseALissandra(&conexionLissandra, configuracion.ipFileSystem, configuracion.puertoFileSystem, logger);
-	int tamanioValue = getTamanioValue(&conexionLissandra, logger);
+//	conectarseALissandra(&conexionLissandra, configuracion.ipFileSystem, configuracion.puertoFileSystem, logger);
+	int tamanioValue = getTamanioValue(conexionLissandra, logger);
     t_memoria* memoriaPrincipal = inicializarMemoriaPrincipal(configuracion, tamanioValue, logger);
 	GestorConexiones* misConexiones = inicializarConexion();
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
     //TODO Agregar "mi ip" al archivo de configuracion para que memorias tenga su propia ip en su lista de gossiping
-    agregarIpMemoria(configuracion.ipFileSystem, string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
+    agregarIpMemoria(configuracion.ipMemoria, string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
 
     //pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, nombreArchivoConfiguracionConExtension, logger, retardos);
-    pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, &conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);
-    pthread_t* hiloConsola = (pthread_t*) crearHiloConsola(memoriaPrincipal, logger, &conexionLissandra, semaforoJournaling);
-//    pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, &conexionLissandra, retardos, semaforoJournaling);
-//    pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos);
+    pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);
+    pthread_t* hiloConsola = (pthread_t*) crearHiloConsola(memoriaPrincipal, logger, conexionLissandra, semaforoJournaling);
+    pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, conexionLissandra, retardos, semaforoJournaling);
+    pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos);
 
     //pthread_join(*hiloMonitor, NULL);
 
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
-//    pthread_join(*hiloJournal, NULL);
-//    pthread_join(*hiloGossiping, NULL);
+    pthread_join(*hiloJournal, NULL);
+    pthread_join(*hiloGossiping, NULL);
 
 	return 0;
 }

@@ -168,14 +168,6 @@ void gossiping(parametros_gossiping *parametros);
 
 int conectarseANuevoNodoMemoria(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger);
 
-//Estructura que guarda los tiempos de refresh
-
-typedef  struct{
-    int nivelDeMultiProcesamiento;
-    int refreshMetadata;
-    int Quantum;
-    int retardoEjecucion;
-}t_datos_configuracion;
 
 typedef struct{
 

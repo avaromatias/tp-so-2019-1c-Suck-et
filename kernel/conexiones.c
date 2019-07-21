@@ -3,9 +3,9 @@
 //
 
 #include "conexiones.h"
+#include "kernel.h"
 
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios,
-                               t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew) {
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios, t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion) {
     pthread_t *hiloConexiones = malloc(sizeof(pthread_t));
 
     parametros_thread_k *parametros = (parametros_thread_k *) malloc(sizeof(parametros_thread_k));
@@ -20,6 +20,8 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_d
     parametros->semaforo_colaDeNew = semaforo_colaDeNew;
     parametros->colaDeNew = colaDeNew;
     parametros->cantidadProcesosEnNew = cantidadProcesosEnNew;
+    parametros->datosConfiguracion = datosConfiguracion;
+    parametros->mutexDatosConfiguracion = mutexDatosConfiguracion;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -35,6 +37,9 @@ void *atenderConexiones(void *parametrosThread) {
     t_dictionary *supervisorDeHilos = parametros->supervisorDeHilos;
     pthread_mutex_t *mutexJournal = parametros->mutexJournal;
     t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
+    t_datos_configuracion* datosConfiguracion = (t_datos_configuracion*)parametros->datosConfiguracion;
+    pthread_mutex_t* mutexDatosConfiguracion = (pthread_mutex_t*)parametros->mutexDatosConfiguracion;
+
 
     sem_t* semaforo_colaDeNew= (sem_t*)parametros->semaforo_colaDeNew;
     t_queue* colaDeNew = (t_queue*)parametros->colaDeNew;
@@ -90,7 +95,11 @@ void *atenderConexiones(void *parametrosThread) {
                                         //atenderHandshake(header, componente, parametros);
                                         //TODO los semaforos de las queues sirven para bloquear la ejecucion?
                                         pthread_mutex_lock(mutexJournal);
+
                                         //forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
+                                        pthread_mutex_lock(mutexDatosConfiguracion);
+                                        enviarPaquete(header.fdRemitente, NIVEL_MULTIPROCESAMIENTO, REQUEST, string_itoa(datosConfiguracion->nivelDeMultiProcesamiento), -1);
+                                        pthread_mutex_unlock(mutexDatosConfiguracion);
                                         pthread_mutex_unlock(mutexJournal);
                                         log_info(logger,
                                                  "La memoria conectada recientemente ya se encuentra disponible para ser utilizada.\n");

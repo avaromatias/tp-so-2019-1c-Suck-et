@@ -72,9 +72,7 @@ int main(void) {
     t_nodoMemoria *nodoMemoriaPrincipal = list_get(memoriasConocidas, 0);
     nodoMemoriaPrincipal->fdNodoMemoria = fdMemoriaPrincipal;
 
-    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas,
-                                                    mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew,
-                                                    colaDeNew, cantidadProcesosEnNew);
+    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion);
 
     //refreshMetadata(configuracion.refreshMetadata, metadataTablas, logger);
 

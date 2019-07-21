@@ -4,7 +4,10 @@
 
 #include "conexiones.h"
 
-pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoMemoriasConocidas, t_sincro_journaling* semaforoJournaling, t_retardos_memoria* retardos)    {
+pthread_t* crearHiloConexiones(GestorConexiones *unaConexion, t_memoria *memoria, t_control_conexion *conexionKernel,
+                               t_parametros_conexion_lissandra conexionLissandra, t_log *logger,
+                               pthread_mutex_t *semaforoMemoriasConocidas, t_sincro_journaling *semaforoJournaling,
+                               t_retardos_memoria *retardos)    {
 
     /*int value;
     sem_getvalue(kernelConectado, &value);
@@ -17,13 +20,15 @@ pthread_t* crearHiloConexiones(GestorConexiones* unaConexion, t_memoria* memoria
     parametros->conexion = unaConexion;
     parametros->logger = logger;
     parametros->conexionKernel = conexionKernel;
-    parametros->conexionLissandra = conexionLissandra;
     parametros->memoria = memoria;
     parametros->semaforoMemoriasConocidas = semaforoMemoriasConocidas;
     parametros->semaforoJournaling = semaforoJournaling;
     parametros->retardoMemoria = retardos;
+    parametros->conexionLissandra = conexionLissandra;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
+
+    pthread_detach(*hiloConexiones);
 
     return hiloConexiones;
 }
@@ -290,14 +295,23 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
 
 void* atenderRequestKernel(void* parametrosRequest)    {
     parametros_thread_request* parametros = (parametros_thread_request*) parametrosRequest;
-    t_paquete resultado = gestionarRequest(parametros->comando, parametros->memoria, parametros->conexionLissandra, parametros->logger, parametros->semaforoJournaling);
+    t_parametros_conexion_lissandra parametrosLissandra = parametros->conexionLissandra;
+
+    int conexionLissandra = crearSocketCliente(parametrosLissandra.ip, parametrosLissandra.puerto, parametros->logger);
+    if(conexionLissandra < 1)   {
+        log_error(parametros->logger, "Error al intentar conectarse a Lissandra. Cerrando el proceso.");
+        exit(-1);
+    }
+    t_paquete resultado = gestionarRequest(parametros->comando, parametros->memoria, conexionLissandra, parametros->logger, parametros->semaforoJournaling);
 
     if(parametros->conexionKernel->fd > 0)  {
         enviarPaquete(parametros->conexionKernel->fd, resultado.tipoMensaje, parametros->comando.tipoRequest, resultado.mensaje, parametros->pid);
     }
+
+    cerrarSocket(conexionLissandra, parametros->logger);
 }
 
-pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionKernel, t_control_conexion* conexionLissandra, t_log* logger, pthread_mutex_t* semaforoJournaling, int pid)   {
+pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_conexion* conexionKernel, t_parametros_conexion_lissandra conexionLissandra, t_log* logger, t_sincro_journaling* semaforoJournaling, int pid)   {
     pthread_t* hiloRequest = (pthread_t*) malloc(sizeof(pthread_t));
 
     parametros_thread_request* parametros = (parametros_thread_request*) malloc(sizeof(parametros_thread_request));
@@ -328,27 +342,53 @@ void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* pa
     pthread_join(*hiloRequest, NULL);
 }
 
-t_paquete recibirMensajeDeLissandra(t_control_conexion *conexion)    {
+t_paquete pedidoLissandra(int fdLissandra, TipoRequest tipoRequest, char* request, int retardoLissandra, t_log* logger)    {
+    sleep(retardoLissandra);
+    enviarPaquete(fdLissandra, REQUEST, tipoRequest, request, -1);
     Header header;
-    //sem_wait(conexion->semaforo);
     t_paquete paquete;
-    int bytesRecibidos = recv(conexion->fd, &header, sizeof(Header), MSG_WAITALL);
-    if(bytesRecibidos == 0) {
+    int bytesRecibidos = recv(fdLissandra, &header, sizeof(Header), MSG_WAITALL);
+    if(bytesRecibidos < 1) {
+        log_error(logger, "Se cerró la conexión con Lissandra. Cerrando el proceso.");
         exit(-1);
-        conexion->fd = 0;
     }
     else    {
         header = deserializarHeader(&header);
         paquete.tipoMensaje = header.tipoMensaje;
         char* respuesta = (char*) malloc(header.tamanioMensaje);
-        bytesRecibidos = recv(conexion->fd, respuesta, header.tamanioMensaje, MSG_WAITALL);
-        if(bytesRecibidos == 0) {
+        bytesRecibidos = recv(fdLissandra, respuesta, header.tamanioMensaje, MSG_WAITALL);
+        if(bytesRecibidos < 1) {
+            log_error(logger, "Se cerró la conexión con Lissandra. Cerrando el proceso.");
             exit(-1);
-            conexion->fd = 0;
+        }
+        else    {
+            paquete.mensaje = respuesta;
+        }
+    }
+    return paquete;
+}
+
+t_paquete recibirMensajeDeLissandra(int fd)    {
+    Header header;
+    t_paquete paquete;
+    int bytesRecibidos = recv(fd, &header, sizeof(Header), MSG_WAITALL);
+    if(bytesRecibidos < 1) {
+        printf("Se cerró la conexión con Lissandra. Cerrando el proceso.");
+        exit(-1);
+        fd = 0;
+    }
+    else    {
+        header = deserializarHeader(&header);
+        paquete.tipoMensaje = header.tipoMensaje;
+        char* respuesta = (char*) malloc(header.tamanioMensaje);
+        bytesRecibidos = recv(fd, respuesta, header.tamanioMensaje, MSG_WAITALL);
+        if(bytesRecibidos < 1) {
+            printf("Se cerró la conexión con Lissandra. Cerrando el proceso.");
+            exit(-1);
+            fd = 0;
             paquete.mensaje = NULL;
         }
         else    {
-            //sem_post(conexion->semaforo);
             paquete.mensaje = respuesta;
         }
     }

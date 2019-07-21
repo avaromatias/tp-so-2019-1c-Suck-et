@@ -1113,7 +1113,7 @@ t_datos_configuracion* instanciarDatosConfiguracion(t_configuracion* configuraci
     datosConfiguracion->retardoEjecucion = configuracion->retardoEjecucion;
     datosConfiguracion->refreshMetadata = configuracion->refreshMetadata;
     datosConfiguracion->Quantum = configuracion->quantum;
-    datosConfiguracion->nivelDeMultiProcesamiento;
+    datosConfiguracion->nivelDeMultiProcesamiento = configuracion->multiprocesamiento;
 
     return datosConfiguracion;
 }

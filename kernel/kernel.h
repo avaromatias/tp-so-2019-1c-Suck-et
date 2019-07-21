@@ -174,7 +174,7 @@ typedef  struct{
     int nivelDeMultiProcesamiento;
     int refreshMetadata;
     int Quantum;
-    int sleep;
+    int retardoEjecucion;
 }t_datos_configuracion;
 
 typedef struct{
@@ -190,6 +190,7 @@ typedef struct{
 
 
 pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion);
+t_datos_configuracion* instanciarDatosConfiguracion(t_configuracion* configuracion);
 
 
 #endif /* KERNEL_H_ */

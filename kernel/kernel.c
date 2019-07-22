@@ -76,7 +76,7 @@ int main(void) {
 
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion);
 
-    //refreshMetadata(configuracion.refreshMetadata, metadataTablas, logger);
+//    refreshMetadata(configuracion.refreshMetadata, metadataTablas, logger);
 
     p_consola_kernel *pConsolaKernel = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
@@ -119,7 +119,7 @@ int main(void) {
     paramPlanificacionGeneral->supervisorDeHilos = supervisorDeHilos;
     paramPlanificacionGeneral->memoriasUtilizables = memoriasUtilizables;
 
-//    pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
+    pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
 
     for (int i = 0; i < configuracion.multiprocesamiento; i++) {
 //        paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo = semaforoHilo;
@@ -419,16 +419,16 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                                sem_t *semConcurrenciaMetricas) {
     int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
     char *PIDCasteado = string_itoa(PID);
-    dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
-    pthread_mutex_lock(mutexDeHiloRequest);
     p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
-    time_t tiempoFinRequest;
-    double tiempoTotal;
     char *criterioConsistencia;
     int fdMemoria;
     t_log *logger = pConsolaKernel->logger;
 
     if (paramPlanifGeneral->memoriasUtilizables > 0) {
+
+        dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
+        pthread_mutex_lock(mutexDeHiloRequest);
+
         switch (requestParseada.tipoRequest) { //Analizar si cada gestionar va a tener que encolar en NEW, en lugar de enviarPaquete
             case SELECT:
                 if (dictionary_has_key(pConsolaKernel->metadataTablas, requestParseada.parametros[0])) {
@@ -459,7 +459,6 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                         t_list *listaCriterio = getListaMetricasPorCriterio(criterioConsistencia);
                         actualizarEstructurasMetricas(fdMemoria, listaCriterio, requestParseada.tipoRequest,
                                                       estadisticasRequest);
-                        char *tipoRequest = "INSERT";
                         return respuesta;
                     } else {
                         printf(COLOR_ERROR "El criterio es nulo, no se puede analizar.\n" COLOR_RESET);
@@ -514,6 +513,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
         } //fin del switch
     } else {
         errorNoHayMemoriasAsociadas(logger);
+        return -1;
     }
 }
 
@@ -796,7 +796,7 @@ int seleccionarMemoriaParaDescribe(p_consola_kernel *parametros) {
 
     int tamanioListaConexiones = list_size(parametros->conexiones->conexiones);
 
-    int numeroMemoriaElegida = rand() % (tamanioListaConexiones);//me devuelve un numero entre 0 y tamListaConex
+    int numeroMemoriaElegida = rand() % (tamanioListaConexiones); //me devuelve un numero entre 0 y tamListaConex
     fdMemoria = (int *) list_get(misConexiones->conexiones, numeroMemoriaElegida);
 
     return *fdMemoria;
@@ -1294,12 +1294,16 @@ pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConf
 
 /*void refreshMetadata(p_planificacion *paramPlanificacionGeneral, int tiempoDeRefresh, t_dictionary *metadataTablas,
                      t_log *logger) {
+
+    int PID = paramPlanificacionGeneral->parametrosPLP->contadorPID;
+    int *fdMemoria;
+
     while (1) {
         sleep(tiempoDeRefresh);
         p_consola_kernel *pConsolaKernel = paramPlanificacionGeneral->parametrosConsola;
-        char *criterio = pConsolaKernel.
-        int fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, , NULL);
-        int resultado = gestionarDescribeGlobalKernel();
+        char *criterio = pConsolaKernel;
+        fdMemoria = seleccionarMemoriaParaDescribe(pConsolaKernel);
+        int resultado = gestionarDescribeGlobalKernel(fdMemoria, PID);
         if (resultado == 0) {
             log_info(logger, "Se actualizó correctamente la metadata del kernel.\n");
         } else {

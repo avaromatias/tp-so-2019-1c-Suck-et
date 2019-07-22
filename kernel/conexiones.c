@@ -118,7 +118,7 @@ void *atenderConexiones(void *parametrosThread) {
                                         char *PID = string_itoa(header.pid);
                                         pthread_mutex_t *semaforo = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PID);
                                         pthread_mutex_unlock(semaforo);
-                                        printf("La Metadata del File System no existe o esta vacía.\n");
+                                        printf(mensaje);
                                         free(PID);
                                         break;
                                 }
@@ -216,14 +216,14 @@ void actualizarMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *logg
                 consistenciaTabla = string_split(infoTabla[1], "=");
                 consistencia = consistenciaTabla[1]; //El 0 es el CONSISTENCY
             } else {
-                printf(COLOR_ADVERT "La tabla %s no posee consistencia."COLOR_RESET, infoTabla[0]);
+                printf(COLOR_ADVERT "La tabla %s no posee consistencia.\n"COLOR_RESET, infoTabla[0]);
                 log_warning(logger, "La tabla %s no posee consistencia.", infoTabla[0]);
                 break;
             }
             dictionary_put(metadataTablas, nombreTabla, consistencia);
             cantTablasActualizadas++;
         }
-        printf(COLOR_EXITO "Cantidad de Tablas actualizadas %i"COLOR_RESET, cantTablasActualizadas);
+        printf(COLOR_EXITO "Cantidad de Tablas actualizadas: %i. \n"COLOR_RESET, cantTablasActualizadas);
         log_info(logger, "Cantidad de Tablas actualizadas %i", cantTablasActualizadas);
     } else {
         printf(COLOR_ERROR "La información recibida por Lissandra es NULA.\n" COLOR_RESET);
@@ -256,7 +256,7 @@ void crearTablaEnMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *lo
             consistencia = separacionTablaConsistencia[1];
         }
         dictionary_put(metadataTablas, nombreTabla, consistencia);
-        printf(COLOR_EXITO "La metadata se actualizó correctamente." COLOR_RESET);
+        printf(COLOR_EXITO "La metadata se actualizó correctamente.\n" COLOR_RESET);
         log_info(logger, "La metadata se actualizó correctamente");
     }
 }

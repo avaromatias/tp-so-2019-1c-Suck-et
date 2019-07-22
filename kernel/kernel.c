@@ -10,15 +10,18 @@
 #include "kernel.h"
 
 int main(void) {
-    t_log *logger = log_create("../kernel.log", "kernel", true, LOG_LEVEL_INFO);
+    t_log *logger = log_create("../kernel.log", "kernel", false, LOG_LEVEL_INFO);
+    printf("Iniciando el proceso Kernel.\n");
     log_info(logger, "Iniciando el proceso Kernel");
 
     t_dictionary *supervisorDeHilos = dictionary_create();//Va a tener como KEY el PID, y la data el SEMÁFORO de c/hilo
     int contadorPIDs = 0;
     int memoriasUtilizables = 0;
+
     listaMetricasSC = list_create();
     listaMetricasSHC = list_create();
     listaMetricasEC = list_create();
+
     pthread_mutex_t *mutexJournal = malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutexJournal, NULL);
     sem_t *mutexColaDeNew = (sem_t *) malloc(sizeof(sem_t));
@@ -34,12 +37,11 @@ int main(void) {
 
     t_configuracion configuracion = cargarConfiguracion("kernel.cfg", logger);
 
+    //INOTIFY
     t_datos_configuracion* datosConfiguracion = instanciarDatosConfiguracion(&configuracion);
-
 
     pthread_mutex_t *mutexDatosConfiguracion= malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutexDatosConfiguracion, NULL);
-
 
     log_info(logger, "IP Memoria: %s", configuracion.ipMemoria);
     log_info(logger, "Puerto Memoria: %i", configuracion.puertoMemoria);
@@ -94,12 +96,9 @@ int main(void) {
     parametrosPLP->contadorPID = contadorPIDs;
     parametrosPLP->logger = logger;
 
-
     pthread_t*  hiloMonitor = (pthread_t*)crearHiloMonitor(configuracion.directorioAMonitorear, "kernel.cfg", logger, datosConfiguracion, mutexDatosConfiguracion, memoriasConocidas);
     pthread_t *hiloPlanificadorLargoPlazo = crearHiloPlanificadorLargoPlazo(parametrosPLP);
     pthread_t *hiloGossiping = (pthread_t *) crearHiloGossiping(misConexiones, memoriasConocidas, logger);
-
-
 
     parametros_pcp *parametrosPCP = (parametros_pcp *) malloc(sizeof(parametros_pcp));
 
@@ -165,7 +164,6 @@ pthread_t *crearHiloMetricas(p_planificacion *paramPlanificacionGeneral) {
     return hiloMetricas;
 }
 
-
 void actualizarEstructurasMetricas(int fdMemoria, t_list *listadoDeCriterio, TipoRequest tipoRequest,
                                    estadisticasRequest *estadisticasRequest) {
 
@@ -191,8 +189,6 @@ long tiempoHaceTreintaSegundos() {
     tiempo = (long) time(NULL);
     return tiempo - 30;
 }
-
-
 
 t_metricasDefinidas *calcularMetricaParaCriterio(char *criterio, long tiempoHace30s, int fd) {
     t_metricasDefinidas *metricas = (t_metricasDefinidas *) malloc(sizeof(t_metricasDefinidas));
@@ -330,6 +326,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 
     if (!existenTodasLasClavesObligatorias(archivoConfig, configuracion)) {
+        printf(COLOR_ERROR "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.\n" COLOR_RESET);
         log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
         config_destroy(archivoConfig);
         exit(1); // settear algún código de error para cuando falte alguna key
@@ -375,19 +372,23 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
             } else {
                 gestionarRequestKernel(*requestParseada, paramPlanifGral);
             }
+        } else if (requestParseada->tipoRequest == EXIT) {
+            break;
         } else {
+            printf(COLOR_ERROR "No se pudo procesar la request solicitada.\n" COLOR_RESET);
             log_error(parametros->logger, "No se pudo procesar la request solicitada.");
-        }
+            }
         //free(leido);
-
     } while (requestParseada->tipoRequest != EXIT);
-    printf("Ya analizamos todo lo solicitado.\n");
+    printf(COLOR_EXITO "Ya analizamos todo lo solicitado.\n" COLOR_RESET);
+    exit(-1);
 }
 
 bool analizarRequest(t_comando requestParseada, p_consola_kernel *parametros) {
     t_log *logger = parametros->logger;
 
     if (requestParseada.tipoRequest == INVALIDO) {
+        printf(COLOR_ERROR "Comando inválido.\n" COLOR_RESET);
         log_error(logger, "Comando inválido.");
         return false;
     } else {
@@ -441,6 +442,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                                                   estadisticasRequest);
                     return respuesta;
                 } else {
+                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
                     log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
                     return -1;
                 }
@@ -460,10 +462,12 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                         char *tipoRequest = "INSERT";
                         return respuesta;
                     } else {
+                        printf(COLOR_ERROR "El criterio es nulo, no se puede analizar.\n" COLOR_RESET);
                         log_error(logger, "El criterio es nulo, no se puede analizar.");
                         return -1;
                     }
                 } else {
+                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
                     log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
                     return -1;
                 }
@@ -475,6 +479,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                                                  requestParseada.parametros[2], requestParseada.parametros[3],
                                                  fdMemoria, PID);
                 } else {
+                    printf(COLOR_ERROR "El criterio es nulo, no se puede analizar.\n" COLOR_RESET);
                     log_error(logger, "El criterio es nulo, no se puede analizar.");
                     return -1;
                 }
@@ -484,6 +489,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, NULL);
                     return gestionarDropKernel(requestParseada.parametros[0], fdMemoria, PID);
                 } else {
+                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
                     log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
                     return -1;
                 }
@@ -495,6 +501,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                         fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, NULL);
                         return gestionarDescribeTablaKernel(requestParseada.parametros[0], fdMemoria, PID);
                     } else {
+                        printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
                         log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
                         return -1;
                     }
@@ -505,15 +512,13 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
             case JOURNAL:
                 return gestionarJournalKernel(paramPlanifGeneral);
         } //fin del switch
-        pthread_mutex_lock(mutexDeHiloRequest); //hasta que me llega respuesta de request, ME BLOQUEO
-//        paramPlanifGeneral->metricas.requestTotales++;
-        pthread_mutex_unlock(mutexDeHiloRequest);
     } else {
         errorNoHayMemoriasAsociadas(logger);
     }
 }
 
 void errorNoHayMemoriasAsociadas(t_log *logger) {
+    printf(COLOR_ERROR "No hay memorias utilizables, asocie memorias previamente.\n" COLOR_RESET);
     log_error(logger, "No hay memorias utilizables, asocie memorias previamente.");
 }
 
@@ -551,7 +556,7 @@ int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlan
         case EXIT:
             return 0;
         default:
-            return printf("Comando inválido.\n");
+            return printf(COLOR_ERROR "Comando inválido.\n" COLOR_RESET);
     }
 }
 
@@ -704,9 +709,11 @@ int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp
             sem_post(parametrosPLP->cantidadProcesosEnNew);
             sem_post(semaforo_colaDeNew);
         } else {
+            printf(COLOR_ERROR "El archivo solicitado es incorrecto. Verifique su entrada.\n" COLOR_RESET);
             log_error(logger, "El archivo solicitado es incorrecto. Verifique su entrada.");
         }
     } else {
+        printf(COLOR_ERROR "La extensión del archivo no parece ser la indicada. Verifique ingresar un archivo \".lql\".\n" COLOR_RESET);
         log_error(logger, "La extensión del archivo no parece ser la indicada. Verifique ingresar un archivo .LQL");
     }
 }
@@ -737,6 +744,7 @@ int gestionarAdd(char **parametrosDeRequest, p_planificacion *paramPlanificacion
             if (strcmp("SC", criterio) == 0) {
                 int cantMemoriasSC = list_size(listaFileDescriptors);
                 if (cantMemoriasSC >= 1) {
+                    printf(COLOR_ERROR "Ya existe una memoria asignada al criterio SC.\n" COLOR_RESET);
                     log_error(logger, "Ya existe una memoria asignada al criterio SC.");
                     return -1;
                 } else {
@@ -764,22 +772,22 @@ int gestionarAdd(char **parametrosDeRequest, p_planificacion *paramPlanificacion
                 } else {
                     return -1;
                 }
-
-
             }
         } else {
+            printf(COLOR_ERROR "El criterio escrito no está dentro de los avalados.\n" COLOR_RESET);
             log_error(logger, "El criterio escrito no está dentro de los avalados.");
             return -1;
         }
     } else {
+        printf(COLOR_ADVERT "La memoria no se encuentra dentro de las posibles a utilizar.\n" COLOR_RESET);
         log_warning(logger, "La memoria no se encuentra dentro de las posibles a utilizar.");
         return -1;
     }
 }
 
 void imprimirMensajeAdd(int numeroMemoria, char *criterio) {
-    printf("Tipo de Request: %s %i \n", "ADD MEMORY", numeroMemoria);
-    printf("To: %s\n", criterio);
+    printf(COLOR_EXITO "Tipo de Request: %s %i \n" COLOR_RESET, "ADD MEMORY", numeroMemoria);
+    printf(COLOR_EXITO "To: %s\n" COLOR_RESET, criterio);
 }
 
 int seleccionarMemoriaParaDescribe(p_consola_kernel *parametros) {
@@ -808,6 +816,7 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
                     int *fdMemoriaElegida = (int *) list_get(memoriasDelCriterioPedido, 0);
                     return *fdMemoriaElegida;
                 } else {
+                    printf(COLOR_ADVERT "No existe ninguna memoria asociada al criterio SC.\n" COLOR_RESET);
                     log_error(logger, "No existe ninguna memoria asociada al criterio SC.");
                     return -1;
                 }
@@ -842,11 +851,13 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
                     list_destroy(primeraMemoriaDeLaLista);
                     return *fdMemoriaElegida;
                 } else {
+                    printf(COLOR_ADVERT "No existe ninguna memoria asociada al criterio EC.\n" COLOR_RESET);
                     log_error(logger, "No existen memorias asociadas al criterio EC.");
                     return -1;
                 }
             }
         } else {
+            printf(COLOR_ADVERT "No existen memorias conectadas para asignar requests.\n" COLOR_RESET);
             log_warning(logger, "No existen memorias conectadas para asignar requests.");
             return -1;
         }
@@ -1088,7 +1099,7 @@ void gossiping(parametros_gossiping* parametros){
     int i = 0;
     while (1){
 
-        sleep(20); //corregir para que se pueda ingresar por archivo configuracion
+        sleep(200); //corregir para que se pueda ingresar por archivo configuracion
         enviarPaquete(nodoMemoriaPrincipal->fdNodoMemoria, GOSSIPING, INVALIDO, "DAME_LISTA_GOSSIPING", -1);
         conectarseANuevasMemorias(memoriasConocidas, misConexiones, logger);
         i++;

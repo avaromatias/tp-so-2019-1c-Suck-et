@@ -16,6 +16,13 @@
 #include <unistd.h>
 #include <semaphore.h>
 
+#define COLOR_ERROR     "\x1b[31m"
+#define COLOR_EXITO     "\x1b[32m"
+#define COLOR_ADVERT    "\x1b[33m"
+#define COLOR_GOSSIPING "\x1b[35m"
+#define COLOR_JOURNAL   "\x1b[36m"
+#define COLOR_RESET     "\x1b[0m"
+
 typedef enum {
     SELECT,
     INSERT,

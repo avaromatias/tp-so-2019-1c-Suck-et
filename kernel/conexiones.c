@@ -208,6 +208,7 @@ void actualizarMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *logg
                 tablaARenovar = string_split(infoTabla[0], "=");
                 nombreTabla = tablaARenovar[1]; //El 0 es el TABLE
             } else {
+                printf(COLOR_ADVERT "No existe tabla %s a ejecutar" COLOR_RESET, nombreTabla);
                 log_warning(logger, "No existe tabla %s a ejecutar", nombreTabla);
                 break;
             }
@@ -215,14 +216,17 @@ void actualizarMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *logg
                 consistenciaTabla = string_split(infoTabla[1], "=");
                 consistencia = consistenciaTabla[1]; //El 0 es el CONSISTENCY
             } else {
+                printf(COLOR_ADVERT "La tabla %s no posee consistencia."COLOR_RESET, infoTabla[0]);
                 log_warning(logger, "La tabla %s no posee consistencia.", infoTabla[0]);
                 break;
             }
             dictionary_put(metadataTablas, nombreTabla, consistencia);
             cantTablasActualizadas++;
         }
+        printf(COLOR_EXITO "Cantidad de Tablas actualizadas %i"COLOR_RESET, cantTablasActualizadas);
         log_info(logger, "Cantidad de Tablas actualizadas %i", cantTablasActualizadas);
     } else {
+        printf(COLOR_ERROR "La información recibida por Lissandra es NULA.\n" COLOR_RESET);
         log_error(logger, "La información recibida por Lissandra es NULA.\n");
         exit(-1);
     }
@@ -242,6 +246,7 @@ void crearTablaEnMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *lo
         if (string_contains(infoCreate[0], "CREATE OK") || string_contains(infoCreate[0], "CREATE ERROR")) {
             tablaConsistencia = infoCreate[1];
         } else {
+            printf(COLOR_ADVERT "El CREATE para la tabla/consistencia no se pudo crear." COLOR_RESET);
             log_warning(logger, "El CREATE para la tabla/consistencia no se pudo crear.");
             exit(-1);
         }
@@ -251,6 +256,7 @@ void crearTablaEnMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *lo
             consistencia = separacionTablaConsistencia[1];
         }
         dictionary_put(metadataTablas, nombreTabla, consistencia);
+        printf(COLOR_EXITO "La metadata se actualizó correctamente." COLOR_RESET);
         log_info(logger, "La metadata se actualizó correctamente");
     }
 }
@@ -270,27 +276,31 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
 
     switch (tipoRequest) {
         case SELECT:
-            //incrementoCantidadSelects procesados para metricas;
+            printf(COLOR_EXITO "El SELECT enviado a la memoria %i fue procesado correctamente. Respuesta recibida: %s\n" COLOR_RESET,
+                     fdMemoria, mensaje);
             log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente. Respuesta recibida: %s",
                      fdMemoria, mensaje);
             break;
         case INSERT:
-            //incrementoCantidadInserts procesados para metricas;
+            printf(COLOR_EXITO "El INSERT enviado a la memoria %i fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
             log_info(logger, "El INSERT enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
         case CREATE:
-            //incrementoCantidadCreates procesados para metricas;
             crearTablaEnMetadata(metadata, mensaje, logger);
+            printf(COLOR_EXITO "El CREATE enviado a la memoria %i fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
             log_info(logger, "El CREATE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
         case DROP:
+            printf(COLOR_EXITO "El DROP enviado a la memoria %i fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
             log_info(logger, "El DROP enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
         case DESCRIBE:
             actualizarMetadata(metadata, mensaje, logger);
+            printf(COLOR_EXITO "El DESCRIBE enviado a la memoria %i fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
             log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
         case JOURNAL:
+            printf(COLOR_EXITO "El JOURNAL enviado a la memoria %i fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
             log_info(logger, "El Journal enviado a la memoria %i fue procesado correctamente.", fdMemoria);
             break;
     }
@@ -299,7 +309,6 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
 }
 
 void borrarFdDeListaDeFdsConectados(int fdMemoria, t_dictionary *tablaDeMemoriasConCriterios, char *criterio) {
-
 
     int* enteroParaComparar = (int*)malloc(sizeof(int));
     bool memoriaEncontrada(void *elemento) {

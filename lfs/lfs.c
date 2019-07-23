@@ -151,7 +151,7 @@ void crearBinarios(char *nombreTabla, int particiones) {
             char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, i);
             int cantidadBloquesAsignados = tamanioDeArrayDeStrings(
                     convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
-            int tamanio = ((cantidadBloquesAsignados - 1) * obtenerTamanioBloques(configuracion.puntoMontaje)) +
+            int tamanio = ((cantidadBloquesAsignados - 1) * metadataFS->block_size) +
                           obtenerTamanioBloque(bloque);
             char *tamanioString = string_itoa(tamanio);
             char *contenido = generarContenidoParaParticion(tamanioString, bloquesAsignadosAParticion);
@@ -879,7 +879,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             pthread_mutex_lock(semBloque);
             FILE *f = fopen(pathBloque, "a");
             int longitudArchivo = obtenerTamanioBloque(bloque);
-            while (longitudArchivo < obtenerTamanioBloques(configuracion.puntoMontaje) &&
+            while (longitudArchivo < metadataFS->block_size &&
                    indice < string_length(linea)) {
                 fputc(linea[indice], f);
                 longitudArchivo++;
@@ -890,7 +890,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             free(bloqueString);
             pthread_mutex_unlock(semBloque);
             free(pathBloque);
-            if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
+            if (obtenerTamanioBloque(bloque) >= metadataFS->block_size) {
                 bitarray_set_bit(bitarray, bloque);
             }
         }
@@ -901,7 +901,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, particion);
             int cantidadBloquesAsignados = tamanioDeArrayDeStrings(
                     convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
-            int tamanio = ((cantidadBloquesAsignados - 1) * obtenerTamanioBloques(configuracion.puntoMontaje)) +
+            int tamanio = ((cantidadBloquesAsignados - 1) * metadataFS->block_size) +
                           obtenerTamanioBloque(bloque);
             char *tamanioString = string_itoa(tamanio);
             char *contenido = generarContenidoParaParticion(tamanioString, bloquesAsignadosAParticion);
@@ -1248,7 +1248,7 @@ void loguearRespuesta(char* request,t_response* retorno){
 t_response *gestionarRequest(t_comando comando) {
     retardo();
     t_response *retorno;
-    if (!existeMetadata()) {
+    if (!metadataFS) {
         retorno = (t_response *) malloc(sizeof(t_response));
         retorno->valor = concat(1, "La Metadata del File System no existe o esta vacia.");
         retorno->tipoRespuesta = ERR;
@@ -1542,7 +1542,7 @@ int obtenerCantidadBloques(char *puntoMontaje) {
     string_append(&nombreArchivo, "Metadata/Metadata.bin");
     if (existeElArchivo(nombreArchivo) && !archivoVacio(nombreArchivo)) {
         t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
-        int cantidadDeBloques = config_get_int_value(archivoConfig, "BLOCKS");
+        int cantidadDeBloques = metadataFS->blocks;
         free(nombreArchivo);
         config_destroy(archivoConfig);
         return cantidadDeBloques;
@@ -1555,7 +1555,7 @@ int existeMetadata() {
     char *nombreArchivo = string_new();
     string_append(&nombreArchivo, configuracion.puntoMontaje);
     string_append(&nombreArchivo, "Metadata/Metadata.bin");
-    int existe = existeElArchivo(nombreArchivo) && !archivoVacio(nombreArchivo);
+    int existe = existeElArchivo(nombreArchivo);
     free(nombreArchivo);
     return existe;
 }
@@ -1597,7 +1597,7 @@ void crearDirBloques(char *puntoMontaje) {
                 fclose(file);
                 pthread_mutex_unlock(semBloque);
             } else if (!archivoVacio(unArchivoDeBloque) &&
-                       obtenerTamanioBloque(i) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
+                       obtenerTamanioBloque(i) >= metadataFS->block_size) {
                 bitarray_set_bit(bitarray, i);
             }
             free(unArchivoDeBloque);
@@ -1645,12 +1645,45 @@ void *obtenerSemaforoPath(char *path) {
 
 int crearDirectoriosBase(char *puntoMontaje) {
     crearDirMetadata(puntoMontaje);
+    cargarMetadataFS();
     inicializarBitmap();
     crearDirBloques(puntoMontaje);
     crearDirTables(puntoMontaje);
 }
 
+void cargarMetadataFS(){
+    if(existeMetadata()){
 
+        bool error=false;
+        if(!metadataFS){
+        char *nombreArchivo = string_new();
+        string_append(&nombreArchivo, configuracion.puntoMontaje);
+        string_append(&nombreArchivo, "Metadata/Metadata.bin");
+        if (!archivoVacio(nombreArchivo)) {
+            t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
+            int tamanioBloques = config_get_int_value(archivoConfig, "BLOCK_SIZE");
+            int cantidadBloques = config_get_int_value(archivoConfig, "BLOCKS");
+            if(!tamanioBloques || !cantidadBloques){
+                error=true;
+            }else{
+                metadataFS = (t_metadata_fs*)malloc(sizeof(t_metadata_fs));
+                metadataFS->block_size=tamanioBloques;
+                metadataFS->blocks=cantidadBloques;
+            }
+            free(nombreArchivo);
+            config_destroy(archivoConfig);
+        }else{
+            error=true;
+        }
+        if(error){
+            printf("La Metadata del File System debe ser seteada.\n");
+            log_error(logger,"La Metadata del File System debe ser seteada.\n");
+            exit(-1);
+        }
+    }
+
+    }
+}
 void inicializarLFS(char *puntoMontaje) {
     crearDirectoriosBase(puntoMontaje);
 }
@@ -1666,7 +1699,7 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_lf
 void inicializarBitmap() {
     char *bitmapPath = concat(2, configuracion.puntoMontaje, "Metadata/Bitmap.bin");
     int fd = open(bitmapPath, O_RDWR);
-    int tamanioBitarray = obtenerCantidadBloques(configuracion.puntoMontaje) / 8;
+    int tamanioBitarray = metadataFS->blocks / 8;
     if (lseek(fd, 0, SEEK_END) <= 0) {
         ftruncate(fd, tamanioBitarray);
     }
@@ -1772,7 +1805,6 @@ int main(void) {
 
     pthread_t *hiloConexiones = crearHiloConexiones(misConexiones, configuracion.tamanioValue, logger);
     pthread_t *hiloDump = crearHiloDump(logger);
-
     ejecutarConsola();
 
     pthread_join(*hiloConexiones, NULL);

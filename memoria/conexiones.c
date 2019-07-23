@@ -173,7 +173,7 @@ void atenderHandshake(Header header, Componente componente, parametros_thread_me
     if(componente == KERNEL) {
         if (parametros->conexionKernel->fd == 0) {
             parametros->conexionKernel->fd = header.fdRemitente;
-            enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, INVALIDO, "Conexión aceptada.", -1);
+            enviarPaquete(header.fdRemitente, CONEXION_ACEPTADA, INVALIDO, "Conexión aceptada.", (int)parametros->memoria->memoryNumber);
             sem_post(parametros->conexionKernel->semaforo);
         } else {
             enviarPaquete(header.fdRemitente, CONEXION_RECHAZADA, INVALIDO, "Conexión rechazada.", -1);

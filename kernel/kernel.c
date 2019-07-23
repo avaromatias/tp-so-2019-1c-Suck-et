@@ -146,11 +146,10 @@ int main(void) {
 
 void *metricas(void *pMetricas) {
     parametrosMetricas *parametros = (parametrosMetricas *) pMetricas;
-    bool mostrarPorPantalla = parametros->mostrarPorPantalla;
     p_planificacion *paramPlanificacionGeneral = parametros->paramPlanificacionGeneral;
     while (1) {
         sleep(30);
-        calcularMetricas(mostrarPorPantalla, paramPlanificacionGeneral);
+        calcularMetricas(false, paramPlanificacionGeneral);
     }
 }
 
@@ -158,7 +157,6 @@ pthread_t *crearHiloMetricas(p_planificacion *paramPlanificacionGeneral) {
     pthread_t *hiloMetricas = (pthread_t *) malloc(sizeof(pthread_t));
     parametrosMetricas *parametros = (parametrosMetricas *) malloc(sizeof(parametrosMetricas));
     parametros->paramPlanificacionGeneral = paramPlanificacionGeneral;
-    parametros->mostrarPorPantalla = false;
     pthread_create(hiloMetricas, NULL, &metricas, parametros);
 
     return hiloMetricas;
@@ -168,8 +166,8 @@ void actualizarEstructurasMetricas(int fdMemoria, t_list *listadoDeCriterio, Tip
                                    estadisticasRequest *estadisticasRequest) {
 
     double tiempoInicioRequest = estadisticasRequest->inicioRequest;
-    time_t tiempoFinRequest = time(NULL);
-    double tiempoTotal = difftime(tiempoFinRequest, tiempoInicioRequest);
+    time_t tiempoFinRequest = clock();
+    double tiempoTotal = (double)(tiempoFinRequest- tiempoInicioRequest)/CLOCKS_PER_SEC;
     estadisticasRequest->fdMemoria = fdMemoria;
     estadisticasRequest->tipoRequest = tipoRequest;
     estadisticasRequest->duracionEnSegundos = tiempoTotal;
@@ -184,10 +182,10 @@ void actualizarEstructurasMetricas(int fdMemoria, t_list *listadoDeCriterio, Tip
     Memory Load (por cada memoria):  Cantidad de INSERT / SELECT que se ejecutaron en esa memoria respecto de las operaciones totales.
 
  */
-long tiempoHaceTreintaSegundos() {
-    long tiempo;
-    tiempo = (long) time(NULL);
-    return tiempo - 30;
+double tiempoHaceTreintaSegundos() {
+    time_t tiempo;
+    time(&tiempo);
+    return (double)tiempo - 30;
 }
 
 t_metricasDefinidas *calcularMetricaParaCriterio(char *criterio, long tiempoHace30s, int fd) {
@@ -198,7 +196,7 @@ t_metricasDefinidas *calcularMetricaParaCriterio(char *criterio, long tiempoHace
         void forFd(estadisticasRequest *elem) {
             return elem->fdMemoria == fd;
         }
-        metricas->fds = list_filter(listaCriterio, forFd);
+        listaCriterio = list_filter(listaCriterio, forFd);
     }
     bool filtrarUltimos30s(estadisticasRequest *elemento) {
         return elemento->finRequest >= tiempoHace30s;
@@ -213,9 +211,9 @@ t_metricasDefinidas *calcularMetricaParaCriterio(char *criterio, long tiempoHace
     }
     t_list *listaInsert = list_filter(listaCriterio30, esInsert);
     // SELECTS
-    metricas->reads = list_size(listaSelect);
+    metricas->reads = list_count_satisfying(listaCriterio30,esSelect);
     // INSERTS
-    metricas->writes = list_size(listaInsert);
+    metricas->writes = list_count_satisfying(listaCriterio30,esInsert);
 
     // TIEMPO PROMEDIO DE CADA SELECT/INSERT
     double getDuracion(estadisticasRequest *elemento) {
@@ -257,7 +255,7 @@ void calcularMetricas(bool mostrarPorPantalla, p_planificacion *paramPlanifGener
     int tamanioListaMemoriasConectadas = list_size(listaDeMemoriasConectadas);
 
 
-    long tiempoHace30Segundos = tiempoHaceTreintaSegundos();
+    double tiempoHace30Segundos = tiempoHaceTreintaSegundos();
 
     t_metricasDefinidas *metricasSC = calcularMetricaParaCriterio("SC", tiempoHace30Segundos, NULL);
     t_metricasDefinidas *metricasSHC = calcularMetricaParaCriterio("SHC", tiempoHace30Segundos, NULL);
@@ -990,8 +988,8 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
         requestEsValida = analizarRequest(*comando, pConsolaKernel);
         if (requestEsValida) {
             if ((diferenciarRequest(*comando) == 1)) { //Si es 1 es primitiva
-                tiempoInicioRequest = time(NULL);
-                infoRequest->inicioRequest = tiempoInicioRequest;
+                infoRequest->inicioRequest=clock();
+                time(&infoRequest->instanteInicio);
                 gestionarRequestPrimitivas(*comando, paramPlanifGeneral, semaforoHilo, infoRequest,
                                            semConcurrenciaMetricas);
             } else { //Si es 0 es comando de Kernel

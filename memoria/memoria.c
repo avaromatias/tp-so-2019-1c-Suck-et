@@ -573,8 +573,7 @@ char* formatearPagina(char* key, char* value, char* timestamp, t_memoria* memori
     char* puntero = contenidoPagina;
     long tiempo;
     if(timestamp == NULL)   {
-        time_t tiempoActual;
-        tiempo = (long) time(&tiempoActual);
+        tiempo = (long) getCurrentTime();
     } else
         tiempo = atol(timestamp);   
     memcpy(puntero, &tiempo, sizeof(time_t));

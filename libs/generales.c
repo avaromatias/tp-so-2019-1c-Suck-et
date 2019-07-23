@@ -247,3 +247,9 @@ int getFileSize(FILE* archivo)  {
     fseek(archivo, 0, SEEK_SET);
     return size;
 }
+
+int getCurrentTime() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (tv.tv_sec) * 1000 + (tv.tv_usec) / 1000;
+}

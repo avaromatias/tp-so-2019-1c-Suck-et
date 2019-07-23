@@ -118,7 +118,7 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
 
 t_response *lfsSelect(char *nombreTabla, char *key);
 
-t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp);
+t_response *lfsInsert(char *nombreTabla, char *key, char *valor, unsigned long int timestamp);
 
 int obtenerBloqueDisponible(char *nombreTabla, int particion);
 

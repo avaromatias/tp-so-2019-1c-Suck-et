@@ -637,7 +637,7 @@ void compactacion(void *parametrosThread) {
                     char *keyString = string_duplicate(linea[1]);
                     char *valorString = string_duplicate(linea[2]);
                     char *timestampString = string_duplicate(linea[0]);
-                    lfsInsertCompactacion(nombreTabla, keyString, valorString, (time_t) strtol(timestampString, NULL, 10));
+                    lfsInsertCompactacion(nombreTabla, keyString, valorString, (unsigned long int) strtol(timestampString, NULL, 10));
                     free(keyString);
                     free(valorString);
                     free(timestampString);
@@ -774,7 +774,7 @@ void validarValor(char *valor, t_response *retorno) {
     return retorno;
 }
 
-t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestamp) {
+t_response *lfsInsert(char *nombreTabla, char *key, char *valor, unsigned long int timestamp) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     retorno->tipoRespuesta = RESPUESTA;
     validarValor(valor, retorno);
@@ -833,7 +833,7 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, time_t timestam
     return retorno;
 }
 
-void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, time_t timestamp) {
+void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, unsigned long int timestamp) {
     char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
     if (existeElArchivo(path)) {
         char *linea = armarLinea(key, valor, timestamp);
@@ -1260,15 +1260,15 @@ t_response *gestionarRequest(t_comando comando) {
             return retorno;
 
         case INSERT:;
-            time_t timestamp;
+            unsigned long int timestamp;
             // El parámetro Timestamp es opcional.
             // En caso que un request no lo provea (por ejemplo insertando un valor desde la consola),
             // se usará el valor actual del Epoch UNIX.
             if (comando.cantidadParametros == 4 && comando.parametros[3] != NULL) {
                 string_trim(&comando.parametros[3]);
-                timestamp = (time_t) strtol(comando.parametros[3], NULL, 10);
+                timestamp = (unsigned long int) strtol(comando.parametros[3], NULL, 10);
             } else {
-                timestamp = (time_t) time(NULL);
+                timestamp = (unsigned long int) getCurrentTime();
             }
             //printf("Timestamp: %i\n", (int) timestamp);
             retorno = lfsInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], timestamp);

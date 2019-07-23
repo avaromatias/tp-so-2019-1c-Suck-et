@@ -30,7 +30,8 @@ typedef enum  {
     ERR,
     CONEXION_ACEPTADA,
     CONEXION_RECHAZADA,
-    NIVEL_MULTIPROCESAMIENTO
+    NIVEL_MULTIPROCESAMIENTO,
+    JOURNALING
 } TipoMensaje;
 
 typedef enum {

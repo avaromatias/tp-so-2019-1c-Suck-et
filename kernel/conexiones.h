@@ -14,6 +14,7 @@
 //Estructura para manejar estadisticas de Requests de un FD
 typedef struct {
     int fdMemoria;
+    int instanteInicio;
     time_t inicioRequest;
     time_t finRequest;
     double duracionEnSegundos;

@@ -43,6 +43,13 @@ int main(void) {
     pthread_mutex_t *mutexDatosConfiguracion= malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutexDatosConfiguracion, NULL);
 
+    mutexEstrucSupervisorHilos = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+    int initMutexSupHilos = pthread_mutex_init(mutexEstrucSupervisorHilos, NULL);
+
+    mutexMetadataTablas = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+    int initMutexMetadata = pthread_mutex_init(mutexMetadataTablas, NULL);
+
+
     log_info(logger, "IP Memoria: %s", configuracion.ipMemoria);
     log_info(logger, "Puerto Memoria: %i", configuracion.puertoMemoria);
     log_info(logger, "Quantum: %i", configuracion.quantum);
@@ -108,7 +115,7 @@ int main(void) {
     parametrosPCP->mutexColaFinalizados = mutexListaFinalizados;
     parametrosPCP->cantidadProcesosEnReady = cantidadProcesosEnReady;
     parametrosPCP->colaDeFinalizados = colaDeFinalizados;
-    parametrosPCP->retardoEjecucion = (int *) configuracion.refreshMetadata;
+    parametrosPCP->retardoEjecucion = (int *) configuracion.retardoEjecucion;
     parametrosPCP->mutexJournal = mutexJournal;
     parametrosPCP->logger = logger;
 
@@ -147,11 +154,10 @@ int main(void) {
 
 void *metricas(void *pMetricas) {
     parametrosMetricas *parametros = (parametrosMetricas *) pMetricas;
-    bool mostrarPorPantalla = parametros->mostrarPorPantalla;
     p_planificacion *paramPlanificacionGeneral = parametros->paramPlanificacionGeneral;
     while (1) {
         sleep(30);
-        calcularMetricas(mostrarPorPantalla, paramPlanificacionGeneral);
+        calcularMetricas(false, paramPlanificacionGeneral);
     }
 }
 
@@ -159,7 +165,6 @@ pthread_t *crearHiloMetricas(p_planificacion *paramPlanificacionGeneral) {
     pthread_t *hiloMetricas = (pthread_t *) malloc(sizeof(pthread_t));
     parametrosMetricas *parametros = (parametrosMetricas *) malloc(sizeof(parametrosMetricas));
     parametros->paramPlanificacionGeneral = paramPlanificacionGeneral;
-    parametros->mostrarPorPantalla = false;
     pthread_create(hiloMetricas, NULL, &metricas, parametros);
 
     return hiloMetricas;
@@ -169,8 +174,8 @@ void actualizarEstructurasMetricas(int fdMemoria, t_list *listadoDeCriterio, Tip
                                    estadisticasRequest *estadisticasRequest) {
 
     double tiempoInicioRequest = estadisticasRequest->inicioRequest;
-    time_t tiempoFinRequest = time(NULL);
-    double tiempoTotal = difftime(tiempoFinRequest, tiempoInicioRequest);
+    time_t tiempoFinRequest = clock();
+    double tiempoTotal = (double)(tiempoFinRequest- tiempoInicioRequest)/CLOCKS_PER_SEC;
     estadisticasRequest->fdMemoria = fdMemoria;
     estadisticasRequest->tipoRequest = tipoRequest;
     estadisticasRequest->duracionEnSegundos = tiempoTotal;
@@ -185,10 +190,10 @@ void actualizarEstructurasMetricas(int fdMemoria, t_list *listadoDeCriterio, Tip
     Memory Load (por cada memoria):  Cantidad de INSERT / SELECT que se ejecutaron en esa memoria respecto de las operaciones totales.
 
  */
-long tiempoHaceTreintaSegundos() {
-    long tiempo;
-    tiempo = (long) time(NULL);
-    return tiempo - 30;
+double tiempoHaceTreintaSegundos() {
+    time_t tiempo;
+    time(&tiempo);
+    return (double)tiempo - 30;
 }
 
 t_metricasDefinidas *calcularMetricaParaCriterio(char *criterio, long tiempoHace30s, int fd) {
@@ -199,7 +204,7 @@ t_metricasDefinidas *calcularMetricaParaCriterio(char *criterio, long tiempoHace
         void forFd(estadisticasRequest *elem) {
             return elem->fdMemoria == fd;
         }
-        metricas->fds = list_filter(listaCriterio, forFd);
+        listaCriterio = list_filter(listaCriterio, forFd);
     }
     bool filtrarUltimos30s(estadisticasRequest *elemento) {
         return elemento->finRequest >= tiempoHace30s;
@@ -214,9 +219,9 @@ t_metricasDefinidas *calcularMetricaParaCriterio(char *criterio, long tiempoHace
     }
     t_list *listaInsert = list_filter(listaCriterio30, esInsert);
     // SELECTS
-    metricas->reads = list_size(listaSelect);
+    metricas->reads = list_count_satisfying(listaCriterio30,esSelect);
     // INSERTS
-    metricas->writes = list_size(listaInsert);
+    metricas->writes = list_count_satisfying(listaCriterio30,esInsert);
 
     // TIEMPO PROMEDIO DE CADA SELECT/INSERT
     double getDuracion(estadisticasRequest *elemento) {
@@ -258,7 +263,7 @@ void calcularMetricas(bool mostrarPorPantalla, p_planificacion *paramPlanifGener
     int tamanioListaMemoriasConectadas = list_size(listaDeMemoriasConectadas);
 
 
-    long tiempoHace30Segundos = tiempoHaceTreintaSegundos();
+    double tiempoHace30Segundos = tiempoHaceTreintaSegundos();
 
     t_metricasDefinidas *metricasSC = calcularMetricaParaCriterio("SC", tiempoHace30Segundos, NULL);
     t_metricasDefinidas *metricasSHC = calcularMetricaParaCriterio("SHC", tiempoHace30Segundos, NULL);
@@ -427,8 +432,10 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
 
     if (paramPlanifGeneral->memoriasUtilizables > 0) {
 
+        pthread_mutex_lock(mutexEstrucSupervisorHilos);
         dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
         pthread_mutex_lock(mutexDeHiloRequest);
+        pthread_mutex_unlock(mutexEstrucSupervisorHilos);
 
         switch (requestParseada.tipoRequest) { //Analizar si cada gestionar va a tener que encolar en NEW, en lugar de enviarPaquete
             case SELECT:
@@ -536,8 +543,8 @@ int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlan
                 gestionarRun(requestParseada.parametros[0], pConsolaKernel, parametrosPLP);
             } else {
                 errorNoHayMemoriasAsociadas(pConsolaKernel->logger);
-                break;
             }
+            break;
         case METRICS:
             calcularMetricas(true, paramPlanifGeneral);
             break;
@@ -824,7 +831,7 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
     t_log *logger = parametros->logger;
     if (criterio != NULL) {
         if (existenMemoriasConectadas) {
-            string_to_upper(criterio);
+            string_to_upper(criterio); //POSIBLE CONDICION DE CARRERA
             //Obtenemos memorias que responden al criterio pedido
             t_list *memoriasDelCriterioPedido = dictionary_get(parametros->memoriasConCriterios, criterio);
             //Que memorias tengo con el criterio X de la request solicitada?
@@ -889,34 +896,35 @@ bool existenMemoriasConectadas(GestorConexiones *misConexiones) {
 }
 
 char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas) {
+
     //buscaremos el criterio de cada uno de las request ingresadas
     char *criterioPedido;
     char *tabla;
     switch (requestParseada.tipoRequest) { //Cada case va a tener que buscar en el diccionario la tabla, para obtener el criterio
-        case SELECT:
-            tabla = requestParseada.parametros[0];
-            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);//buscar en metadataTablasConocidas
-            return criterioPedido;
-        case INSERT:
-            tabla = requestParseada.parametros[0];
-            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
-            return criterioPedido;
         case CREATE:
             criterioPedido = requestParseada.parametros[1];
             return criterioPedido;
+        case SELECT:
+        case INSERT:
         case DROP:
             tabla = requestParseada.parametros[0];
-            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
+            pthread_mutex_lock(mutexMetadataTablas);
+            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);//buscar en metadataTablasConocidas
+            pthread_mutex_unlock(mutexMetadataTablas);
             return criterioPedido;
         case DESCRIBE:
             if (requestParseada.cantidadParametros > 0) {
                 tabla = requestParseada.parametros[0];
+                pthread_mutex_lock(mutexMetadataTablas);
                 criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
+                pthread_mutex_unlock(mutexMetadataTablas);
                 return criterioPedido;
             }
         case ADD:
             tabla = requestParseada.parametros[3];
+            pthread_mutex_lock(mutexMetadataTablas);
             criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
+            pthread_mutex_unlock(mutexMetadataTablas);
             return criterioPedido;
         default:;
     }
@@ -1008,8 +1016,8 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
         requestEsValida = analizarRequest(*comando, pConsolaKernel);
         if (requestEsValida) {
             if ((diferenciarRequest(*comando) == 1)) { //Si es 1 es primitiva
-                tiempoInicioRequest = time(NULL);
-                infoRequest->inicioRequest = tiempoInicioRequest;
+                infoRequest->inicioRequest=clock();
+                time(&infoRequest->instanteInicio);
                 gestionarRequestPrimitivas(*comando, paramPlanifGeneral, semaforoHilo, infoRequest,
                                            semConcurrenciaMetricas);
             } else { //Si es 0 es comando de Kernel
@@ -1019,9 +1027,6 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
             log_warning(logger,
                         "No se pudo procesar la request ubicada en la línea %s. Corríjala y vuelvala a ejecutar.",
                         lineaDeEjecucion);
-            sem_wait(paramPlanifGeneral->parametrosPCP->mutexColaFinalizados);
-            queue_push(paramPlanifGeneral->parametrosPCP->colaDeFinalizados, unLQL);
-            sem_post(paramPlanifGeneral->parametrosPCP->mutexColaFinalizados);
             break;
         }
     }
@@ -1036,7 +1041,6 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
         sem_post(paramPlanifGeneral->parametrosPCP->mutexColaFinalizados);
     }
 }
-
 
 void instanciarPCPs(p_planificacion *paramPlanificacionGeneral) {
     parametros_pcp *parametrosPCP = paramPlanificacionGeneral->parametrosPCP;

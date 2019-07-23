@@ -39,14 +39,12 @@ typedef struct {
     char* directorioAMonitorear;
 } t_configuracion;
 
-typedef struct {
-    bool mostrarPorPantalla;
-    p_planificacion *paramPlanificacionGeneral;
-} parametrosMetricas;
-
 t_list *listaMetricasSC;
 t_list *listaMetricasSHC;
 t_list *listaMetricasEC;
+
+pthread_mutex_t *mutexEstrucSupervisorHilos;
+pthread_mutex_t *mutexMetadataTablas;
 
 /******************************
  ** COMPORTAMIENTO DE KERNEL **
@@ -159,6 +157,10 @@ typedef struct {
     t_list *memoriasConocidas;
     GestorConexiones *misConexiones;
 } parametros_gossiping;
+
+typedef struct {
+    p_planificacion *paramPlanificacionGeneral;
+} parametrosMetricas;
 
 pthread_t *crearHiloGossiping(GestorConexiones *misConexiones, t_list *memoriasConocidas, t_log *logger);
 

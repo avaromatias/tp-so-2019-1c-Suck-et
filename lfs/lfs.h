@@ -50,6 +50,11 @@ typedef struct {
 } t_metadata;
 
 typedef struct {
+    int block_size;
+    int blocks;
+} t_metadata_fs;
+
+typedef struct {
     TipoMensaje tipoRespuesta;
     char *valor
 } t_response;
@@ -86,6 +91,7 @@ t_dictionary *hilosTablas;
 t_bitarray *bitarray;
 void *bitmap;
 pthread_mutex_t* mutexAsignacionBloques;
+t_metadata_fs* metadataFS;
 pthread_mutex_t* mutexMemtable;
 
 

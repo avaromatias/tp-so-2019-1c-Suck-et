@@ -122,14 +122,15 @@ void* atenderConexiones(void* parametrosThread)    {
                                         break;
                                     case GOSSIPING: ;
                                         atenderPedidoMemoria(header, mensaje, parametros);
-                                        sleep(1);
                                         break;
                                     case RESPUESTA_GOSSIPING_2: ;
-                                        sleep(1);
                                         atenderPedidoMemoria(header, mensaje, parametros);
                                         break;
                                     case NIVEL_MULTIPROCESAMIENTO: ;
                                         actualizarNivelMultiprocesamiento(mensaje, parametros->semaforoJournaling);
+                                        break;
+                                    case JOURNALING: ;
+                                        atenderMensajes(header, mensaje, parametros);
                                         break;
                                 }
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje

@@ -64,11 +64,11 @@ void *atenderConexiones(void *parametrosThread) {
                         // hubo un error al recibir los datos
                         case -1:
                             desconectarCliente(fdConectado, unaConexion, logger);
-                            pthread_mutex_lock(mutexJournal);
+                            //pthread_mutex_lock(mutexJournal);
                             eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
                             eliminarFileDescriptorDeNodosMemoriaConocidas(fdConectado, memoriasConocidas, logger);
-                            //forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
-                            pthread_mutex_unlock(mutexJournal);
+                            forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
+                            //pthread_mutex_unlock(mutexJournal);
                             break;
                             // recibí algún mensaje
                         default:; // esto es lo más raro que vi pero tuve que hacerlo
@@ -79,11 +79,11 @@ void *atenderConexiones(void *parametrosThread) {
                             bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
                             if (bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)   {
                                 desconectarCliente(fdConectado, unaConexion, logger);
-                                pthread_mutex_lock(mutexJournal);
+                                //pthread_mutex_lock(mutexJournal);
                                 eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
                                 eliminarFileDescriptorDeNodosMemoriaConocidas(fdConectado, memoriasConocidas, logger);
-                                //forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
-                                pthread_mutex_unlock(mutexJournal);
+                                forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
+                                //pthread_mutex_unlock(mutexJournal);
                             } else {
                                 switch (header.tipoMensaje) {
                                     case RESPUESTA:
@@ -94,9 +94,9 @@ void *atenderConexiones(void *parametrosThread) {
                                     case CONEXION_ACEPTADA:
                                         //atenderHandshake(header, componente, parametros);
                                         //TODO los semaforos de las queues sirven para bloquear la ejecucion?
-                                        pthread_mutex_lock(mutexJournal);
+                                        //pthread_mutex_lock(mutexJournal);
 
-                                        //forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
+                                        forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
                                         pthread_mutex_lock(mutexDatosConfiguracion);
                                         enviarPaquete(header.fdRemitente, NIVEL_MULTIPROCESAMIENTO, REQUEST, string_itoa(datosConfiguracion->nivelDeMultiProcesamiento), -1);
                                         pthread_mutex_unlock(mutexDatosConfiguracion);
@@ -113,7 +113,6 @@ void *atenderConexiones(void *parametrosThread) {
                                         //identificarMemorias(listaDeNodosMemorias, direccionesNuevasMemorias, logger);
                                         agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
                                         break;
-
                                     case ERR:;
                                         char *PID = string_itoa(header.pid);
                                         pthread_mutex_t *semaforo = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PID);
@@ -269,6 +268,12 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
     if (dictionary_has_key(supervisorDeHilos, PIDCasteado)) {
         semaforoADesbloquear = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PIDCasteado);
     } else {
+        if (strcmp(PIDCasteado, "-1") == 0 && tipoRequest == JOURNAL){
+            printf(COLOR_EXITO "El JOURNAL enviado a la memoria %i fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
+            log_info(logger, "El Journal enviado a la memoria %i fue procesado correctamente.", fdMemoria);
+            free(PIDCasteado);
+            return;
+        }
         semaforoADesbloquear = paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
         pthread_mutex_lock(semaforoADesbloquear);
         dictionary_put(supervisorDeHilos, PIDCasteado, semaforoADesbloquear);
@@ -455,23 +460,10 @@ void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *
 
     int* fdParaMandarJournaling = (int*)malloc(sizeof(int));
 
-    t_comando *requestJournal = (t_comando *) malloc(sizeof(t_comando));
-    char **comandoParseado = parser("JOURNAL");
-    *requestJournal = instanciarComando(comandoParseado);
-
-
-
     void enviarJournal(void* elemento){
         if(elemento != NULL){
             fdParaMandarJournaling = (int*) elemento;
-
-
-            t_archivoLQL *unLQL = convertirRequestALQL(requestJournal);
-            sem_wait(semaforo_colaDeNew);
-            queue_push(colaDeNew, unLQL);
-            sem_post(cantidadProcesosEnNew);
-            sem_post(semaforo_colaDeNew);
-            //enviarPaquete(*fdParaMandarJournaling, REQUEST, JOURNAL, "JOURNAL", -1);
+            enviarPaquete(*fdParaMandarJournaling, JOURNALING, JOURNAL, "JOURNAL", -1);
             log_info(logger, string_from_format("Se envió un journaling a la memoria con fd %i", *fdParaMandarJournaling));
         }
     }

@@ -43,6 +43,13 @@ int main(void) {
     pthread_mutex_t *mutexDatosConfiguracion= malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutexDatosConfiguracion, NULL);
 
+    pthread_mutex_t *mutexEstrucSupervisorHilos = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(mutexEstrucSupervisorHilos, NULL);
+
+    pthread_mutex_t *mutexMetadataTablas = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(mutexMetadataTablas, NULL);
+
+
     log_info(logger, "IP Memoria: %s", configuracion.ipMemoria);
     log_info(logger, "Puerto Memoria: %i", configuracion.puertoMemoria);
     log_info(logger, "Quantum: %i", configuracion.quantum);
@@ -108,7 +115,7 @@ int main(void) {
     parametrosPCP->mutexColaFinalizados = mutexListaFinalizados;
     parametrosPCP->cantidadProcesosEnReady = cantidadProcesosEnReady;
     parametrosPCP->colaDeFinalizados = colaDeFinalizados;
-    parametrosPCP->retardoEjecucion = (int *) configuracion.refreshMetadata;
+    parametrosPCP->retardoEjecucion = (int *) configuracion.retardoEjecucion;
     parametrosPCP->mutexJournal = mutexJournal;
     parametrosPCP->logger = logger;
 
@@ -424,8 +431,10 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
 
     if (paramPlanifGeneral->memoriasUtilizables > 0) {
 
+        pthread_mutex_lock(mutexEstrucSupervisorHilos);
         dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
         pthread_mutex_lock(mutexDeHiloRequest);
+        pthread_mutex_unlock(mutexEstrucSupervisorHilos);
 
         switch (requestParseada.tipoRequest) { //Analizar si cada gestionar va a tener que encolar en NEW, en lugar de enviarPaquete
             case SELECT:
@@ -533,8 +542,8 @@ int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlan
                 gestionarRun(requestParseada.parametros[0], pConsolaKernel, parametrosPLP);
             } else {
                 errorNoHayMemoriasAsociadas(pConsolaKernel->logger);
-                break;
             }
+            break;
         case METRICS:
             calcularMetricas(true, paramPlanifGeneral);
             break;
@@ -804,7 +813,7 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
     t_log *logger = parametros->logger;
     if (criterio != NULL) {
         if (existenMemoriasConectadas) {
-            string_to_upper(criterio);
+            string_to_upper(criterio); //POSIBLE CONDICION DE CARRERA
             //Obtenemos memorias que responden al criterio pedido
             t_list *memoriasDelCriterioPedido = dictionary_get(parametros->memoriasConCriterios, criterio);
             //Que memorias tengo con el criterio X de la request solicitada?
@@ -869,34 +878,35 @@ bool existenMemoriasConectadas(GestorConexiones *misConexiones) {
 }
 
 char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas) {
+
     //buscaremos el criterio de cada uno de las request ingresadas
     char *criterioPedido;
     char *tabla;
     switch (requestParseada.tipoRequest) { //Cada case va a tener que buscar en el diccionario la tabla, para obtener el criterio
-        case SELECT:
-            tabla = requestParseada.parametros[0];
-            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);//buscar en metadataTablasConocidas
-            return criterioPedido;
-        case INSERT:
-            tabla = requestParseada.parametros[0];
-            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
-            return criterioPedido;
         case CREATE:
             criterioPedido = requestParseada.parametros[1];
             return criterioPedido;
+        case SELECT:
+        case INSERT:
         case DROP:
             tabla = requestParseada.parametros[0];
-            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
+            pthread_mutex_lock(mutexMetadataTablas);
+            criterioPedido = (char *) dictionary_get(metadataTablas, tabla);//buscar en metadataTablasConocidas
+            pthread_mutex_unlock(mutexMetadataTablas);
             return criterioPedido;
         case DESCRIBE:
             if (requestParseada.cantidadParametros > 0) {
                 tabla = requestParseada.parametros[0];
+                pthread_mutex_lock(mutexMetadataTablas);
                 criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
+                pthread_mutex_unlock(mutexMetadataTablas);
                 return criterioPedido;
             }
         case ADD:
             tabla = requestParseada.parametros[3];
+            pthread_mutex_lock(mutexMetadataTablas);
             criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
+            pthread_mutex_unlock(mutexMetadataTablas);
             return criterioPedido;
         default:;
     }
@@ -999,9 +1009,6 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
             log_warning(logger,
                         "No se pudo procesar la request ubicada en la línea %s. Corríjala y vuelvala a ejecutar.",
                         lineaDeEjecucion);
-            sem_wait(paramPlanifGeneral->parametrosPCP->mutexColaFinalizados);
-            queue_push(paramPlanifGeneral->parametrosPCP->colaDeFinalizados, unLQL);
-            sem_post(paramPlanifGeneral->parametrosPCP->mutexColaFinalizados);
             break;
         }
     }
@@ -1016,7 +1023,6 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
         sem_post(paramPlanifGeneral->parametrosPCP->mutexColaFinalizados);
     }
 }
-
 
 void instanciarPCPs(p_planificacion *paramPlanificacionGeneral) {
     parametros_pcp *parametrosPCP = paramPlanificacionGeneral->parametrosPCP;

@@ -115,7 +115,9 @@ void *atenderConexiones(void *parametrosThread) {
                                         break;
                                     case ERR:;
                                         char *PID = string_itoa(header.pid);
+                                        pthread_mutex_lock(mutexEstrucSupervisorHilos);
                                         pthread_mutex_t *semaforo = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PID);
+                                        pthread_mutex_unlock(mutexEstrucSupervisorHilos);
                                         pthread_mutex_unlock(semaforo);
                                         printf(mensaje);
                                         free(PID);
@@ -195,7 +197,7 @@ void actualizarMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *logg
     char *consistencia;
     dataLissandra = mensaje;
 
-    if ((dataLissandra != NULL)) {
+    if ((dataLissandra != NULL)) { //TABLE=TABLA\nCONSISTENCY=CONSISTENCIA\n
         int cantTablasActualizadas = 0;
         tablasDelDescribe = string_split(dataLissandra, "-----------------");
         int cantidadDeTablasActualizar = tamanioDeArrayDeStrings(tablasDelDescribe);

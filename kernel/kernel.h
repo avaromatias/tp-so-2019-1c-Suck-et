@@ -43,6 +43,9 @@ t_list *listaMetricasSC;
 t_list *listaMetricasSHC;
 t_list *listaMetricasEC;
 
+pthread_mutex_t *mutexEstrucSupervisorHilos;
+pthread_mutex_t *mutexMetadataTablas;
+
 /******************************
  ** COMPORTAMIENTO DE KERNEL **
  ******************************/

@@ -256,58 +256,50 @@ void retardo() {
 
 void lfsDump() {
     while (1) {
-        t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
-        if (config_has_property(archivoConfig, "TIEMPO_DUMP")) {
-            int tiempoDump = config_get_int_value(archivoConfig, "TIEMPO_DUMP");
-            if (!tiempoDump) {
-                //log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
-                printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
-                continue;
-            }
-            tiempoDump = tiempoDump / 1000;
-            sleep(tiempoDump);
-            config_destroy(archivoConfig);
-            //log_info(logger,"Iniciando Proceso de Dump.");
-            void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
-                int nroDump = 0;
-                char *nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
-                char *nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
-                while (existeElArchivo(nombreArchivo)) {
-                    free(nombreArchivo);
-                    nroDump++;
-                    nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
-                    nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
-                }
-                pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
-                pthread_mutex_lock(sem); // Este semaforo comento Fer
-                pthread_mutex_t *semArchivo = obtenerSemaforoPath(nombreArchivo);
-                void _dumpKey(char *key, t_list *listaDeRegistros) {
-                    int index = 0;
-                    void _dumpRegistro(char *linea) {
-                        pthread_mutex_lock(semArchivo);
-                        FILE *archivoDump = fopen(nombreArchivo, "a");
-                        fclose(archivoDump);
-                        escribirEnBloque(linea, nombreDump, -1, nombreArchivo);
-                        pthread_mutex_unlock(semArchivo);
-                        list_remove(listaDeRegistros, index);
-                    }
-                    list_iterate(listaDeRegistros, _dumpRegistro);
-
-                }
-                dictionary_iterator(tablaDeKeys, _dumpKey);
-                pthread_mutex_unlock(sem);
-                free(nombreArchivo);
-            }
-            pthread_mutex_lock(mutexMemtable);
-            if (!dictionary_is_empty(memTable)) {
-                dictionary_iterator(memTable, dumpTabla);
-            }
-            pthread_mutex_unlock(mutexMemtable);
-        } else {
+        int tiempoDump = configuracion.tiempoDump;
+        if (!tiempoDump) {
             //log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
             printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
             continue;
         }
+        tiempoDump = tiempoDump / 1000;
+        sleep(tiempoDump);
+        //log_info(logger,"Iniciando Proceso de Dump.");
+        void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
+            int nroDump = 0;
+            char *nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
+            char *nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
+            while (existeElArchivo(nombreArchivo)) {
+                free(nombreArchivo);
+                nroDump++;
+                nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
+                nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
+            }
+            pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
+            pthread_mutex_lock(sem); // Este semaforo comento Fer
+            pthread_mutex_t *semArchivo = obtenerSemaforoPath(nombreArchivo);
+            void _dumpKey(char *key, t_list *listaDeRegistros) {
+                int index = 0;
+                void _dumpRegistro(char *linea) {
+                    pthread_mutex_lock(semArchivo);
+                    FILE *archivoDump = fopen(nombreArchivo, "a");
+                    fclose(archivoDump);
+                    escribirRegistro(linea, nombreDump, -1, nombreArchivo);
+                    pthread_mutex_unlock(semArchivo);
+                    list_remove(listaDeRegistros, index);
+                }
+                list_iterate(listaDeRegistros, _dumpRegistro);
+
+            }
+            dictionary_iterator(tablaDeKeys, _dumpKey);
+            pthread_mutex_unlock(sem);
+            free(nombreArchivo);
+        }
+        pthread_mutex_lock(mutexMemtable);
+        if (!dictionary_is_empty(memTable)) {
+            dictionary_iterator(memTable, dumpTabla);
+        }
+        pthread_mutex_unlock(mutexMemtable);
     }
 }
 
@@ -448,7 +440,7 @@ void vaciarArchivo(char *path) {
     pthread_mutex_unlock(semArchivo);
 }
 
- void liberarTabla(t_dictionary *tablaDeKeys) {
+void liberarTabla(t_dictionary *tablaDeKeys) {
     dictionary_destroy(tablaDeKeys);
 }
 
@@ -843,13 +835,13 @@ void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, time_t tim
         char *p = string_itoa(particion);
         char *tablePath = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
         nombreArchivo = concat(4, tablePath, "/", p, ".bin");
-        escribirEnBloque(linea, nombreTabla, particion, nombreArchivo);
+        escribirRegistro(linea, nombreTabla, particion, nombreArchivo);
         free(path);
         free(tablePath);
     }
 }
 
-void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombreArchivo) {
+/*void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombreArchivo) {
     t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
     bloqueA->tabla = string_duplicate(nombreTabla);
     bloqueA->particion = particion;
@@ -913,6 +905,78 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             free(tamanioString);
         }
     }
+}*/
+
+void escribirRegistro(char *linea, char *nombreTabla, int particion, char *nombreArchivo) {
+    int bloque;
+    pthread_mutex_lock(mutexAsignacionBloques);
+    bloque = obtenerBloqueDisponible(nombreTabla, particion);
+    if (bloque == -1) {
+        pthread_mutex_unlock(mutexAsignacionBloques);
+        //log_error(logger, "No hay bloques disponibles.");
+        printf("No hay bloques disponibles.\n");
+        deleteFile(nombreArchivo);
+        return -1;
+    } else {
+        char *bloqueString = string_itoa(bloque);
+        t_bloqueAsignado *bloqueA = (t_bloqueAsignado *) malloc(sizeof(t_bloqueAsignado));
+        bloqueA->tabla = string_duplicate(nombreTabla);
+        bloqueA->particion = particion;
+        dictionary_put(bloquesAsignados, bloqueString, bloqueA);
+        pthread_mutex_unlock(mutexAsignacionBloques);
+        char *pathBloque = obtenerPathBloque(bloque);
+        pthread_mutex_t *semBloque = (pthread_mutex_t *) obtenerSemaforoPath(pathBloque);
+        pthread_mutex_lock(semBloque);
+        FILE *f = fopen(pathBloque, "a");
+        int longitudArchivo = obtenerTamanioBloque(bloque);
+        int espacioDisponible = obtenerTamanioBloques(configuracion.puntoMontaje) - longitudArchivo;
+        int voyAEscribir = minimo(strlen(linea), espacioDisponible);
+        fwrite(linea, sizeof(char) * voyAEscribir, 1, f);
+        fclose(f);
+        if (obtenerTamanioBloque(bloque) >= obtenerTamanioBloques(configuracion.puntoMontaje)) {
+            bitarray_set_bit(bitarray, bloque);
+        }
+        pthread_mutex_unlock(semBloque);
+        if(strlen(linea) > espacioDisponible) {
+            char *nuevaLinea = string_substring_from(linea, espacioDisponible);
+            escribirRegistro(nuevaLinea, nombreTabla, particion, nombreArchivo);
+            free(nuevaLinea);
+        }
+        //log_info(logger,"Se escribio en el archivo de bloque %s.bin",bloqueString);
+        free(bloqueString);
+        free(pathBloque);
+    }
+    cargarDatosDeBloquesEn(nombreArchivo, nombreTabla, particion);
+}
+
+void cargarDatosDeBloquesEn(char *rutaArchivo, char *nombreTabla, int particion) {
+    if (existeElArchivo(rutaArchivo)) {
+        //pthread_mutex_t *semArchivo = (pthread_mutex_t *) obtenerSemaforoPath(rutaArchivo);
+        //pthread_mutex_lock(semArchivo);
+        FILE *archivo = fopen(rutaArchivo, "w");
+        char *bloquesAsignadosArchivo = obtenerBloquesAsignados(nombreTabla, particion);
+        char *bloquesString = string_duplicate(bloquesAsignadosArchivo);
+        eliminarCharDeString(bloquesAsignadosArchivo, '[');
+        eliminarCharDeString(bloquesAsignadosArchivo, ']');
+        char **arrayBloquesAsignadosArchivo = convertirStringDeBloquesAArray(bloquesAsignadosArchivo);
+        int cantidadBloquesAsignados = tamanioDeArrayDeStrings(arrayBloquesAsignadosArchivo);
+        char *ultimoBloque = arrayBloquesAsignadosArchivo[cantidadBloquesAsignados - 1];
+        int tamanio = ((cantidadBloquesAsignados - 1) * obtenerTamanioBloques(configuracion.puntoMontaje)) +
+                      obtenerTamanioBloque(atoi(ultimoBloque));
+        char *tamanioString = string_itoa(tamanio);
+        char *contenido = generarContenidoParaParticion(tamanioString, bloquesString);
+        fwrite(contenido, sizeof(char) * strlen(contenido), 1, archivo);
+        //log_info(logger,"Se escribio en el archivo %s.",nombreArchivo);
+        fclose(archivo);
+        //pthread_mutex_unlock(semArchivo);
+        free(bloquesAsignadosArchivo);
+        freeArrayDeStrings(arrayBloquesAsignadosArchivo);
+        free(ultimoBloque);
+        free(tamanioString);
+        free(contenido);
+    } else {
+        log_error(logger, "El archivo %s no existe.", rutaArchivo);
+    }
 }
 
 int renombrarTemporales(char *nombreTabla) {
@@ -932,6 +996,11 @@ int renombrarTemporales(char *nombreTabla) {
                 pthread_mutex_t *semTmp = (pthread_mutex_t *) obtenerSemaforoPath(pathArchivo);
                 pthread_mutex_lock(semTmp);
                 if (rename(pathArchivo, newPathArchivo) == 0 && seRenombraron == 0) {
+/*                    pthread_mutex_lock(mutexAsignacionBloques);
+                    t_bloqueAsignado *bloque = dictionary_get(bloquesAsignados, nombreArchivo);
+                    free(bloque->tabla);
+                    bloque->tabla = concat(nombreArchivo, "c");
+                    pthread_mutex_unlock(mutexAsignacionBloques);*/
                     seRenombraron = 1;
                     //log_info(logger,"Se renombro el archivo %s a %sc.",nombreArchivo,nombreArchivo);
                 }
@@ -1656,31 +1725,31 @@ void cargarMetadataFS(){
 
         bool error=false;
         if(!metadataFS){
-        char *nombreArchivo = string_new();
-        string_append(&nombreArchivo, configuracion.puntoMontaje);
-        string_append(&nombreArchivo, "Metadata/Metadata.bin");
-        if (!archivoVacio(nombreArchivo)) {
-            t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
-            int tamanioBloques = config_get_int_value(archivoConfig, "BLOCK_SIZE");
-            int cantidadBloques = config_get_int_value(archivoConfig, "BLOCKS");
-            if(!tamanioBloques || !cantidadBloques){
-                error=true;
+            char *nombreArchivo = string_new();
+            string_append(&nombreArchivo, configuracion.puntoMontaje);
+            string_append(&nombreArchivo, "Metadata/Metadata.bin");
+            if (!archivoVacio(nombreArchivo)) {
+                t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
+                int tamanioBloques = config_get_int_value(archivoConfig, "BLOCK_SIZE");
+                int cantidadBloques = config_get_int_value(archivoConfig, "BLOCKS");
+                if(!tamanioBloques || !cantidadBloques){
+                    error=true;
+                }else{
+                    metadataFS = (t_metadata_fs*)malloc(sizeof(t_metadata_fs));
+                    metadataFS->block_size=tamanioBloques;
+                    metadataFS->blocks=cantidadBloques;
+                }
+                free(nombreArchivo);
+                config_destroy(archivoConfig);
             }else{
-                metadataFS = (t_metadata_fs*)malloc(sizeof(t_metadata_fs));
-                metadataFS->block_size=tamanioBloques;
-                metadataFS->blocks=cantidadBloques;
+                error=true;
             }
-            free(nombreArchivo);
-            config_destroy(archivoConfig);
-        }else{
-            error=true;
+            if(error){
+                printf("La Metadata del File System debe ser seteada.\n");
+                log_error(logger,"La Metadata del File System debe ser seteada.\n");
+                exit(-1);
+            }
         }
-        if(error){
-            printf("La Metadata del File System debe ser seteada.\n");
-            log_error(logger,"La Metadata del File System debe ser seteada.\n");
-            exit(-1);
-        }
-    }
 
     }
 }

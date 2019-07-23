@@ -43,11 +43,11 @@ int main(void) {
     pthread_mutex_t *mutexDatosConfiguracion= malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutexDatosConfiguracion, NULL);
 
-    pthread_mutex_t *mutexEstrucSupervisorHilos = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
-    pthread_mutex_init(mutexEstrucSupervisorHilos, NULL);
+    mutexEstrucSupervisorHilos = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+    int initMutexSupHilos = pthread_mutex_init(mutexEstrucSupervisorHilos, NULL);
 
-    pthread_mutex_t *mutexMetadataTablas = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
-    pthread_mutex_init(mutexMetadataTablas, NULL);
+    mutexMetadataTablas = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+    int initMutexMetadata = pthread_mutex_init(mutexMetadataTablas, NULL);
 
 
     log_info(logger, "IP Memoria: %s", configuracion.ipMemoria);

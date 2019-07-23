@@ -171,7 +171,7 @@ void crearBinarios(char *nombreTabla, int particiones) {
 
 char *obtenerBloquesAsignados(char *nombreTabla, int particion) {
     char *bloquesAsignadosParticion = string_duplicate("[");
-    for (int i = 0; i < obtenerCantidadBloques(configuracion.puntoMontaje); i++) {
+    for (int i = 0; i < metadataFS->blocks; i++) {
         char *bloqueString = string_itoa(i);
         pthread_mutex_lock(mutexAsignacionBloques);
         if (bloquesAsignados->elements_amount > 0) {
@@ -1140,8 +1140,8 @@ char *obtenerStringBloquesDeArchivo(char *nombreTabla, char *nombreArchivo) {
         pthread_mutex_t *semArchivo = (pthread_mutex_t *) obtenerSemaforoPath(path);
         pthread_mutex_lock(semArchivo);
         t_config *archivoConfig = abrirArchivoConfiguracion(path, logger);
-        pthread_mutex_unlock(semArchivo);
         char *arrayDeBloques = string_duplicate(config_get_string_value(archivoConfig, "BLOCKS"));
+        pthread_mutex_unlock(semArchivo);
         eliminarCharDeString(arrayDeBloques, '[');
         eliminarCharDeString(arrayDeBloques, ']');
         config_destroy(archivoConfig);

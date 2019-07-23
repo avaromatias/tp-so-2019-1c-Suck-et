@@ -83,16 +83,21 @@ typedef struct {
 t_configuracion configuracion;
 t_log *logger;
 t_dictionary *bloquesAsignados;
-t_dictionary *metadatas;
-t_dictionary *memTable;
-t_dictionary *archivosAbiertos;
-t_dictionary *tablasEnUso;
-t_dictionary *hilosTablas;
-t_bitarray *bitarray;
-void *bitmap;
 pthread_mutex_t* mutexAsignacionBloques;
-t_metadata_fs* metadataFS;
+t_dictionary *metadatas;
+pthread_mutex_t* mutexMetadatas;
+t_dictionary *memTable;
 pthread_mutex_t* mutexMemtable;
+t_dictionary *archivosAbiertos;
+pthread_mutex_t* mutexArchivosAbiertos;
+t_dictionary *tablasEnUso;
+pthread_mutex_t* mutexTablasEnUso;
+t_dictionary *hilosTablas;
+pthread_mutex_t* mutexHilosTablas;
+t_bitarray *bitarray;
+pthread_mutex_t* mutexBitarray;
+t_metadata_fs* metadataFS;
+void *bitmap;
 
 
 //Header de funciones

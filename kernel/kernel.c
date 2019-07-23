@@ -541,6 +541,7 @@ int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlan
         case RUN:
             if (paramPlanifGeneral->memoriasUtilizables > 0) {
                 gestionarRun(requestParseada.parametros[0], pConsolaKernel, parametrosPLP);
+                break;
             } else {
                 errorNoHayMemoriasAsociadas(pConsolaKernel->logger);
             }

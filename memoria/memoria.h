@@ -60,7 +60,7 @@ struct t_configuracion_d    {
     int tamanioMemoria;
     int retardoJournal;
     int retardoGossiping;
-    int cantidadDeMemorias;
+    int memoryNumber;
     char* ipMemoria;
 };
 
@@ -105,6 +105,7 @@ struct t_memoria_d {
     int cantidadTotalMarcos;
     int marcosOcupados;
     int tamanioValue;
+    int memoryNumber;
     t_dictionary* tablaDeSegmentos;
     t_marco* tablaDeMarcos;
     t_list* memoriasConocidas;

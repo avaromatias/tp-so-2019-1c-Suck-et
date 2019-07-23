@@ -55,7 +55,7 @@ t_configuracion cargarConfiguracion(char* pathArchivoConfiguracion, t_log* logge
 		configuracion.tamanioMemoria = config_get_int_value(archivoConfig, "TAM_MEM");
 		configuracion.retardoJournal = config_get_int_value(archivoConfig, "RETARDO_JOURNAL");
 		configuracion.retardoGossiping = config_get_int_value(archivoConfig, "RETARDO_GOSSIPING");
-		configuracion.cantidadDeMemorias = config_get_int_value(archivoConfig, "MEMORY_NUMBER");
+		configuracion.memoryNumber = config_get_int_value(archivoConfig, "MEMORY_NUMBER");
         configuracion.ipMemoria = string_duplicate(config_get_string_value(archivoConfig, "IP_MEMORIA"));
 
         config_destroy(archivoConfig);
@@ -495,13 +495,13 @@ void conectarYAgregarNuevaMemoria(char* ipNuevaMemoria, GestorConexiones* misCon
     }
 }
 
-void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, int* puertoSeeds, t_log* logger, t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas){
+void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, int** puertoSeeds, t_log* logger, t_memoria* memoria, pthread_mutex_t* semaforoMemoriasConocidas){
     int i = 0;
     //t_list* memoriasConocidas = (t_list*) memoria->memoriasConocidas;
 
     while (ipSeeds[i] != NULL){
 
-        char* ipNuevaMemoria = string_from_format("%s:%i", ipSeeds[i], puertoSeeds[i]);
+        char* ipNuevaMemoria = string_from_format("%s:%s", ipSeeds[i], string_itoa(puertoSeeds[i]));
 
         pthread_mutex_lock(semaforoMemoriasConocidas);
 
@@ -989,6 +989,7 @@ int main(void) {
 //	conectarseALissandra(&conexionLissandra, configuracion.ipFileSystem, configuracion.puertoFileSystem, logger);
 	int tamanioValue = getTamanioValue(conexionLissandra, logger);
     t_memoria* memoriaPrincipal = inicializarMemoriaPrincipal(configuracion, tamanioValue, logger);
+    memoriaPrincipal->memoryNumber = (int)configuracion.memoryNumber;
 	GestorConexiones* misConexiones = inicializarConexion();
     levantarServidor(configuracion.puerto, misConexiones, logger);
 

@@ -1012,5 +1012,11 @@ int main(void) {
     pthread_join(*hiloJournal, NULL);
     pthread_join(*hiloGossiping, NULL);
 
+    pthread_detach(*hiloMonitor, NULL);
+    pthread_detach(*hiloConexiones, NULL);
+    pthread_detach(*hiloConsola, NULL);
+    pthread_detach(*hiloJournal, NULL);
+    pthread_detach(*hiloGossiping, NULL);
+
 	return 0;
 }

@@ -141,6 +141,11 @@ int main(void) {
     pthread_join(*hiloPlanificadorLargoPlazo, NULL);
     pthread_join(*hiloMonitor, NULL);
 
+    pthread_detach(*hiloRespuestas, NULL);
+    pthread_detach(*hiloGossiping, NULL);
+    pthread_detach(*hiloPlanificadorLargoPlazo, NULL);
+    pthread_detach(*hiloMonitor, NULL);
+
     free(pConsolaKernel);
     free(parametrosPCP);
     free(parametrosPLP);
@@ -994,7 +999,6 @@ pthread_t *crearHiloPlanificadorCortoPlazo(p_planificacion *paramPlanificacionGe
     pthread_t *hiloPCP = (pthread_t *) malloc(sizeof(pthread_t));
 
     pthread_create(hiloPCP, NULL, &instanciarPCPs, paramPlanificacionGeneral);
-
     return hiloPCP;
 }
 

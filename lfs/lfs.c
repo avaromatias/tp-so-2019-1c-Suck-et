@@ -646,7 +646,8 @@ void compactacion(void *parametrosThread) {
                 pthread_mutex_lock(sem);
                 start2 = clock();
                 liberarBloques(bloques);
-                for (int j = 0; j < tamanioDeArrayDeStrings(lineasMaximas); j++) {
+                int tamanioArray=tamanioDeArrayDeStrings(lineasMaximas);
+                for (int j = 0; j < tamanioArray; j++) {
                     char **linea = desarmarLinea(lineasMaximas[j]);
                     char *keyString = string_duplicate(linea[1]);
                     char *valorString = string_duplicate(linea[2]);
@@ -706,7 +707,8 @@ void eliminarArchivosSegunExtension(char *nombreTabla, char *extension) {
 }
 
 void liberarBloques(char **nroBloques) {
-    for (int i = 0; i < tamanioDeArrayDeStrings(nroBloques); i++) {
+    int tamanioArray=tamanioDeArrayDeStrings(nroBloques);
+    for (int i = 0; i < tamanioArray; i++) {
         liberarBloque(nroBloques[i]);
     }
     freeArrayDeStrings(nroBloques);
@@ -731,7 +733,8 @@ void liberarBloque(char *nroBloque) {
 
 char **filtrarKeyMax(char **listaLineas) {
     t_dictionary *keys = dictionary_create();
-    for (int i = 0; i < tamanioDeArrayDeStrings(listaLineas); i++) {
+    int tamanioArray =tamanioDeArrayDeStrings(listaLineas);
+    for (int i = 0; i < tamanioArray; i++) {
         char *key = desarmarLinea(listaLineas[i])[1];
         if (!dictionary_has_key(keys, key)) {
             dictionary_put(keys, key, key);
@@ -741,7 +744,7 @@ char **filtrarKeyMax(char **listaLineas) {
     void obtenerMaxTimestamp(char *keyD, char *valorD) {
         char *mayorLinea = string_new();
         int mayorTimestamp = -1;
-        for (int i = 0; i < tamanioDeArrayDeStrings(listaLineas); i++) {
+        for (int i = 0; i < tamanioArray; i++) {
             char *listaLineasString = string_duplicate(listaLineas[i]);
             char **linea = desarmarLinea(listaLineasString);
             char *key = linea[1];
@@ -1563,17 +1566,10 @@ void cargarBloquesAsignados(char *path) {
 }
 
 int obtenerCantidadBloques(char *puntoMontaje) {
-    char *nombreArchivo = string_new();
-    string_append(&nombreArchivo, puntoMontaje);
-    string_append(&nombreArchivo, "Metadata/Metadata.bin");
-    if (existeElArchivo(nombreArchivo) && !archivoVacio(nombreArchivo)) {
-        t_config *archivoConfig = abrirArchivoConfiguracion(nombreArchivo, logger);
+      if(metadataFS->blocks){
         int cantidadDeBloques = metadataFS->blocks;
-        free(nombreArchivo);
-        config_destroy(archivoConfig);
         return cantidadDeBloques;
     }
-    free(nombreArchivo);
     return -1;
 }
 

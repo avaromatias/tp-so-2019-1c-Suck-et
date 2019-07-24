@@ -422,8 +422,7 @@ t_list *getListaMetricasPorCriterio(char *criterio) {
 
 int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral,
                                pthread_mutex_t *mutexDeHiloRequest, estadisticasRequest *estadisticasRequest,
-                               sem_t *semConcurrenciaMetricas) {
-    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
+                               sem_t *semConcurrenciaMetricas, int PID) {
     char *PIDCasteado = string_itoa(PID);
     p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
     char *criterioConsistencia;
@@ -678,7 +677,8 @@ t_archivoLQL *crearLQL(parametros_plp *parametrosPLP) {
     t_archivoLQL *unLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
     unLQL->colaDeRequests = queue_create();
     unLQL->cantidadDeLineas = 0;
-    unLQL->PID = (parametrosPLP->contadorPID)++;
+    unLQL->PID = parametrosPLP->contadorPID;
+    parametrosPLP->contadorPID++;
     return unLQL;
 }
 
@@ -1019,7 +1019,7 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
                 infoRequest->inicioRequest=clock();
                 time(&infoRequest->instanteInicio);
                 gestionarRequestPrimitivas(*comando, paramPlanifGeneral, semaforoHilo, infoRequest,
-                                           semConcurrenciaMetricas);
+                                           semConcurrenciaMetricas, unLQL->PID);
             } else { //Si es 0 es comando de Kernel
                 gestionarRequestKernel(*comando, paramPlanifGeneral);
             }

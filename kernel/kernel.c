@@ -141,10 +141,10 @@ int main(void) {
     pthread_join(*hiloPlanificadorLargoPlazo, NULL);
     pthread_join(*hiloMonitor, NULL);
 
-    pthread_detach(*hiloRespuestas, NULL);
-    pthread_detach(*hiloGossiping, NULL);
-    pthread_detach(*hiloPlanificadorLargoPlazo, NULL);
-    pthread_detach(*hiloMonitor, NULL);
+    pthread_detach(*hiloRespuestas);
+    pthread_detach(*hiloGossiping);
+    pthread_detach(*hiloPlanificadorLargoPlazo);
+    pthread_detach(*hiloMonitor);
 
     free(pConsolaKernel);
     free(parametrosPCP);

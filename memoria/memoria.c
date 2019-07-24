@@ -883,7 +883,7 @@ void* monitorearDirectorio(void* parametrosMonitor){
     }
 
     // Creamos un monitor sobre un path indicando que eventos queremos escuchar
-    int watch_descriptor = inotify_add_watch(file_descriptor, "/home/utnso/tp-2019-1c-Suck-et/memoria/cmake-build-debug/", IN_MODIFY | IN_CREATE | IN_DELETE);
+    int watch_descriptor = inotify_add_watch(file_descriptor, nombreDirectorio, IN_MODIFY);
 
     // El file descriptor creado por inotify, es el que recibe la información sobre los eventos ocurridos
     // para leer esta información el descriptor se lee como si fuera un archivo comun y corriente pero
@@ -966,11 +966,13 @@ int main(void) {
     char* nombreArchivoConfiguracionConExtension = string_from_format("%s.cfg", nombreArchivoConfiguracion);
 	t_configuracion configuracion = cargarConfiguracion(nombreArchivoConfiguracionConExtension, logger);
 	t_parametros_conexion_lissandra conexionLissandra = {.ip = string_duplicate(configuracion.ipFileSystem), .puerto = conexionLissandra.puerto = configuracion.puertoFileSystem};
+
+	//printf("%i",sizeof("memoria.cfg"));
 	//free(nombreArchivoConfiguracionConExtension);
 
     t_retardos_memoria* retardos = almacenarRetardosDeMemoria(configuracion);
 
-    char* directorioAMonitorear = "/home/utnso/tp-2019-1c-Suck-et/memoria/";
+    char* directorioAMonitorear = "/home/utnso/operativos/tp-2019-1c-Suck-et/memoria/";
     //monitorearDirectorio("/home/utnso/tp-2019-1c-Suck-et/memoria/", nombreArchivoConfiguracionConExtension, logger, retardos);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
@@ -998,13 +1000,13 @@ int main(void) {
     //TODO Agregar "mi ip" al archivo de configuracion para que memorias tenga su propia ip en su lista de gossiping
     agregarIpMemoria(configuracion.ipMemoria, string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
 
-    //pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, nombreArchivoConfiguracionConExtension, logger, retardos);
+    pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, nombreArchivoConfiguracionConExtension, logger, retardos);
     pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);
     pthread_t* hiloConsola = (pthread_t*) crearHiloConsola(memoriaPrincipal, logger, conexionLissandra, semaforoJournaling);
     pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, conexionLissandra, retardos, semaforoJournaling);
     pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos);
 
-    //pthread_join(*hiloMonitor, NULL);
+    pthread_join(*hiloMonitor, NULL);
 
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);

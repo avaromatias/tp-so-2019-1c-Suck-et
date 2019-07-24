@@ -9,8 +9,8 @@
 
 #ifndef MEMORIA_H_
 #define MEMORIA_H_
-#define EVENT_SIZE  ( sizeof (struct inotify_event) + 24 )
-#define BUF_LEN     ( 1024 * EVENT_SIZE )
+#define EVENT_SIZE  ( sizeof (struct inotify_event) + 48)
+#define BUF_LEN     ( EVENT_SIZE )
 
 #include <stdio.h>
 #include <string.h>

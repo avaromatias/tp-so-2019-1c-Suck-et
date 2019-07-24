@@ -116,6 +116,7 @@ typedef struct {
     t_metricas *metricas;
     int memoriasUtilizables;
     double relojActual;
+    t_list* memoriasConocidas;
 } p_planificacion;
 
 //Estructura
@@ -123,6 +124,7 @@ typedef struct {
     char* ipNodoMemoria;
     int puertoNodoMemoria;
     int fdNodoMemoria;
+    int memoryNumber;
 } t_nodoMemoria;
 
 p_planificacion *paramPlanificacionGeneral;

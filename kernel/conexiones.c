@@ -96,6 +96,8 @@ void *atenderConexiones(void *parametrosThread) {
                                         //TODO los semaforos de las queues sirven para bloquear la ejecucion?
                                         //pthread_mutex_lock(mutexJournal);
 
+                                        //Asociar memory number
+                                        asociarMemoryNumberAMemoria(header, mensaje, memoriasConocidas, parametros);
                                         forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
                                         pthread_mutex_lock(mutexDatosConfiguracion);
                                         enviarPaquete(header.fdRemitente, NIVEL_MULTIPROCESAMIENTO, REQUEST, string_itoa(datosConfiguracion->nivelDeMultiProcesamiento), -1);
@@ -404,6 +406,23 @@ char **obtenerDatosDeConexion(char *datosConexionMemoria) { //Para Gossipping
         memoria++;
     }
     return direccionesDeMemorias;
+}
+
+void asociarMemoryNumberAMemoria(Header header,char*  mensaje,t_list* memoriasConocidas, parametros_thread_k* parametros){
+
+    t_nodoMemoria* unNodoMemoria;
+    void esMemoriaBuscada(void* elemento){
+        if (elemento != NULL){
+            unNodoMemoria = (t_nodoMemoria*) elemento;
+            if (header.fdRemitente == unNodoMemoria->fdNodoMemoria){
+                unNodoMemoria->memoryNumber = (int)header.pid;
+                log_info(parametros->logger, string_from_format("Memoria numero %i asociada al fd numero %i", header.pid, unNodoMemoria->fdNodoMemoria));
+                //free(unNodoMemoria);
+            }
+
+        }
+    }
+    list_iterate(memoriasConocidas, esMemoriaBuscada);
 }
 
 //GOSSIPING

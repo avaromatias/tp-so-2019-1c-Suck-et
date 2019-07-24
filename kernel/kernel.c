@@ -125,6 +125,7 @@ int main(void) {
     paramPlanificacionGeneral->parametrosPLP = parametrosPLP;
     paramPlanificacionGeneral->supervisorDeHilos = supervisorDeHilos;
     paramPlanificacionGeneral->memoriasUtilizables = memoriasUtilizables;
+    paramPlanificacionGeneral->memoriasConocidas = memoriasConocidas;
 
     pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
 
@@ -729,19 +730,36 @@ int gestionarAdd(char **parametrosDeRequest, p_planificacion *paramPlanificacion
 
     p_consola_kernel *pConsolaKernel = paramPlanificacionGeneral->parametrosConsola;
     t_log *logger = pConsolaKernel->logger;
+    t_list* memoriasConocidas = (t_list*)paramPlanificacionGeneral->memoriasConocidas;
 
     int numeroMemoria = atoi(parametrosDeRequest[1]);
     char *criterio = parametrosDeRequest[3];
     string_to_upper(criterio);
     GestorConexiones *misConexiones = pConsolaKernel->conexiones;
     t_dictionary *tablaMemoriasConCriterios = pConsolaKernel->memoriasConCriterios;
+    t_nodoMemoria* unNodoMemoria = malloc(sizeof(t_nodoMemoria));
 
-    bool haySuficientesMemorias = (list_size(misConexiones->conexiones) >= numeroMemoria && (numeroMemoria > 0));
+    bool haySuficientesMemorias = (list_size(misConexiones->conexiones) > 0 && (numeroMemoria > 0));
 
-    if (haySuficientesMemorias) {
+    int* fdMemoriaSolicitada = NULL;
+
+    void esMemoriaBuscada(void* elemento){
+        if (elemento != NULL){
+            unNodoMemoria = (t_nodoMemoria*)elemento;
+            if (numeroMemoria == unNodoMemoria->memoryNumber)
+            {
+                fdMemoriaSolicitada = &(unNodoMemoria->fdNodoMemoria);
+                //free(unNodoMemoria);
+            }
+
+        }
+    }
+    list_iterate(memoriasConocidas, esMemoriaBuscada);
+
+    if (haySuficientesMemorias && fdMemoriaSolicitada != NULL) {
 
         //BUSCO LA MEMORIA CORRESPONDIENTE A LA POSICION DESEADA
-        int *fdMemoriaSolicitada = (int *) list_get(misConexiones->conexiones, numeroMemoria - 1);
+        //int *fdMemoriaSolicitada = (int *) list_get(misConexiones->conexiones, numeroMemoria - 1);
         // hacemos -1 por la ubicación 0
 
         if ((strcmp("SC", criterio) == 0) || (strcmp("SHC", criterio) == 0) || (strcmp("EC", criterio) == 0)) {

@@ -9,8 +9,8 @@
 
 #ifndef MEMORIA_H_
 #define MEMORIA_H_
-#define EVENT_SIZE  ( sizeof (struct inotify_event) + 24 )
-#define BUF_LEN     ( 1024 * EVENT_SIZE )
+#define EVENT_SIZE  ( sizeof (struct inotify_event) + 48)
+#define BUF_LEN     ( EVENT_SIZE )
 
 #include <stdio.h>
 #include <string.h>
@@ -60,7 +60,7 @@ struct t_configuracion_d    {
     int tamanioMemoria;
     int retardoJournal;
     int retardoGossiping;
-    int cantidadDeMemorias;
+    int memoryNumber;
     char* ipMemoria;
 };
 
@@ -105,6 +105,7 @@ struct t_memoria_d {
     int cantidadTotalMarcos;
     int marcosOcupados;
     int tamanioValue;
+    int memoryNumber;
     t_dictionary* tablaDeSegmentos;
     t_marco* tablaDeMarcos;
     t_list* memoriasConocidas;

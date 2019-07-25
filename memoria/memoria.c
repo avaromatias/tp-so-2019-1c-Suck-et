@@ -1083,14 +1083,14 @@ int main(void) {
     pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, nombreArchivoConfiguracionConExtension, logger, retardos);
     pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);
     pthread_t* hiloConsola = (pthread_t*) crearHiloConsola(memoriaPrincipal, logger, conexionLissandra, semaforoJournaling);
-    //pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, conexionLissandra, retardos, semaforoJournaling);
+    pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, conexionLissandra, retardos, semaforoJournaling);
     //pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos);
 
     pthread_join(*hiloMonitor, NULL);
 
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
-    //pthread_join(*hiloJournal, NULL);
+    pthread_join(*hiloJournal, NULL);
     //pthread_join(*hiloGossiping, NULL);
 
 	return 0;

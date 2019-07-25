@@ -857,9 +857,9 @@ char* drop(char* nombreTabla, t_memoria* memoria)    {
     pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))  {
         t_segmento* segmento = dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
-        pthread_mutex_lock(&segmento->enUso);
+//        pthread_mutex_lock(&segmento->enUso);
         liberarPaginasSegmento(segmento->tablaDePaginas, memoria);
-        pthread_mutex_unlock(&segmento->enUso);
+//        pthread_mutex_unlock(&segmento->enUso);
         char* respuesta = string_from_format("Se eliminó la tabla %s de la memoria.", nombreTabla);
         dictionary_remove_and_destroy(memoria->tablaDeSegmentos, nombreTabla, &eliminarSegmento);
         pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);

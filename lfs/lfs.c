@@ -268,8 +268,8 @@ void lfsDump() {
                 continue;
             }
             tiempoDump = tiempoDump / 1000;
-            sleep(tiempoDump);
             config_destroy(archivoConfig);
+            sleep(tiempoDump);
             //log_info(logger,"Iniciando Proceso de Dump.");
             void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
                 int nroDump = 0;
@@ -304,9 +304,11 @@ void lfsDump() {
                 free(nombreArchivo);
             }
             pthread_mutex_lock(mutexMemtable);
-            if (!dictionary_is_empty(memTable)) {
-                dictionary_iterator(memTable, dumpTabla);
-            }
+            int cantidadInsertsActual;
+            sem_getvalue(cantidadRegistrosMemtable,&cantidadInsertsActual);
+            sem_wait_n(cantidadRegistrosMemtable,cantidadInsertsActual);
+            dictionary_iterator(memTable, dumpTabla);
+
             pthread_mutex_unlock(mutexMemtable);
         } else {
             //log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
@@ -454,7 +456,13 @@ void vaciarArchivo(char *path) {
 }
 
  void liberarTabla(t_dictionary *tablaDeKeys) {
+    int cantidadDeRegistros=0;
+    void contarDeRegistros(t_list* listaDeRegistros){
+        cantidadDeRegistros+=list_size(listaDeRegistros);
+    }
+    dictionary_iterator(tablaDeKeys,contarDeRegistros);
     dictionary_destroy(tablaDeKeys);
+    sem_wait_n(cantidadRegistrosMemtable,cantidadDeRegistros);
 }
 
 t_response *lfsDrop(char *nombreTabla) {
@@ -838,6 +846,7 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, unsigned long i
                     dictionary_put(keysEnTabla, key, listaDeRegistros);
                 }
                 list_add(listaDeRegistros, linea);
+                sem_post(cantidadRegistrosMemtable);
                 pthread_mutex_unlock(mutexMemtable);
                 retorno->tipoRespuesta = RESPUESTA;
                 retorno->valor = concat(1, "Se inserto el valor con exito.");
@@ -1823,6 +1832,7 @@ int main(void) {
     mutexTablasEnUso = malloc(sizeof(pthread_mutex_t));
     mutexHilosTablas = malloc(sizeof(pthread_mutex_t));
     mutexBitarray = malloc(sizeof(pthread_mutex_t));
+    cantidadRegistrosMemtable = malloc(sizeof(sem_t));
     int init = pthread_mutex_init(mutexAsignacionBloques, NULL);
     int init1 = pthread_mutex_init(mutexMemtable, NULL);
     int init2 = pthread_mutex_init(mutexMetadatas, NULL);
@@ -1830,6 +1840,7 @@ int main(void) {
     int init4 = pthread_mutex_init(mutexTablasEnUso, NULL);
     int init5 = pthread_mutex_init(mutexHilosTablas, NULL);
     int init6 = pthread_mutex_init(mutexBitarray, NULL);
+    sem_init(cantidadRegistrosMemtable,0,0);
     inicializarLFS(configuracion.puntoMontaje);
 
     log_info(logger, "Puerto Escucha: %i", configuracion.puertoEscucha);

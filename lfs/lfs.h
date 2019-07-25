@@ -97,6 +97,7 @@ pthread_mutex_t* mutexHilosTablas;
 t_bitarray *bitarray;
 pthread_mutex_t* mutexBitarray;
 t_metadata_fs* metadataFS;
+sem_t* cantidadRegistrosMemtable;
 void *bitmap;
 
 

@@ -81,6 +81,7 @@ t_memoria* inicializarMemoriaPrincipal(t_configuracion configuracion, int tamani
     memoriaPrincipal->nodosMemoria = list_create();
     pthread_mutex_init(&memoriaPrincipal->control.tablaDeSegmentosEnUso, NULL);
     pthread_mutex_init(&memoriaPrincipal->control.tablaDeMarcosEnUso, NULL);
+    pthread_mutex_init(&memoriaPrincipal->control.mutexMarcosOcupados, NULL);
 
     inicializarTablaDeMarcos(memoriaPrincipal);
     return memoriaPrincipal;
@@ -110,15 +111,13 @@ t_paquete gestionarInsert(char *nombreTabla, char *key, char *valueConComillas, 
 t_paquete gestionarSelect(char *nombreTabla, char *key, int conexionLissandra, t_memoria *memoria, t_log *logger,
                           t_sincro_journaling *semaforoJournaling) {
     t_paquete respuesta;
-    pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     t_pagina* paginaEncontrada = cmdSelect(nombreTabla, key, memoria);
     if(paginaEncontrada != NULL)    {
         respuesta.tipoMensaje = RESPUESTA;
         respuesta.mensaje = getValueFromContenidoPagina(paginaEncontrada->marco->base);
-        pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
         return respuesta;
     }
-    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
+//    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
     char* request = string_from_format("SELECT %s %s", nombreTabla, key);
     log_info(logger, "Valor no encontrado en memoria. Se enviará la siguiente request a Lissandra: %s", request);
     enviarPaquete(conexionLissandra, REQUEST, SELECT, request, -1);
@@ -129,6 +128,7 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, int conexionLissandra, t
         insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger, conexionLissandra, semaforoJournaling);
         free(respuesta.mensaje);
         respuesta.mensaje = string_from_format("%s", componentesSelect[2]);
+        freeArrayDeStrings(componentesSelect);
     }
 
     return respuesta;
@@ -236,18 +236,16 @@ t_paquete gestionarJournal(int conexionConLissandra, t_memoria *memoria, t_log *
 
     pthread_mutex_lock(&semaforoJournaling->ejecutandoJournaling);
 
-    pthread_mutex_lock(&semaforoJournaling->mutexNivel);
+//    pthread_mutex_lock(&semaforoJournaling->mutexNivel);
     sem_wait_n(&semaforoJournaling->semaforoJournaling, semaforoJournaling->cantidadRequestsEnParalelo);
-    pthread_mutex_unlock(&semaforoJournaling->mutexNivel);
-    pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
+//    pthread_mutex_unlock(&semaforoJournaling->mutexNivel);
+//    pthread_mutex_lock(&memoria->zcontrol.tablaDeSegmentosEnUso);
     mi_dictionary_iterator(parametrosJournal, memoria->tablaDeSegmentos, &iterarSegmentos);
-    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
+//    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
 
     vaciarMemoria(memoria, logger);
 
-    pthread_mutex_lock(&semaforoJournaling->mutexNivel);
     sem_post_n(&semaforoJournaling->semaforoJournaling, semaforoJournaling->cantidadRequestsEnParalelo);
-    pthread_mutex_unlock(&semaforoJournaling->mutexNivel);
 
     pthread_mutex_unlock(&semaforoJournaling->ejecutandoJournaling);
 
@@ -588,7 +586,7 @@ char* formatearPagina(char* key, char* value, char* timestamp, t_memoria* memori
 
 t_pagina* eliminarPaginaLruEInsertarNueva(t_reemplazo_pagina* tipoReemplazoPaginaLRU, char* keyNueva, char* nuevoValue,t_dictionary* tablaDePaginasParaInsertar, t_memoria* memoria, bool recibiTimestamp){
     t_pagina* paginaNueva;
-    printf("Elimina pagina con key: %s\n", tipoReemplazoPaginaLRU->paginaLRU->key);
+//    printf("Elimina pagina con key: %s\n", paginaLRU->key);
 
     //Tabla de donde se elimina la pagina
     t_segmento* unSegmento = (t_segmento*)dictionary_get(memoria->tablaDeSegmentos, tipoReemplazoPaginaLRU->nombreTabla);
@@ -597,14 +595,17 @@ t_pagina* eliminarPaginaLruEInsertarNueva(t_reemplazo_pagina* tipoReemplazoPagin
     //la pagina que obtiene está llegando sin un char* key
     //dictionary_remove_and_destroy(tablaDePaginas, paginaLRU->key, &eliminarPagina);
     t_pagina* unaPagina = dictionary_remove(tablaDePaginasParaBorrar, tipoReemplazoPaginaLRU->paginaLRU->key);
-    unaPagina->marco->ocupado = false;
     free(unaPagina);
-    memoria->marcosOcupados = memoria->marcosOcupados -1;
-    printf("Inserto nueva pagina con key %s y contenido %s\n", keyNueva, nuevoValue);
+    pthread_mutex_lock(&memoria->control.mutexMarcosOcupados);
+    unaPagina->marco->ocupado = false;
+    memoria->marcosOcupados--;
+    pthread_mutex_unlock(&memoria->control.mutexMarcosOcupados);
+//    printf("Inserto nueva pagina con key %s y contenido %s\n", keyNueva, nuevoValue);
     paginaNueva = insertarNuevaPagina(keyNueva, nuevoValue, tablaDePaginasParaInsertar, memoria, recibiTimestamp);
     return paginaNueva;
 
 }
+
 t_pagina* reemplazarPagina(char* key, char* nuevoValor, int tamanioPagina, t_dictionary* tablaDePaginas) {
 
     t_pagina* pagina = dictionary_get(tablaDePaginas, key);
@@ -763,19 +764,24 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
     pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))   {
         t_segmento* segmento = (t_segmento*) dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
+        pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
         // tengo la key en la tabla de páginas?
+        pthread_mutex_lock(&segmento->enUso);
         if(dictionary_has_key(segmento->tablaDePaginas, key))   {
             pagina = reemplazarPagina(key, contenidoPagina, memoria->tamanioPagina, segmento->tablaDePaginas);
+            pthread_mutex_unlock(&segmento->enUso);
         }   else if(hayMarcosLibres(memoria))   {
             pagina = insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria, recibiTimestamp);
+            pthread_mutex_unlock(&segmento->enUso);
         }else {
             //t_pagina* paginaLRU = lru(segmento->tablaDePaginas);
             //t_pagina* paginaLRU = lruGlobal(memoria->tablaDeSegmentos);
             t_reemplazo_pagina* tipoPaginaLRU = lruGlobal(memoria->tablaDeSegmentos);
             if (tipoPaginaLRU != NULL){
                 pagina = eliminarPaginaLruEInsertarNueva(tipoPaginaLRU, key, contenidoPagina,segmento->tablaDePaginas, memoria, recibiTimestamp);
+                pthread_mutex_unlock(&segmento->enUso);
             }else{
-                pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
+                pthread_mutex_unlock(&segmento->enUso);
                 log_info(logger, "La memoria se encuentra FULL");
                 sem_post(&semaforoJournaling->semaforoJournaling);
                 gestionarJournal(conexionLissandra, memoria, logger, semaforoJournaling);
@@ -783,36 +789,29 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
                 return insert(nombreTabla,key,value,memoria, timestamp,logger,conexionLissandra, semaforoJournaling);
             }
         }
-    } else if(hayMarcosLibres(memoria)) {
-//        log_info(logger, "La tabla %s no se encuentra en memoria. Se procede a crearla.", nombreTabla);
-        t_segmento* nuevoSegmento = crearSegmento(nombreTabla, memoria);
-//        log_info(logger, "Se procede a insertar el nuevo valor.");
-        pagina = insertarNuevaPagina(key, contenidoPagina, nuevoSegmento->tablaDePaginas, memoria, recibiTimestamp);
-    } else{
-
-        //t_pagina* paginaLRU = lruGlobal(memoria->tablaDeSegmentos);
-        t_reemplazo_pagina* tipoPaginaLRU = lruGlobal(memoria->tablaDeSegmentos);
-        //if (paginaLRU != NULL){
-        if(tipoPaginaLRU != NULL){
-            t_segmento* nuevoSegmento = crearSegmento(nombreTabla, memoria);
-            pagina = eliminarPaginaLruEInsertarNueva(tipoPaginaLRU, key, contenidoPagina,nuevoSegmento->tablaDePaginas, memoria, recibiTimestamp);
-        }else{
-            pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
-            log_info(logger, "La memoria se encuentra FULL");
-            sem_post(&semaforoJournaling->semaforoJournaling);
-            gestionarJournal(conexionLissandra, memoria, logger, semaforoJournaling);
-            sem_wait(&semaforoJournaling->semaforoJournaling);
-            return insert(nombreTabla,key,value,memoria, timestamp,logger,conexionLissandra, semaforoJournaling);
+    } else {
+        pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
+        if (hayMarcosLibres(memoria)) {
+            t_segmento *nuevoSegmento = crearSegmento(nombreTabla, memoria);
+            //        log_info(logger, "Se procede a insertar el nuevo valor.");
+            pagina = insertarNuevaPagina(key, contenidoPagina, nuevoSegmento->tablaDePaginas, memoria, recibiTimestamp);
+        } else {
+            t_reemplazo_pagina *tipoPaginaLRU = lruGlobal(memoria->tablaDeSegmentos);
+            if (tipoPaginaLRU != NULL) {
+                t_segmento *nuevoSegmento = crearSegmento(nombreTabla, memoria);
+                pagina = eliminarPaginaLruEInsertarNueva(tipoPaginaLRU, key, contenidoPagina,
+                                                         nuevoSegmento->tablaDePaginas, memoria, recibiTimestamp);
+            } else {
+                pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
+                log_info(logger, "La memoria se encuentra FULL");
+                sem_post(&semaforoJournaling->semaforoJournaling);
+                gestionarJournal(conexionLissandra, memoria, logger, semaforoJournaling);
+                sem_wait(&semaforoJournaling->semaforoJournaling);
+                return insert(nombreTabla, key, value, memoria, timestamp, logger, conexionLissandra,
+                              semaforoJournaling);
+            }
         }
-
-        /*pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
-//        log_info(logger, "La memoria se encuentra FULL, todavia no se puede crear la nueva tabla");
-        sem_post(&semaforoJournaling->semaforoJournaling);
-        gestionarJournal(conexionLissandra,  memoria, logger, semaforoJournaling);
-        sem_wait(&semaforoJournaling->semaforoJournaling);
-        return insert(nombreTabla, key, value, memoria, timestamp,logger,  conexionLissandra, semaforoJournaling);*/
     }
-    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
     free(contenidoPagina);
     return pagina;
 }
@@ -836,18 +835,28 @@ t_segmento* crearSegmento(char* nombreTabla, t_memoria* memoria)    {
     t_segmento* segmento = (t_segmento*) malloc(sizeof(t_segmento));
     segmento->pathTabla = string_duplicate(nombreTabla);
     segmento->tablaDePaginas = dictionary_create();
+    pthread_mutex_init(&segmento->enUso, NULL);
+//    pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     dictionary_put(memoria->tablaDeSegmentos, nombreTabla, segmento);
+//    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
     return segmento;
 }
 
 t_pagina* cmdSelect(char* nombreTabla, char* key, t_memoria* memoria)  {
     t_pagina* resultado = NULL;
-    if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))   {
+    pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
+    bool existeLaTabla = dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla);
+    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
+    if(existeLaTabla)   {
         // obtengo el segmento asociado a la tabla en memoria
+        pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
         t_segmento* segmento = (t_segmento*) dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
+        pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
+        pthread_mutex_lock(&segmento->enUso);
         if(dictionary_has_key(segmento->tablaDePaginas, key))   {
             resultado = (t_pagina*) dictionary_get(segmento->tablaDePaginas, key);
         }
+        pthread_mutex_unlock(&segmento->enUso);
     }
 
     return resultado;
@@ -857,9 +866,9 @@ char* drop(char* nombreTabla, t_memoria* memoria)    {
     pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))  {
         t_segmento* segmento = dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
-//        pthread_mutex_lock(&segmento->enUso);
+        pthread_mutex_lock(&segmento->enUso);
         liberarPaginasSegmento(segmento->tablaDePaginas, memoria);
-//        pthread_mutex_unlock(&segmento->enUso);
+        pthread_mutex_unlock(&segmento->enUso);
         char* respuesta = string_from_format("Se eliminó la tabla %s de la memoria.", nombreTabla);
         dictionary_remove_and_destroy(memoria->tablaDeSegmentos, nombreTabla, &eliminarSegmento);
         pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
@@ -1084,14 +1093,14 @@ int main(void) {
     pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);
     pthread_t* hiloConsola = (pthread_t*) crearHiloConsola(memoriaPrincipal, logger, conexionLissandra, semaforoJournaling);
     pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, conexionLissandra, retardos, semaforoJournaling);
-    //pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos);
+    pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos);
 
     pthread_join(*hiloMonitor, NULL);
 
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
     pthread_join(*hiloJournal, NULL);
-    //pthread_join(*hiloGossiping, NULL);
+    pthread_join(*hiloGossiping, NULL);
 
     pthread_detach(*hiloMonitor);
     pthread_detach(*hiloConexiones);

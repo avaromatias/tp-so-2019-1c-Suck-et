@@ -117,9 +117,9 @@ void *atenderConexiones(void *parametrosThread) {
                                         break;
                                     case ERR:;
                                         char *PID = string_itoa(header.pid);
-                                        pthread_mutex_lock(mutexEstrucSupervisorHilos);
+//                                        pthread_mutex_lock(mutexEstrucSupervisorHilos);
                                         pthread_mutex_t *semaforo = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PID);
-                                        pthread_mutex_unlock(mutexEstrucSupervisorHilos);
+//                                        pthread_mutex_unlock(mutexEstrucSupervisorHilos);
                                         pthread_mutex_unlock(semaforo);
                                         printf(mensaje);
                                         free(PID);

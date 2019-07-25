@@ -239,75 +239,63 @@ int obtenerBloqueDisponible(char *nombreTabla, int particion) {
 
 
 void retardo() {
-    t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
-    if (config_has_property(archivoConfig, "RETARDO")) {
-        int retardo = config_get_int_value(archivoConfig, "RETARDO");
-        if (retardo < 0) {
-            //log_error(logger, "El RETARDO no esta seteado en el Archivo de Configuracion.");
-            printf("El RETARDO no esta seteado en el Archivo de Configuracion.\n");
-            return;
-        }
+    int retardo = configuracion.retardo;
+    if (retardo < 0) {
+        //log_error(logger, "El RETARDO no esta seteado en el Archivo de Configuracion.");
+        printf("El RETARDO no esta seteado en el Archivo de Configuracion.\n");
+    } else {
         retardo = retardo / 1000;
         sleep(retardo);
     }
-    config_destroy(archivoConfig);
     return;
 }
 
 void lfsDump() {
     while (1) {
-        t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
-        if (config_has_property(archivoConfig, "TIEMPO_DUMP")) {
-            int tiempoDump = config_get_int_value(archivoConfig, "TIEMPO_DUMP");
-            if (!tiempoDump) {
-                //log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
-                printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
-                continue;
-            }
-            tiempoDump = tiempoDump / 1000;
-            sleep(tiempoDump);
-            config_destroy(archivoConfig);
-            //log_info(logger,"Iniciando Proceso de Dump.");
-            void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
-                int nroDump = 0;
-                char *nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
-                char *nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
-                while (existeElArchivo(nombreArchivo)) {
-                    free(nombreArchivo);
-                    nroDump++;
-                    nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
-                    nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
-                }
-                pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
-                pthread_mutex_lock(sem); // Este semaforo comento Fer
-                pthread_mutex_t *semArchivo = obtenerSemaforoPath(nombreArchivo);
-                void _dumpKey(char *key, t_list *listaDeRegistros) {
-                    int index = 0;
-                    void _dumpRegistro(char *linea) {
-                        pthread_mutex_lock(semArchivo);
-                        FILE *archivoDump = fopen(nombreArchivo, "a");
-                        fclose(archivoDump);
-                        escribirEnBloque(linea, nombreDump, -1, nombreArchivo);
-                        pthread_mutex_unlock(semArchivo);
-                        list_remove(listaDeRegistros, index);
-                    }
-                    list_iterate(listaDeRegistros, _dumpRegistro);
-
-                }
-                dictionary_iterator(tablaDeKeys, _dumpKey);
-                pthread_mutex_unlock(sem);
-                free(nombreArchivo);
-            }
-            pthread_mutex_lock(mutexMemtable);
-            if (!dictionary_is_empty(memTable)) {
-                dictionary_iterator(memTable, dumpTabla);
-            }
-            pthread_mutex_unlock(mutexMemtable);
-        } else {
+        int tiempoDump = configuracion.tiempoDump;
+        if (!tiempoDump) {
             //log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
             printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
             continue;
         }
+        tiempoDump = tiempoDump / 1000;
+        sleep(tiempoDump);
+        //log_info(logger,"Iniciando Proceso de Dump.");
+        void dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
+            int nroDump = 0;
+            char *nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
+            char *nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
+            while (existeElArchivo(nombreArchivo)) {
+                free(nombreArchivo);
+                nroDump++;
+                nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
+                nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
+            }
+            pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
+            pthread_mutex_lock(sem); // Este semaforo comento Fer
+            pthread_mutex_t *semArchivo = obtenerSemaforoPath(nombreArchivo);
+            void _dumpKey(char *key, t_list *listaDeRegistros) {
+                int index = 0;
+                void _dumpRegistro(char *linea) {
+                    pthread_mutex_lock(semArchivo);
+                    FILE *archivoDump = fopen(nombreArchivo, "a");
+                    fclose(archivoDump);
+                    escribirEnBloque(linea, nombreDump, -1, nombreArchivo);
+                    pthread_mutex_unlock(semArchivo);
+                    list_remove(listaDeRegistros, index);
+                }
+                list_iterate(listaDeRegistros, _dumpRegistro);
+
+            }
+            dictionary_iterator(tablaDeKeys, _dumpKey);
+            pthread_mutex_unlock(sem);
+            free(nombreArchivo);
+        }
+        pthread_mutex_lock(mutexMemtable);
+        if (!dictionary_is_empty(memTable)) {
+            dictionary_iterator(memTable, dumpTabla);
+        }
+        pthread_mutex_unlock(mutexMemtable);
     }
 }
 
@@ -1776,11 +1764,12 @@ void *atenderConexiones(void *parametrosThread) {
 
 
 int main(void) {
-    logger = log_create("../lfs.log", "lfs", false, LOG_LEVEL_INFO);
+    char **settings = obtenerRutasArchivoConfigYLog("lfs");
+    logger = log_create(settings[1], "lfs", false, LOG_LEVEL_INFO);
 
     log_info(logger, "Iniciando proceso Lissandra File System");
 
-    configuracion = cargarConfiguracion("../lfs.cfg", logger);
+    configuracion = cargarConfiguracion(settings[0], logger);
     metadatas = dictionary_create();
     archivosAbiertos = dictionary_create();
     memTable = dictionary_create();
@@ -1809,6 +1798,7 @@ int main(void) {
 
     pthread_join(*hiloConexiones, NULL);
 
+    freeArrayDeStrings(settings);
     free(misConexiones);
     free(bloquesAsignados);
     free(metadatas);

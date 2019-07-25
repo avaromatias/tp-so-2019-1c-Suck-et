@@ -36,4 +36,7 @@ bool esString(char *palabra);
 
 bool validarComandosComunes(t_comando comando, t_log* logger);
 
+char** obtenerRutasArchivoConfigYLog(char *nombreProceso);
+
+
 #endif //LIBS_CONSOLA_H

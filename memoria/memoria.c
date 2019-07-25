@@ -1041,9 +1041,13 @@ pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConf
 
 }
 int main(void) {
-    char* nombreArchivoConfiguracion = readline("Escriba el nombre del archivo de configuración que desee cargar (el mismo deberá estar en el mismo directorio que el ejecutable).\n");
-    t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
-    char* nombreArchivoConfiguracionConExtension = string_from_format("%s.cfg", nombreArchivoConfiguracion);
+    char* logFile = readline("Ingrese el nombre del archivo de logger que desea establecer:\n");
+    char* logPath = string_from_format("%s.log", logFile);
+    t_log* logger = log_create(logPath, "memoria", true, LOG_LEVEL_INFO);
+    char *testName = readline("Ingrese el nombre de la prueba que desea ejecutar:\n");
+    char *numeroMemoria = readline("Ingrese el numero de memoria que desea ejecutar:\n");
+    //char* nombreArchivoConfiguracionConExtension = string_from_format("../pruebas/%s/memoria/memoria%s.cfg", testName, numeroMemoria); //Para ejecucion
+    char* nombreArchivoConfiguracionConExtension = string_from_format("../../pruebas/%s/memoria/memoria%s.cfg", testName, numeroMemoria); //Para debug
 	t_configuracion configuracion = cargarConfiguracion(nombreArchivoConfiguracionConExtension, logger);
 	t_parametros_conexion_lissandra conexionLissandra = {.ip = string_duplicate(configuracion.ipFileSystem), .puerto = conexionLissandra.puerto = configuracion.puertoFileSystem};
 

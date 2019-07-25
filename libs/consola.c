@@ -77,3 +77,15 @@ bool esEntero(char* palabra) {
 bool esString(char* palabra)    {
     return matchea(palabra, "[[:alnum:]]+");
 }
+
+char** obtenerRutasArchivoConfigYLog(char *nombreProceso) {
+    char* logFile = readline("Ingrese el nombre del archivo de logger que desea establecer:\n");
+    char* logPath = string_from_format("%s.log", logFile);
+    char *testName = readline("Ingrese el nombre de la prueba que desea ejecutar:\n");
+    //char *cfgPath = string_from_format("../pruebas/%s/%s/%s.cfg", testName, nombreProceso, nombreProceso); //Para ejecucion
+    char *cfgPath = string_from_format("../../pruebas/%s/%s/%s.cfg", testName, nombreProceso, nombreProceso); //Para debug
+    char **settings = malloc(sizeof(char) * 2);
+    settings[0] = cfgPath;
+    settings[1] = logPath;
+    return settings;
+}

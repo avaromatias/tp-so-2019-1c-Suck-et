@@ -10,7 +10,8 @@
 #include "kernel.h"
 
 int main(void) {
-    t_log *logger = log_create("../kernel.log", "kernel", false, LOG_LEVEL_INFO);
+    char **settings = obtenerRutasArchivoConfigYLog("kernel");
+    t_log *logger = log_create(settings[1], "kernel", false, LOG_LEVEL_INFO);
     printf("Iniciando el proceso Kernel.\n");
     log_info(logger, "Iniciando el proceso Kernel");
 
@@ -35,7 +36,7 @@ int main(void) {
     sem_init(cantidadProcesosEnNew, 0, 0);
     sem_init(cantidadProcesosEnReady, 0, 0);
 
-    t_configuracion configuracion = cargarConfiguracion("kernel.cfg", logger);
+    t_configuracion configuracion = cargarConfiguracion(settings[0], logger);
 
     //INOTIFY
     t_datos_configuracion* datosConfiguracion = instanciarDatosConfiguracion(&configuracion);
@@ -140,6 +141,7 @@ int main(void) {
     pthread_join(*hiloPlanificadorLargoPlazo, NULL);
     pthread_join(*hiloMonitor, NULL);
 
+    freeArrayDeStrings(settings);
     free(pConsolaKernel);
     free(parametrosPCP);
     free(parametrosPLP);

@@ -75,8 +75,7 @@ int main(void) {
     t_queue *colaDeFinalizados = queue_create();
 
     GestorConexiones *misConexiones = inicializarConexion();
-    int fdMemoriaPrincipal = conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria,
-                                                         misConexiones, logger);
+    int fdMemoriaPrincipal = conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
     agregarIpMemoria(configuracion.ipMemoria, configuracion.puertoMemoria, memoriasConocidas, logger);
     t_nodoMemoria *nodoMemoriaPrincipal = list_get(memoriasConocidas, 0);
     nodoMemoriaPrincipal->fdNodoMemoria = fdMemoriaPrincipal;

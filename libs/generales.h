@@ -65,5 +65,7 @@ void vaciarString(char** string);
 //void monitorearDirectorio(char* nombreDirectorio, char* nombreArchivoMemoria, t_log* logger, t_retardos_memoria* retardos);
 void sem_wait_n(sem_t* semaforo, int cantidadInstancias);
 void sem_post_n(sem_t* semaforo, int cantidadInstancias);
+char* getRequest(TipoRequest tipoRequest);
+long getCurrentTime();
 
 #endif //TP_2019_1C_SUCK_ET_ARRAYDESTRING_H

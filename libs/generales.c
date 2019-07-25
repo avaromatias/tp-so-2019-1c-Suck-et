@@ -95,15 +95,23 @@ char *armarLinea(char *key, char *valor, time_t timestamp) {
     return linea;
 }
 
+char* getRequest(TipoRequest tipoRequest)   {
+    char* requests[6] = {"SELECT", "INSERT", "CREATE", "DROP", "DESCRIBE", "JOURNAL"};
+    return requests[tipoRequest];
+}
+
 char **desarmarLinea(char *linea) {
     return string_split(linea, ";");
 }
 
 int archivoVacio(char *path) {
     FILE *f = fopen(path, "r");
-    int c = fgetc(f);
+    int tamanio = getFileSize(f);
     fclose(f);
-    return c == EOF;
+    return tamanio == 0;
+//    int c = fgetc(f);
+//    fclose(f);
+//    return c == EOF;
 }
 
 int pesoString(char *string) {
@@ -248,7 +256,7 @@ int getFileSize(FILE* archivo)  {
     return size;
 }
 
-int getCurrentTime() {
+long getCurrentTime() {
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return (tv.tv_sec) * 1000 + (tv.tv_usec) / 1000;

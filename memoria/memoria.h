@@ -99,6 +99,7 @@ typedef struct {
     pthread_mutex_t semaforo;
     pthread_mutex_t tablaDeSegmentosEnUso;
     pthread_mutex_t tablaDeMarcosEnUso;
+    pthread_mutex_t mutexMarcosOcupados;
 } t_control_memoria;
 
 //Tipo de la Memoria Principal que aloja las paginas

@@ -84,6 +84,11 @@ typedef struct  {
 } t_pagina;
 
 typedef struct {
+    char* nombreTabla;
+    t_pagina* paginaLRU;
+}t_reemplazo_pagina;
+
+typedef struct {
     char* pathTabla; // viene a ser el identificador del segmento
     t_dictionary* tablaDePaginas; // viene a ser la base del segmento
     pthread_mutex_t enUso;
@@ -227,3 +232,4 @@ char* getTimestampFromContenidoPagina(char* contenidoPagina);
 t_retardos_memoria* iniciarRetardos(t_configuracion configuracion);
 
 pthread_t* crearHiloConsola(t_memoria* memoria, t_log* logger, t_parametros_conexion_lissandra conexionLissandra, t_sincro_journaling* semaforoJournaling);
+

@@ -62,7 +62,7 @@ void inicializarEstructurasKernel(t_dictionary *tablaDeMemoriasConCriterios);
 
 int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral,
                                pthread_mutex_t *mutexDeHiloRequest, estadisticasRequest *estadisticasRequest,
-                               sem_t *semConcurrenciaMetricas);
+                               sem_t *semConcurrenciaMetricas, int PID);
 
 void calcularMetricas(bool mostrarPorPantalla, p_planificacion *paramPlanifGeneral);
 

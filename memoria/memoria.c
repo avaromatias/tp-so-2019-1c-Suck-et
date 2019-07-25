@@ -586,19 +586,22 @@ char* formatearPagina(char* key, char* value, char* timestamp, t_memoria* memori
     return contenidoPagina;
 }
 
-t_pagina* eliminarPaginaLruEInsertarNueva(t_pagina* paginaLRU,char* keyNueva, char* nuevoValue,t_dictionary* tablaDePaginas, t_memoria* memoria, bool recibiTimestamp){
+t_pagina* eliminarPaginaLruEInsertarNueva(t_reemplazo_pagina* tipoReemplazoPaginaLRU, char* keyNueva, char* nuevoValue,t_dictionary* tablaDePaginasParaInsertar, t_memoria* memoria, bool recibiTimestamp){
     t_pagina* paginaNueva;
-    printf("Elimina pagina con key: %s\n", paginaLRU->key);
+    printf("Elimina pagina con key: %s\n", tipoReemplazoPaginaLRU->paginaLRU->key);
 
+    //Tabla de donde se elimina la pagina
+    t_segmento* unSegmento = (t_segmento*)dictionary_get(memoria->tablaDeSegmentos, tipoReemplazoPaginaLRU->nombreTabla);
+    t_dictionary* tablaDePaginasParaBorrar = (t_dictionary*)unSegmento->tablaDePaginas;
 
     //la pagina que obtiene está llegando sin un char* key
     //dictionary_remove_and_destroy(tablaDePaginas, paginaLRU->key, &eliminarPagina);
-    t_pagina* unaPagina = dictionary_remove(tablaDePaginas, paginaLRU->key);
+    t_pagina* unaPagina = dictionary_remove(tablaDePaginasParaBorrar, tipoReemplazoPaginaLRU->paginaLRU->key);
     unaPagina->marco->ocupado = false;
     free(unaPagina);
     memoria->marcosOcupados = memoria->marcosOcupados -1;
     printf("Inserto nueva pagina con key %s y contenido %s\n", keyNueva, nuevoValue);
-    paginaNueva = insertarNuevaPagina(keyNueva, nuevoValue, tablaDePaginas, memoria, recibiTimestamp);
+    paginaNueva = insertarNuevaPagina(keyNueva, nuevoValue, tablaDePaginasParaInsertar, memoria, recibiTimestamp);
     return paginaNueva;
 
 }
@@ -648,6 +651,70 @@ void insertarEnMemoriaAndActualizarTablaDePaginas(t_pagina* nuevaPagina, char* v
     dictionary_put(tablaDePaginas, nuevaPagina->key, nuevaPagina);
 }
 
+t_reemplazo_pagina* lruGlobal(t_dictionary* tablaDeSegmentos){
+
+    t_pagina* paginaLRU = malloc(sizeof(t_pagina));
+    t_reemplazo_pagina* tipoPaginaLRU = (t_reemplazo_pagina*)malloc(sizeof(t_reemplazo_pagina));
+    bool encontrePaginaLRU=  false;
+    long elTiempo;
+    time_t tiempoActual;
+    elTiempo = (long) time(&tiempoActual);
+    paginaLRU->ultimaVezUsada = elTiempo;
+    t_dictionary* tablaDePaginas;
+    t_segmento* segmentoAuxiliar;
+
+    printf("%i", dictionary_has_key(tablaDeSegmentos, "pipo") );
+    fflush(stdout);
+    void buscarPaginaLRUEnTablaDePaginas(char* key,void*unSegmento){
+
+        if (unSegmento!= NULL){
+            segmentoAuxiliar = (t_segmento*)unSegmento;
+            printf("%s",(char*)segmentoAuxiliar->pathTabla);
+
+            //if (unaTablaDePaginas != NULL){
+                tablaDePaginas = (t_dictionary*)segmentoAuxiliar->tablaDePaginas;
+                //tablaDePaginas = dictionary_get(tablaDeSegmentos, nombreTabla);
+
+
+
+                int table_index;
+                t_pagina* paginaActual;
+                for (table_index = 0; table_index < tablaDePaginas->table_max_size; table_index++) {
+                    t_hash_element *element = tablaDePaginas->elements[table_index];
+
+                    while (element != NULL) {
+                        paginaActual = (t_pagina*) element->data;
+                        //si no fue modificada
+                        if (paginaActual->modificada == false){
+                            if ((paginaActual->ultimaVezUsada) < (paginaLRU->ultimaVezUsada)){
+
+                                paginaLRU = paginaActual;
+                                paginaLRU->key = element->key;
+                                encontrePaginaLRU = true;
+                                tipoPaginaLRU->paginaLRU = paginaLRU;
+                                tipoPaginaLRU->nombreTabla = key;
+                            }
+                        }
+                        element = element->next;
+                    }
+                }
+            //}
+        }
+    }
+
+
+
+    dictionary_iterator(tablaDeSegmentos, buscarPaginaLRUEnTablaDePaginas);
+
+    if (encontrePaginaLRU){
+        return tipoPaginaLRU;
+    } else{
+        free(paginaLRU);
+        free(tipoPaginaLRU);
+        return NULL;
+    }
+}
+
 t_pagina* lru(t_dictionary* tablaDePaginas) {
 
     t_pagina* paginaLRU = malloc(sizeof(t_pagina));
@@ -695,20 +762,18 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
     // tengo la tabla en la memoria?
     pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))   {
-//        log_info(logger, "La tabla %s se encuentra en memoria", nombreTabla);
-        // obtengo el segmento asociado a la tabla en memoria
         t_segmento* segmento = (t_segmento*) dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
         // tengo la key en la tabla de páginas?
         if(dictionary_has_key(segmento->tablaDePaginas, key))   {
-//            log_info(logger, "La key %s ya existe en la tabla %s. Se procede a modificar su valor.", key, nombreTabla);
             pagina = reemplazarPagina(key, contenidoPagina, memoria->tamanioPagina, segmento->tablaDePaginas);
         }   else if(hayMarcosLibres(memoria))   {
-//            log_info(logger, "La key %s no existe en la tabla %s. Se procede a insertarla.", key, nombreTabla);
             pagina = insertarNuevaPagina(key, contenidoPagina, segmento->tablaDePaginas, memoria, recibiTimestamp);
         }else {
-            t_pagina* paginaLRU = lru(segmento->tablaDePaginas);
-            if (paginaLRU != NULL){
-                pagina = eliminarPaginaLruEInsertarNueva(paginaLRU, key, contenidoPagina,segmento->tablaDePaginas, memoria, recibiTimestamp);
+            //t_pagina* paginaLRU = lru(segmento->tablaDePaginas);
+            //t_pagina* paginaLRU = lruGlobal(memoria->tablaDeSegmentos);
+            t_reemplazo_pagina* tipoPaginaLRU = lruGlobal(memoria->tablaDeSegmentos);
+            if (tipoPaginaLRU != NULL){
+                pagina = eliminarPaginaLruEInsertarNueva(tipoPaginaLRU, key, contenidoPagina,segmento->tablaDePaginas, memoria, recibiTimestamp);
             }else{
                 pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
                 log_info(logger, "La memoria se encuentra FULL");
@@ -724,12 +789,28 @@ t_pagina* insert(char* nombreTabla, char* key, char* value, t_memoria* memoria, 
 //        log_info(logger, "Se procede a insertar el nuevo valor.");
         pagina = insertarNuevaPagina(key, contenidoPagina, nuevoSegmento->tablaDePaginas, memoria, recibiTimestamp);
     } else{
-        pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
+
+        //t_pagina* paginaLRU = lruGlobal(memoria->tablaDeSegmentos);
+        t_reemplazo_pagina* tipoPaginaLRU = lruGlobal(memoria->tablaDeSegmentos);
+        //if (paginaLRU != NULL){
+        if(tipoPaginaLRU != NULL){
+            t_segmento* nuevoSegmento = crearSegmento(nombreTabla, memoria);
+            pagina = eliminarPaginaLruEInsertarNueva(tipoPaginaLRU, key, contenidoPagina,nuevoSegmento->tablaDePaginas, memoria, recibiTimestamp);
+        }else{
+            pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
+            log_info(logger, "La memoria se encuentra FULL");
+            sem_post(&semaforoJournaling->semaforoJournaling);
+            gestionarJournal(conexionLissandra, memoria, logger, semaforoJournaling);
+            sem_wait(&semaforoJournaling->semaforoJournaling);
+            return insert(nombreTabla,key,value,memoria, timestamp,logger,conexionLissandra, semaforoJournaling);
+        }
+
+        /*pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
 //        log_info(logger, "La memoria se encuentra FULL, todavia no se puede crear la nueva tabla");
         sem_post(&semaforoJournaling->semaforoJournaling);
         gestionarJournal(conexionLissandra,  memoria, logger, semaforoJournaling);
         sem_wait(&semaforoJournaling->semaforoJournaling);
-        return insert(nombreTabla, key, value, memoria, timestamp,logger,  conexionLissandra, semaforoJournaling);
+        return insert(nombreTabla, key, value, memoria, timestamp,logger,  conexionLissandra, semaforoJournaling);*/
     }
     pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
     free(contenidoPagina);
@@ -1003,14 +1084,14 @@ int main(void) {
     pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);
     pthread_t* hiloConsola = (pthread_t*) crearHiloConsola(memoriaPrincipal, logger, conexionLissandra, semaforoJournaling);
     pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, conexionLissandra, retardos, semaforoJournaling);
-    pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos);
+    //pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos);
 
     pthread_join(*hiloMonitor, NULL);
 
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
     pthread_join(*hiloJournal, NULL);
-    pthread_join(*hiloGossiping, NULL);
+    //pthread_join(*hiloGossiping, NULL);
 
     pthread_detach(*hiloMonitor, NULL);
     pthread_detach(*hiloConexiones, NULL);

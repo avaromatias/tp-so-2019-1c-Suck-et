@@ -209,9 +209,9 @@ void agregarMemoriasRecibidas(char* memoriasRecibidas, GestorConexiones* misCone
     int i = 0;
     while (memoriasNuevas[i] != NULL){
         //char** unaIpSpliteada = string_split(memoriasNuevas[i], ":");
-        pthread_mutex_lock(semaforoMemoriasConocidas);
+        //pthread_mutex_lock(semaforoMemoriasConocidas);
         conectarYAgregarNuevaMemoria(memoriasNuevas[i], misConexiones, logger, memoria);
-        pthread_mutex_unlock(semaforoMemoriasConocidas);
+        //pthread_mutex_unlock(semaforoMemoriasConocidas);
         //agregarIpMemoria(unaIpSpliteada[0], unaIpSpliteada[1], memoriasConocidas, logger);
         i++;
     }
@@ -263,7 +263,7 @@ void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthre
 void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros){
 
     pthread_mutex_t* semaforoMemoriasConocidas = (pthread_mutex_t*)parametros->semaforoMemoriasConocidas;
-    //pthread_mutex_lock(semaforoMemoriasConocidas);
+
     t_memoria* memoria = (t_memoria*)parametros->memoria;
     t_list* memoriasConocidas = (t_list*)memoria->memoriasConocidas;
     t_log* logger = parametros->logger;
@@ -273,6 +273,7 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
         if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
             printf("Recibi un pedido de mi lista de gossiping de fd: %i, envio la respuesta\n", header.fdRemitente);
 
+            pthread_mutex_lock(semaforoMemoriasConocidas);
             char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
 
             if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
@@ -282,16 +283,20 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
                 printf("Mi lista estaba vacia primera respuesta\n");
                 enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA_GOSSIPING, "LISTA_VACIA", -1);
             }
+            pthread_mutex_unlock(semaforoMemoriasConocidas);
 
         }else if (header.tipoMensaje == RESPUESTA_GOSSIPING_2){
+
+            pthread_mutex_lock(semaforoMemoriasConocidas);
             if (strcmp(mensaje, "LISTA_VACIA") != 0){
                 printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
                 agregarMemoriasRecibidas(mensaje, misConexiones, memoria, logger, semaforoMemoriasConocidas);
             } else{
                 printf("Recibi lista vacia como respuesta 2\n");
             }
+            pthread_mutex_unlock(semaforoMemoriasConocidas);
     }
-    //pthread_mutex_unlock(semaforoMemoriasConocidas);
+
 }
 
 void* atenderRequestKernel(void* parametrosRequest)    {

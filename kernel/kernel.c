@@ -126,7 +126,7 @@ int main(void) {
     paramPlanificacionGeneral->memoriasUtilizables = memoriasUtilizables;
     paramPlanificacionGeneral->memoriasConocidas = memoriasConocidas;
 
-    pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
+    //pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
 
     for (int i = 0; i < configuracion.multiprocesamiento; i++) {
 //        paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo = semaforoHilo;
@@ -448,9 +448,9 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, key);
                     int respuesta = gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                                           fdMemoria, PID, estadisticasRequest);
-                    t_list *listaCriterio = getListaMetricasPorCriterio(criterioConsistencia);
-                    actualizarEstructurasMetricas(fdMemoria, listaCriterio, requestParseada.tipoRequest,
-                                                  estadisticasRequest);
+//                    t_list *listaCriterio = getListaMetricasPorCriterio(criterioConsistencia);
+//                    actualizarEstructurasMetricas(fdMemoria, listaCriterio, requestParseada.tipoRequest,
+//                                                  estadisticasRequest);
                     return respuesta;
                 } else {
                     printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
@@ -467,9 +467,9 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                                                               requestParseada.parametros[1],
                                                               requestParseada.parametros[2], fdMemoria, PID,
                                                               estadisticasRequest);
-                        t_list *listaCriterio = getListaMetricasPorCriterio(criterioConsistencia);
-                        actualizarEstructurasMetricas(fdMemoria, listaCriterio, requestParseada.tipoRequest,
-                                                      estadisticasRequest);
+//                        t_list *listaCriterio = getListaMetricasPorCriterio(criterioConsistencia);
+//                        actualizarEstructurasMetricas(fdMemoria, listaCriterio, requestParseada.tipoRequest,
+//                                                      estadisticasRequest);
                         return respuesta;
                     } else {
                         printf(COLOR_ERROR "El criterio es nulo, no se puede analizar.\n" COLOR_RESET);
@@ -550,7 +550,7 @@ int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlan
             }
             break;
         case METRICS:
-            calcularMetricas(true, paramPlanifGeneral);
+           // calcularMetricas(true, paramPlanifGeneral);
             break;
         case HELP:
             printf("************ Comandos disponibles ************\n");

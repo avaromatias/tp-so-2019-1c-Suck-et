@@ -409,10 +409,12 @@ int borrarContenidoDeDirectorio(char *dirPath) {
             }
             if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) {
                 if (string_contains(dir->d_name, ".bin")) {
-                    t_config *archivoConfig = abrirArchivoConfiguracion(pathArchivo, logger);
-                    char **blocks = config_get_array_value(archivoConfig, "BLOCKS");
-                    liberarBloques(blocks);
-                    config_destroy(archivoConfig);
+                    if(!archivoVacio(pathArchivo)){
+                        t_config *archivoConfig = abrirArchivoConfiguracion(pathArchivo, logger);
+                        char **blocks = config_get_array_value(archivoConfig, "BLOCKS");
+                        liberarBloques(blocks);
+                        config_destroy(archivoConfig);
+                    }
                 }
                 if (deleteFile(pathArchivo) != 0) {
                     return 0;
@@ -1367,30 +1369,36 @@ t_metadata *obtenerMetadata(char *tabla) {
     t_config *config = abrirArchivoConfiguracion(metadataPath, logger);
 
     if (config == NULL) {
+        char* pathTabla=obtenerPathTabla(tabla,configuracion.puntoMontaje);
         //log_error(logger, "No se pudo obtener el archivo Metadata de la tabla %s", tabla);
-        exit(1);
+        borrarContenidoDeDirectorio(pathTabla);
+        if (rmdir(pathTabla) != 0) {
+            printf("El File System se esta restaurando a un estado consistente. Reinicie el proceso.");
+            return NULL;
+        }
+    }else {
+
+        t_metadata *metadata = (t_metadata *) malloc(sizeof(t_metadata));
+
+        if (config_has_property(config, "PARTITIONS")) {
+            metadata->partitions = config_get_int_value(config, "PARTITIONS");
+        }
+
+        if (config_has_property(config, "CONSISTENCY")) {
+            metadata->consistency = string_duplicate(config_get_string_value(config, "CONSISTENCY"));
+        }
+
+        if (config_has_property(config, "COMPACTION_TIME")) {
+            metadata->compaction_time = config_get_int_value(config, "COMPACTION_TIME");
+        }
+        pthread_mutex_lock(mutexMetadatas);
+        dictionary_put(metadatas, tabla, metadata);
+        pthread_mutex_unlock(mutexMetadatas);
+        free(metadataPath);
+        config_destroy(config);
+
+        return (t_metadata *) metadata;
     }
-
-    t_metadata *metadata = (t_metadata *) malloc(sizeof(t_metadata));
-
-    if (config_has_property(config, "PARTITIONS")) {
-        metadata->partitions = config_get_int_value(config, "PARTITIONS");
-    }
-
-    if (config_has_property(config, "CONSISTENCY")) {
-        metadata->consistency = string_duplicate(config_get_string_value(config, "CONSISTENCY"));
-    }
-
-    if (config_has_property(config, "COMPACTION_TIME")) {
-        metadata->compaction_time = config_get_int_value(config, "COMPACTION_TIME");
-    }
-    pthread_mutex_lock(mutexMetadatas);
-    dictionary_put(metadatas, tabla, metadata);
-    pthread_mutex_unlock(mutexMetadatas);
-    free(metadataPath);
-    config_destroy(config);
-
-    return (t_metadata *) metadata;
 }
 
 int calcularParticion(char *key, t_metadata *metadata) {
@@ -1501,6 +1509,10 @@ void cargarBloquesAsignados(char *path) {
     for (int i = 0; i < tamanioDeArrayDeStrings(tablas); i++) {
         char *nombreTabla = string_duplicate(tablas[i]);
         t_metadata *meta = obtenerMetadata(nombreTabla);
+        if(meta==NULL){
+            free(nombreTabla);
+            continue;
+        }
         pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
         int init = pthread_mutex_init(semaforoTabla, NULL);
         pthread_mutex_lock(mutexTablasEnUso);

@@ -913,23 +913,23 @@ char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas) {
         case INSERT:
         case DROP:
             tabla = requestParseada.parametros[0];
-//            pthread_mutex_lock(mutexMetadataTablas);
+            pthread_mutex_lock(mutexMetadataTablas);
             criterioPedido = (char *) dictionary_get(metadataTablas, tabla);//buscar en metadataTablasConocidas
-//            pthread_mutex_unlock(mutexMetadataTablas);
+            pthread_mutex_unlock(mutexMetadataTablas);
             return criterioPedido;
         case DESCRIBE:
             if (requestParseada.cantidadParametros > 0) {
                 tabla = requestParseada.parametros[0];
-//                pthread_mutex_lock(mutexMetadataTablas);
+                pthread_mutex_lock(mutexMetadataTablas);
                 criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
-//                pthread_mutex_unlock(mutexMetadataTablas);
+                pthread_mutex_unlock(mutexMetadataTablas);
                 return criterioPedido;
             }
         case ADD:
             tabla = requestParseada.parametros[3];
-//            pthread_mutex_lock(mutexMetadataTablas);
+            pthread_mutex_lock(mutexMetadataTablas);
             criterioPedido = (char *) dictionary_get(metadataTablas, tabla);
-//            pthread_mutex_unlock(mutexMetadataTablas);
+            pthread_mutex_unlock(mutexMetadataTablas);
             return criterioPedido;
         default:;
     }

@@ -104,7 +104,7 @@ t_paquete gestionarInsert(char *nombreTabla, char *key, char *valueConComillas, 
     char* value = string_substring(valueConComillas, 1, strlen(valueConComillas) - 2);
     free(valueConComillas);
     t_pagina* nuevaPagina = insert(nombreTabla, key, value, memoria, NULL, logger, conexionLissandra, semaforoJournaling);
-    t_paquete respuesta = {.tipoMensaje = RESPUESTA, .mensaje = string_from_format("Valor insertado: %s", getValueFromContenidoPagina(nuevaPagina->marco->base)) };
+    t_paquete respuesta = {.tipoMensaje = RESPUESTA, .mensaje = string_from_format("INSERT %s %s \"%s\" realizado con exito.", nombreTabla, key, getValueFromContenidoPagina(nuevaPagina->marco->base)) };
     return respuesta;
 }
 
@@ -114,7 +114,10 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, int conexionLissandra, t
     t_pagina* paginaEncontrada = cmdSelect(nombreTabla, key, memoria);
     if(paginaEncontrada != NULL)    {
         respuesta.tipoMensaje = RESPUESTA;
-        respuesta.mensaje = getValueFromContenidoPagina(paginaEncontrada->marco->base);
+        char *valuePagina = getValueFromContenidoPagina(paginaEncontrada->marco->base);
+        respuesta.mensaje = string_from_format("SELECT %s %s. Value: %s", nombreTabla, key, valuePagina);
+        //free(valuePagina);
+        pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
         return respuesta;
     }
 //    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
@@ -127,7 +130,7 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, int conexionLissandra, t
         char** componentesSelect = string_split(respuesta.mensaje, ";");
         insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger, conexionLissandra, semaforoJournaling);
         free(respuesta.mensaje);
-        respuesta.mensaje = string_from_format("%s", componentesSelect[2]);
+        respuesta.mensaje = string_from_format("SELECT %s %s. Value: %s", nombreTabla, key, componentesSelect[2]);
         freeArrayDeStrings(componentesSelect);
     }
 

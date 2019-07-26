@@ -273,8 +273,8 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
         semaforoADesbloquear = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PIDCasteado);
     } else {
         if (strcmp(PIDCasteado, "-1") == 0 && tipoRequest == JOURNAL){
-            printf(COLOR_EXITO "El JOURNAL enviado a la memoria %i fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
-            log_info(logger, "El Journal enviado a la memoria %i fue procesado correctamente.", fdMemoria);
+            printf(COLOR_EXITO "El JOURNAL enviado a la memoria (socket %i) fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
+            log_info(logger, "El Journal enviado a la memoria (socket %i) fue procesado correctamente.", fdMemoria);
             free(PIDCasteado);
             return;
         }
@@ -285,32 +285,42 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
 
     switch (tipoRequest) {
         case SELECT:
-            printf(COLOR_EXITO "El SELECT enviado a la memoria %i fue procesado correctamente. Respuesta recibida: %s\n" COLOR_RESET,
-                     fdMemoria, mensaje);
-            log_info(logger, "El SELECT enviado a la memoria %i fue procesado correctamente. Respuesta recibida: %s",
-                     fdMemoria, mensaje);
+            printf(COLOR_EXITO "Memoria (socket %i) | Respuesta recibida: %s\n" COLOR_RESET, fdMemoria, mensaje);
+            log_info(logger, "Memoria (socket %i) | Respuesta recibida: %s\n", fdMemoria, mensaje);
             break;
         case INSERT:
-            printf(COLOR_EXITO "El INSERT enviado a la memoria %i fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
-            log_info(logger, "El INSERT enviado a la memoria %i fue procesado correctamente.", fdMemoria);
+            printf(COLOR_EXITO "Memoria (socket %i) | Respuesta recibida: %s\n" COLOR_RESET, fdMemoria, mensaje);
+            log_info(logger, "Memoria (socket %i) | Respuesta recibida: %s\n", fdMemoria, mensaje);
             break;
         case CREATE:
             crearTablaEnMetadata(metadata, mensaje, logger);
-            printf(COLOR_EXITO "El CREATE enviado a la memoria %i fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
-            log_info(logger, "El CREATE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
+            /*printf(COLOR_EXITO "El CREATE enviado a la memoria (socket %i) fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
+            log_info(logger, "El CREATE enviado a la memoria (socket %i) fue procesado correctamente.", fdMemoria);*/
+            char **primerSplit = string_split(mensaje, "|");
+            char **segundoSplit = string_split(primerSplit[1], ";");
+            printf(COLOR_EXITO "Memoria (socket %i) | Respuesta recibida: Tabla %s creada correctamente.\n" COLOR_RESET, fdMemoria, segundoSplit[0]);
+            log_info(logger, "Memoria (socket %i) | Respuesta recibida: %s\n", fdMemoria, segundoSplit[0]);
+            freeArrayDeStrings(primerSplit);
+            freeArrayDeStrings(segundoSplit);
             break;
         case DROP:
-            printf(COLOR_EXITO "El DROP enviado a la memoria %i fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
-            log_info(logger, "El DROP enviado a la memoria %i fue procesado correctamente.", fdMemoria);
+            /*printf(COLOR_EXITO "El DROP enviado a la memoria (socket %i)fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
+            log_info(logger, "El DROP enviado a la memoria (socket %i) fue procesado correctamente.", fdMemoria);*/
+            printf(COLOR_EXITO "Memoria (socket %i) | Respuesta recibida: %s\n" COLOR_RESET, fdMemoria, mensaje);
+            log_info(logger, "Memoria (socket %i) | Respuesta recibida: %s\n", fdMemoria, mensaje);
             break;
         case DESCRIBE:
             actualizarMetadata(metadata, mensaje, logger);
-            printf(COLOR_EXITO "El DESCRIBE enviado a la memoria %i fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
-            log_info(logger, "El DESCRIBE enviado a la memoria %i fue procesado correctamente.", fdMemoria);
+            /*printf(COLOR_EXITO "El DESCRIBE enviado a la memoria (socket %i) fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
+            log_info(logger, "El DESCRIBE enviado a la memoria (socket %i) fue procesado correctamente.", fdMemoria);*/
+            printf(COLOR_EXITO "Memoria (socket %i) | Respuesta recibida: %s\n" COLOR_RESET, fdMemoria, mensaje);
+            log_info(logger, "Memoria (socket %i) | Respuesta recibida: %s\n", fdMemoria, mensaje);
             break;
         case JOURNAL:
-            printf(COLOR_EXITO "El JOURNAL enviado a la memoria %i fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
-            log_info(logger, "El Journal enviado a la memoria %i fue procesado correctamente.", fdMemoria);
+            /*printf(COLOR_EXITO "El JOURNAL enviado a la memoria (socket %i) fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
+            log_info(logger, "El Journal enviado a la memoria (socket %i) fue procesado correctamente.", fdMemoria);*/
+            printf(COLOR_EXITO "Memoria (socket %i) | Respuesta recibida: %s\n" COLOR_RESET, fdMemoria, mensaje);
+            log_info(logger, "Memoria (socket %i) | Respuesta recibida: %s\n", fdMemoria, mensaje);
             break;
     }
     pthread_mutex_unlock(semaforoADesbloquear);

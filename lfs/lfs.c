@@ -73,7 +73,6 @@ void atenderMensajes(void *parametrosRequest) {
         }
     }
     enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, comando.tipoRequest, retorno->valor, header.pid);
-    // TODO: No deberiamos hacer un free(retorno->valor)?
     free(request);
     free(retorno);
     free(comandoParseado);

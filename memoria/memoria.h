@@ -54,7 +54,7 @@ struct t_configuracion_d    {
     char* ipFileSystem;
     int puertoFileSystem;
     char** ipSeeds;
-    int* puertoSeeds;
+    char** puertoSeeds;
     int retardoMemoria;
     int retardoFileSystem;
     int tamanioMemoria;
@@ -123,6 +123,7 @@ typedef struct {
     t_retardos_memoria* retardos;
     t_log* logger;
     char* nombreArchivoDeConfiguracion;
+    pthread_mutex_t* semaforoRetardos;
 }parametros_hilo_monitor;
 
 typedef struct {
@@ -131,6 +132,7 @@ typedef struct {
     t_retardos_memoria* retardos;
     t_sincro_journaling* semaforoJournaling;
     t_parametros_conexion_lissandra conexionLissandra;
+    pthread_mutex_t* semaforoRetardos;
 } parametros_hilo_journal;
 
 typedef struct {
@@ -189,12 +191,12 @@ typedef  struct {
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
 void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
 void vaciarMemoria(t_memoria* memoria, t_log* logger);
-pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_parametros_conexion_lissandra conexionLissandra, t_retardos_memoria* retardos, t_sincro_journaling* semaforoJournaling);
+pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_parametros_conexion_lissandra conexionLissandra, t_retardos_memoria* retardos, t_sincro_journaling* semaforoJournaling, pthread_mutex_t* semaforoRetardos);
 
 //monitoreo
 
 void* monitorearDirectorio(void* parametros);
-pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_retardos_memoria* retardos);
+pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_retardos_memoria* retardos, pthread_mutex_t* semaforoRetardos);
 
 //monitoreo
 
@@ -208,6 +210,7 @@ typedef struct {
     pthread_mutex_t* semaforoMemoriasConocidas;
     t_sincro_journaling* semaforoJournaling;
     t_retardos_memoria* retardosMemoria;
+    pthread_mutex_t* semaforoRetardos;
 } parametros_gossiping;
 
 struct t_nodoMemoria{

@@ -1042,6 +1042,7 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
     } else {
         sem_wait(paramPlanifGeneral->parametrosPCP->mutexColaFinalizados);
         queue_push(paramPlanifGeneral->parametrosPCP->colaDeFinalizados, unLQL);
+        log_info(logger,"TAM COLA DE REQUEST:%i\t ULTIMA REQUEST: %i",queue_size(unLQL->colaDeRequests),unLQL->cantidadDeLineas - queue_size(unLQL->colaDeRequests));
         sem_post(paramPlanifGeneral->parametrosPCP->mutexColaFinalizados);
     }
 }

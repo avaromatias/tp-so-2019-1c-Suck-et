@@ -55,6 +55,7 @@ void atenderMensajes(void *parametrosRequest) {
     parametros_thread_request *parametros = (parametros_thread_request *) parametrosRequest;
     Header header = parametros->header;
     char *mensaje = parametros->mensaje;
+    log_info(logger,"REQUEST RECIBIDA: %s",mensaje);
     //printf("%s\n", mensaje);
     char* request = string_duplicate(mensaje);
     char **comandoParseado = parser(mensaje);
@@ -75,7 +76,7 @@ void atenderMensajes(void *parametrosRequest) {
     enviarPaquete(header.fdRemitente, retorno->tipoRespuesta, comando.tipoRequest, retorno->valor, header.pid);
     free(request);
     free(retorno);
-    free(comandoParseado);
+    freeArrayDeStrings(comandoParseado);
 }
 
 char *obtenerPathArchivo(char *nombreTabla, char *nombreArchivo) {
@@ -205,6 +206,7 @@ int obtenerTamanioBloque(int bloque) {
     } else {
         struct stat st;
         if (stat(pathBloque, &st) == 0)
+            free(pathBloque);
             return (int) st.st_size;
     }
 }
@@ -468,7 +470,12 @@ void vaciarArchivo(char *path) {
  void liberarTabla(t_dictionary *tablaDeKeys) {
     int cantidadDeRegistros=0;
     void contarDeRegistros(t_list* listaDeRegistros){
+    void eliminarElementosLista(void* elem){
+        free(elem);
+    }
         cantidadDeRegistros+=list_size(listaDeRegistros);
+        list_destroy_and_destroy_elements(listaDeRegistros,eliminarElementosLista);
+
     }
     dictionary_iterator(tablaDeKeys,contarDeRegistros);
     dictionary_destroy(tablaDeKeys);
@@ -550,7 +557,6 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
             pthread_mutex_unlock(mutexMemtable);
             pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
             int init = pthread_mutex_init(semaforoTabla, NULL);
-            pthread_mutex_unlock(semaforoTabla);
             pthread_mutex_lock(mutexTablasEnUso);
             dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
             pthread_mutex_unlock(mutexTablasEnUso);
@@ -590,6 +596,7 @@ char **obtenerLineasDeBloques(char **bloques) {
         pthread_mutex_t *semArchivo = (pthread_mutex_t *) obtenerSemaforoPath(blockPath);
         pthread_mutex_lock(semArchivo);
         FILE *binarioBloque = fopen(blockPath, "r");
+
 
         while (!feof(binarioBloque)) {
             if (!lineaContinuaEnOtroArchivo) {
@@ -888,6 +895,7 @@ void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, unsigned l
         escribirEnBloque(linea, nombreTabla, particion, nombreArchivo);
         free(path);
         free(tablePath);
+        free(nombreArchivo);
     }
 }
 
@@ -900,7 +908,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
     int bloque;
     char *bloquesDeParticion = string_duplicate("[");
     while (linea[indice] != '\0' && indice < string_length(linea)) {
-        //pthread_mutex_lock(mutexAsignacionBloques);
+       // pthread_mutex_lock(mutexAsignacionBloques);
         bloque = obtenerBloqueDisponible(nombreTabla,
                                          particion); // Aca creo que esta obteniendo un bloque disponible distinto al que la particion ya tiene asignado
         if (bloque == -1) {
@@ -944,6 +952,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             pthread_mutex_t *semArchivo = (pthread_mutex_t *) obtenerSemaforoPath(nombreArchivo);
             pthread_mutex_lock(semArchivo);
             FILE *fParticion = fopen(nombreArchivo, "w");
+
             char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, particion);
             int cantidadBloquesAsignados = tamanioDeArrayDeStrings(
                     convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
@@ -1443,7 +1452,7 @@ pthread_t *crearHiloRequest(Header header, char *mensaje) {
     parametros_thread_request *parametros = (parametros_thread_request *) malloc(sizeof(parametros_thread_request));
 
     parametros->header = header;
-    parametros->mensaje = mensaje;
+    parametros->mensaje = string_duplicate(mensaje);
     pthread_create(hiloRequest, NULL, &atenderMensajes, parametros);
     pthread_detach(*hiloRequest);
 

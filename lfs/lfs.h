@@ -83,21 +83,21 @@ typedef struct {
 t_configuracion configuracion;
 t_log *logger;
 t_dictionary *bloquesAsignados;
-pthread_mutex_t* mutexAsignacionBloques;
+pthread_mutex_t *mutexAsignacionBloques;
 t_dictionary *metadatas;
-pthread_mutex_t* mutexMetadatas;
+pthread_mutex_t *mutexMetadatas;
 t_dictionary *memTable;
-pthread_mutex_t* mutexMemtable;
+pthread_mutex_t *mutexMemtable;
 t_dictionary *archivosAbiertos;
-pthread_mutex_t* mutexArchivosAbiertos;
+pthread_mutex_t *mutexArchivosAbiertos;
 t_dictionary *tablasEnUso;
-pthread_mutex_t* mutexTablasEnUso;
+pthread_mutex_t *mutexTablasEnUso;
 t_dictionary *hilosTablas;
-pthread_mutex_t* mutexHilosTablas;
+pthread_mutex_t *mutexHilosTablas;
 t_bitarray *bitarray;
-pthread_mutex_t* mutexBitarray;
-t_metadata_fs* metadataFS;
-sem_t* cantidadRegistrosMemtable;
+pthread_mutex_t *mutexBitarray;
+t_metadata_fs *metadataFS;
+sem_t *cantidadRegistrosMemtable;
 void *bitmap;
 
 

@@ -551,33 +551,33 @@ pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memo
 }
 
 char* getTimestampFromContenidoPagina(char* contenidoPagina)    {
-    long timestamp = *(long*) contenidoPagina;
-    return string_from_format("%lu", timestamp);
+    unsigned long long timestamp = *(unsigned long long*) contenidoPagina;
+    return string_from_format("%llu", timestamp);
 }
 
 char* getKeyFromContenidoPagina(char* contenidoPagina)  {
     char* puntero = contenidoPagina;
-    puntero += sizeof(time_t);
+    puntero += sizeof(unsigned long long);
     u_int16_t key = *(u_int16_t*) puntero;
     return string_from_format("%i", key);
 }
 
 char* getValueFromContenidoPagina(char* contenidoPagina)    {
     char* puntero = contenidoPagina;
-    puntero += sizeof(time_t) + sizeof(u_int16_t);
+    puntero += sizeof(unsigned long long) + sizeof(u_int16_t);
     return puntero;
 }
 
 char* formatearPagina(char* key, char* value, char* timestamp, t_memoria* memoria)   {
     char* contenidoPagina = (char*) malloc(memoria->tamanioPagina);
     char* puntero = contenidoPagina;
-    long tiempo;
+    unsigned long long tiempo;
     if(timestamp == NULL)   {
-        tiempo = (long) getCurrentTime();
+        tiempo = getCurrentTime();
     } else
-        tiempo = atol(timestamp);   
-    memcpy(puntero, &tiempo, sizeof(long));
-    puntero += sizeof(long);
+        tiempo = (unsigned long long) atol(timestamp);
+    memcpy(puntero, &tiempo, sizeof(unsigned long long));
+    puntero += sizeof(unsigned long long);
     u_int16_t keyCasteada = (u_int16_t) atoi(key);
     memcpy(puntero, &keyCasteada, sizeof(u_int16_t));
     puntero += sizeof(u_int16_t);
@@ -905,7 +905,7 @@ int cantidadTotalMarcosMemoria(t_memoria memoria)   {
 }
 
 int calcularTamanioDePagina(int tamanioValue){
-    return sizeof(long) + sizeof(u_int16_t) + sizeof(char) * tamanioValue;
+    return sizeof(unsigned long long) + sizeof(u_int16_t) + sizeof(char) * tamanioValue;
 }
 
 //Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS

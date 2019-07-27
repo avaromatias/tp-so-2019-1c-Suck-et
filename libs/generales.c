@@ -84,8 +84,8 @@ void valorSinComillas(char *valor) {
     }
 }
 
-char *armarLinea(char *key, char *valor, time_t timestamp) {
-    char *linea = string_from_format("%ld", timestamp);
+char *armarLinea(char *key, char *valor, unsigned long long timestamp) {
+    char *linea = string_from_format("%llu", timestamp);
     string_append(&linea, ";");
     string_append(&linea, key);
     string_append(&linea, ";");
@@ -256,7 +256,7 @@ int getFileSize(FILE* archivo)  {
     return size;
 }
 
-long getCurrentTime() {
+unsigned long long getCurrentTime() {
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return (tv.tv_sec) * 1000 + (tv.tv_usec) / 1000;

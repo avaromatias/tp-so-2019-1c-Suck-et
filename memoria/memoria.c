@@ -123,9 +123,8 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, int conexionLissandra, t
 //    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
     char* request = string_from_format("SELECT %s %s", nombreTabla, key);
     log_info(logger, "Valor no encontrado en memoria. Se enviará la siguiente request a Lissandra: %s", request);
-    enviarPaquete(conexionLissandra, REQUEST, SELECT, request, -1);
+    respuesta = pedidoLissandra(conexionLissandra, SELECT, request, 0, logger);
     free(request);
-    respuesta = recibirMensajeDeLissandra(conexionLissandra);
     if(respuesta.tipoMensaje == RESPUESTA)   {
         char** componentesSelect = string_split(respuesta.mensaje, ";");
         insert(nombreTabla, key, componentesSelect[2], memoria, componentesSelect[0], logger, conexionLissandra, semaforoJournaling);
@@ -242,9 +241,9 @@ t_paquete gestionarJournal(int conexionConLissandra, t_memoria *memoria, t_log *
 //    pthread_mutex_lock(&semaforoJournaling->mutexNivel);
     sem_wait_n(&semaforoJournaling->semaforoJournaling, semaforoJournaling->cantidadRequestsEnParalelo);
 //    pthread_mutex_unlock(&semaforoJournaling->mutexNivel);
-//    pthread_mutex_lock(&memoria->zcontrol.tablaDeSegmentosEnUso);
+    pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     mi_dictionary_iterator(parametrosJournal, memoria->tablaDeSegmentos, &iterarSegmentos);
-//    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
+    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
 
     vaciarMemoria(memoria, logger);
 
@@ -502,7 +501,7 @@ void gestionarGossiping(GestorConexiones* misConexiones ,char** ipSeeds, int** p
 
     while (ipSeeds[i] != NULL){
 
-        char* ipNuevaMemoria = string_from_format("%s:%s", ipSeeds[i], string_itoa(puertoSeeds[i]));
+        char* ipNuevaMemoria = string_from_format("%s:%i", ipSeeds[i], puertoSeeds[i]);
 
         pthread_mutex_lock(semaforoMemoriasConocidas);
 
@@ -577,8 +576,8 @@ char* formatearPagina(char* key, char* value, char* timestamp, t_memoria* memori
         tiempo = (long) getCurrentTime();
     } else
         tiempo = atol(timestamp);   
-    memcpy(puntero, &tiempo, sizeof(time_t));
-    puntero += sizeof(time_t);
+    memcpy(puntero, &tiempo, sizeof(long));
+    puntero += sizeof(long);
     u_int16_t keyCasteada = (u_int16_t) atoi(key);
     memcpy(puntero, &keyCasteada, sizeof(u_int16_t));
     puntero += sizeof(u_int16_t);
@@ -906,7 +905,7 @@ int cantidadTotalMarcosMemoria(t_memoria memoria)   {
 }
 
 int calcularTamanioDePagina(int tamanioValue){
-    return sizeof(time_t) + sizeof(u_int16_t) + sizeof(char) * tamanioValue;
+    return sizeof(long) + sizeof(u_int16_t) + sizeof(char) * tamanioValue;
 }
 
 //Esta funcion envia la petición del TAM_VALUE a lissandra y devuelve la respuesta del HS

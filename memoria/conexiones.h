@@ -67,6 +67,6 @@ void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthre
 
 t_paquete recibirMensajeGossipingMemoria(t_control_conexion *conexion);
 void actualizarNivelMultiprocesamiento(void* mensaje, t_sincro_journaling* semaforoJournaling);
-
+t_paquete pedidoLissandra(int fdLissandra, TipoRequest tipoRequest, char* request, int retardoLissandra, t_log* logger);
 
 #endif //MEMORIA_CONEXIONES_H

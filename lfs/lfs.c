@@ -149,7 +149,6 @@ void crearBinarios(char *nombreTabla, int particiones) {
             pthread_mutex_t *semArchivo = (pthread_mutex_t *) obtenerSemaforoPath(pathArchivo);
             pthread_mutex_lock(semArchivo);
             FILE *file = fopen(pathArchivo, "w");
-            pthread_mutex_unlock(semArchivo);
             char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, i);
             int cantidadBloquesAsignados = tamanioDeArrayDeStrings(
                     convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
@@ -161,6 +160,7 @@ void crearBinarios(char *nombreTabla, int particiones) {
             free(contenido);
             free(bloquesAsignadosAParticion);
             fclose(file);
+            pthread_mutex_unlock(semArchivo);
             free(pathArchivo);
             free(nombreArchivo);
             free(bloqueString);
@@ -387,7 +387,10 @@ t_response *lfsDescribe(char *nombreTabla) {
 
 int deleteFile(char *nombreArchivo) {
     int status;
+    pthread_mutex_t *semArchivo = (pthread_mutex_t *) obtenerSemaforoPath(nombreArchivo);
+    pthread_mutex_lock(semArchivo);
     status = remove(nombreArchivo);
+    pthread_mutex_unlock(semArchivo);
     return status;
 }
 
@@ -400,7 +403,7 @@ int borrarContenidoDeDirectorio(char *dirPath) {
         int puntoEncontrado = 0;
         int puntoPuntoEncontrado = 0;
         while ((dir = readdir(d)) != NULL) {
-            char *nombreTabla = string_new();
+            char *nombreTabla;
             nombreTabla = string_duplicate(dir->d_name);
             char *pathArchivo = string_new();
             string_append(&pathArchivo, dirPath);
@@ -587,7 +590,6 @@ char **obtenerLineasDeBloques(char **bloques) {
         pthread_mutex_t *semArchivo = (pthread_mutex_t *) obtenerSemaforoPath(blockPath);
         pthread_mutex_lock(semArchivo);
         FILE *binarioBloque = fopen(blockPath, "r");
-        pthread_mutex_unlock(semArchivo);
 
         while (!feof(binarioBloque)) {
             if (!lineaContinuaEnOtroArchivo) {
@@ -612,6 +614,7 @@ char **obtenerLineasDeBloques(char **bloques) {
 //        if(tamanioDeArrayDeStrings(palabras)) freeArrayDeStrings(palabras);
         vaciarString(&blockPath);
         fclose(binarioBloque);
+        pthread_mutex_unlock(semArchivo);
     }
     if (!string_is_empty(stringDeLineas)) {
         stringDeLineas = string_substring_until(stringDeLineas, strlen(stringDeLineas) - 1);
@@ -941,7 +944,6 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             pthread_mutex_t *semArchivo = (pthread_mutex_t *) obtenerSemaforoPath(nombreArchivo);
             pthread_mutex_lock(semArchivo);
             FILE *fParticion = fopen(nombreArchivo, "w");
-            pthread_mutex_unlock(semArchivo);
             char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, particion);
             int cantidadBloquesAsignados = tamanioDeArrayDeStrings(
                     convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
@@ -952,6 +954,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
             fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
             //log_info(logger,"Se escribio en el archivo %s.",nombreArchivo);
             fclose(fParticion);
+            pthread_mutex_unlock(semArchivo);
             free(contenido);
             free(bloquesAsignadosAParticion);
             free(tamanioString);

@@ -525,7 +525,7 @@ void* gossiping(void* parametrosGossiping){
     t_configuracion configuracion = (t_configuracion) parametros->archivoDeConfiguracion;
     GestorConexiones* misConexiones = (GestorConexiones*) parametros->misConexiones;
     pthread_mutex_t* semaforoMemoriasConocidas = parametros->semaforoMemoriasConocidas;
-    pthread_mutex_t* semaforoRetardos = parametros->semaforoRetardos;
+    pthread_mutex_t* semaforoRetardos = (pthread_mutex_t*)parametros->semaforoRetardos;
     while (1){
         sleep(15);
         pthread_mutex_lock(semaforoRetardos);
@@ -540,7 +540,7 @@ void* gossiping(void* parametrosGossiping){
 
     }
 }
-pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t* semaforoMemoriasConocidas, t_sincro_journaling* semaforoJournaling, t_retardos_memoria* retardos){
+pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memoria, t_log* logger, t_configuracion configuracion, pthread_mutex_t* semaforoMemoriasConocidas, t_sincro_journaling* semaforoJournaling, t_retardos_memoria* retardos, pthread_mutex_t* semaforoRetardos){
     pthread_t* hiloGossiping = malloc(sizeof(pthread_t));
     parametros_gossiping* parametros = (parametros_gossiping*) malloc(sizeof(parametros_gossiping));
 
@@ -551,6 +551,7 @@ pthread_t * crearHiloGossiping(GestorConexiones* misConexiones , t_memoria* memo
     parametros->semaforoMemoriasConocidas = semaforoMemoriasConocidas;
     parametros->semaforoJournaling = semaforoJournaling;
     parametros->retardosMemoria = retardos;
+    parametros->semaforoRetardos = semaforoRetardos;
 
     pthread_create(hiloGossiping, NULL, &gossiping, parametros);
 
@@ -1096,7 +1097,7 @@ int main(void) {
     pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);
     pthread_t* hiloConsola = (pthread_t*) crearHiloConsola(memoriaPrincipal, logger, conexionLissandra, semaforoJournaling);
     pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, conexionLissandra, retardos, semaforoJournaling, semaforoRetardos);
-    pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos);
+    pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos, semaforoRetardos);
 
     pthread_join(*hiloMonitor, NULL);
 

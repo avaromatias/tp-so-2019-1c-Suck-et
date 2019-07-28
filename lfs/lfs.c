@@ -52,7 +52,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 }
 
-void atenderMensajes(void *parametrosRequest) {
+void* atenderMensajes(void *parametrosRequest) {
     parametros_thread_request *parametros = (parametros_thread_request *) parametrosRequest;
     Header header = parametros->header;
     char *mensaje = parametros->mensaje;
@@ -279,7 +279,7 @@ void retardo() {
     return;
 }
 
-void lfsDump() {
+void* lfsDump() {
     while (1) {
         t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
         if (config_has_property(archivoConfig, "TIEMPO_DUMP")) {
@@ -652,7 +652,7 @@ char **obtenerLineasDeBloques(char **bloques) {
     return convertirStringDeBloquesAArray(stringDeLineas);
 }
 
-void compactacion(void *parametrosThread) {
+void* compactacion(void *parametrosThread) {
     parametros_thread_compactacion *parametros = (parametros_thread_compactacion *) parametrosThread;
     char *nombreTabla = string_duplicate(parametros->tabla);
     int tiempoCompactacion = atoi(parametros->tiempoCompactacion) / 1000;
@@ -694,8 +694,7 @@ void compactacion(void *parametrosThread) {
                     char *keyString = string_duplicate(linea[1]);
                     char *valorString = string_duplicate(linea[2]);
                     char *timestampString = string_duplicate(linea[0]);
-                    lfsInsertCompactacion(nombreTabla, keyString, valorString,
-                                          (unsigned long int) strtol(timestampString, NULL, 10));
+                    lfsInsertCompactacion(nombreTabla, keyString, valorString, (unsigned long long) strtol(timestampString, NULL, 10));
                     free(keyString);
                     free(valorString);
                     free(timestampString);
@@ -833,7 +832,7 @@ void validarValor(char *valor, t_response *retorno) {
     }
 }
 
-t_response *lfsInsert(char *nombreTabla, char *key, char *valor, unsigned long int timestamp) {
+t_response *lfsInsert(char *nombreTabla, char *key, char *valor, unsigned long long timestamp) {
     t_response *retorno = (t_response *) malloc(sizeof(t_response));
     retorno->tipoRespuesta = RESPUESTA;
     validarValor(valor, retorno);
@@ -896,7 +895,7 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, unsigned long i
     return retorno;
 }
 
-void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, unsigned long int timestamp) {
+void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, unsigned long long timestamp) {
     char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
     if (existeElArchivo(path)) {
         char *linea = armarLinea(key, valor, timestamp);
@@ -1015,10 +1014,10 @@ char *generarContenidoParaParticion(char *tamanio, char *bloques) {
     return contenido;
 }
 
-int ordenarPorLinea(char *linea, char *linea2) {
+bool ordenarPorLinea(char *linea, char *linea2) {
     char **lineaDesarmada = desarmarLinea(linea);
     char **linea2Desarmada = desarmarLinea(linea2);
-    int esMenor = atoi(lineaDesarmada[0]) < atoi(linea2Desarmada[0]);
+    bool esMenor = atoi(lineaDesarmada[0]) < atoi(linea2Desarmada[0]);
     return esMenor;
 }
 
@@ -1081,7 +1080,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                     t_list *listaDeRegistros = (t_list *) dictionary_get(tabla, key);
                     if (!list_is_empty(listaDeRegistros)) {
                         int tamanioLista = list_size(listaDeRegistros);
-                        t_list *listaOrdenada = list_sorted(listaDeRegistros, ordenarPorLinea);
+                        t_list *listaOrdenada = list_sorted(listaDeRegistros, (void *)ordenarPorLinea);
                         char *elemento = list_get(listaOrdenada, (tamanioLista - 1));
                         if (elemento != NULL) {
                             char **lineaPartida = desarmarLinea(elemento);
@@ -1110,8 +1109,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             } else {
                 free(path);
                 retorno->tipoRespuesta = ERR;
-                retorno->valor = concat(5, "No se encontro ningun valor en la tabla ", nombreTabla, " con la key ", key,
-                                        ".");
+                retorno->valor = concat(5, "No se encontro ningun valor en la tabla ",nombreTabla," con la key ",key,".");
                 return retorno;
             }
         } else {
@@ -1326,15 +1324,15 @@ t_response *gestionarRequest(t_comando comando) {
             return retorno;
 
         case INSERT:;
-            unsigned long int timestamp;
+            unsigned long long timestamp;
             // El parámetro Timestamp es opcional.
             // En caso que un request no lo provea (por ejemplo insertando un valor desde la consola),
             // se usará el valor actual del Epoch UNIX.
             if (comando.cantidadParametros == 4 && comando.parametros[3] != NULL) {
                 string_trim(&comando.parametros[3]);
-                timestamp = (unsigned long int) strtol(comando.parametros[3], NULL, 10);
+                timestamp = (unsigned long long) strtol(comando.parametros[3], NULL, 10);
             } else {
-                timestamp = (unsigned long int) getCurrentTime();
+                timestamp = getCurrentTime();
             }
             //printf("Timestamp: %i\n", (int) timestamp);
             //fflush(stdout);

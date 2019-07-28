@@ -56,7 +56,7 @@ typedef struct {
 
 typedef struct {
     TipoMensaje tipoRespuesta;
-    char *valor
+    char *valor;
 } t_response;
 
 typedef struct {
@@ -104,13 +104,15 @@ void *bitmap;
 //Header de funciones
 t_configuracion cargarConfiguracion(char *path, t_log *logger);
 
-void atenderMensajes(void *parametrosRequest);
+void* atenderMensajes(void *parametrosRequest);
 
 char **obtenerTablas();
 
 void cargarMetadataFS();
 
 void liberarBloques(char **nroBloques);
+
+void liberarBloque(char *nroBloque);
 
 void eliminarArchivosSegunExtension(char *nombreTabla, char *extension);
 
@@ -120,7 +122,7 @@ void loguearRespuesta(char *request, t_response *retorno);
 
 void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombreArchivo);
 
-void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, unsigned long int timestamp);
+void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, unsigned long long timestamp);
 
 void inicializarBitmap();
 
@@ -138,7 +140,7 @@ t_response *lfsCreate(char *nombreTabla, char *tipoConsistencia, char *particion
 
 t_response *lfsSelect(char *nombreTabla, char *key);
 
-t_response *lfsInsert(char *nombreTabla, char *key, char *valor, unsigned long int timestamp);
+t_response *lfsInsert(char *nombreTabla, char *key, char *valor, unsigned long long timestamp);
 
 int obtenerBloqueDisponible(char *nombreTabla, int particion);
 

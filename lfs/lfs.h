@@ -108,6 +108,20 @@ void atenderMensajes(void *parametrosRequest);
 
 char **obtenerTablas();
 
+void cargarMetadataFS();
+
+void liberarBloques(char **nroBloques);
+
+void eliminarArchivosSegunExtension(char *nombreTabla, char *extension);
+
+int renombrarTemporales(char *nombreTabla);
+
+void loguearRespuesta(char *request, t_response *retorno);
+
+void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombreArchivo);
+
+void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, unsigned long int timestamp);
+
 void inicializarBitmap();
 
 t_response *lfsDescribe(char *nombreTabla);

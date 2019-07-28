@@ -365,9 +365,11 @@ void* journaling(void* parametrosJournal){
     int conexionLissandra = crearSocketCliente(parametrosLissandra.ip, parametrosLissandra.puerto, logger);
 
     while (1){
-        //sleep(15);
+
+        sleep(15);
         pthread_mutex_lock(semaforoRetardos);
-        sleep(retardos->retardoJournaling / 1000);
+
+        //sleep(retardos->retardoJournaling / 1000);
         pthread_mutex_unlock(semaforoRetardos);
         gestionarJournal(conexionLissandra , memoria, logger, semaforoJournaling);
     }
@@ -1091,20 +1093,21 @@ int main(void) {
 	GestorConexiones* misConexiones = inicializarConexion();
     levantarServidor(configuracion.puerto, misConexiones, logger);
 
+    pthread_mutex_lock(semaforoMemoriasConocidas);
     agregarIpMemoria(configuracion.ipMemoria, string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
+    pthread_mutex_unlock(semaforoMemoriasConocidas);
 
-    pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, nombreArchivoConfiguracionConExtension, logger, retardos, semaforoRetardos);
+    pthread_t* hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, nombreArchivoConfiguracionConExtension, logger, retardos, semaforoRetardos);
     pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);
     pthread_t* hiloConsola = (pthread_t*) crearHiloConsola(memoriaPrincipal, logger, conexionLissandra, semaforoJournaling);
     pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, conexionLissandra, retardos, semaforoJournaling, semaforoRetardos);
     pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos, semaforoRetardos);
 
-    pthread_join(*hiloMonitor, NULL);
-
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
     pthread_join(*hiloJournal, NULL);
     pthread_join(*hiloGossiping, NULL);
+    pthread_join(*hiloMonitor, NULL);
 
 	return 0;
 }

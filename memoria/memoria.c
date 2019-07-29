@@ -1051,15 +1051,18 @@ pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConf
     return hiloMonitor;
 
 }
-int main(void) {
-    char* nombreArchivoConfiguracion = readline("Escriba el nombre del archivo de configuración que desee cargar (el mismo deberá estar en el mismo directorio que el ejecutable).\n");
-    t_log* logger = log_create("memoria.log", "memoria", true, LOG_LEVEL_INFO);
-    char* nombreArchivoConfiguracionConExtension = string_from_format("%s.cfg", nombreArchivoConfiguracion);
-	t_configuracion configuracion = cargarConfiguracion(nombreArchivoConfiguracionConExtension, logger);
+int main(int argc, char* argv[]) {
+    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+    char *rutaConfig = string_from_format("../../pruebas/%s/memoria/%s.cfg", nombrePruebaDebug, argv[2]); //Para debuggear
+    //char *rutaConfig = string_from_format("../pruebas/%s/memoria/%s.cfg", argv[1], argv[2]); //Para ejecutar
+    char *rutaLogger = string_from_format("%s.log", argv[2]); //Para debuggear
+    //char *rutaLogger = string_from_format("%s.log", nombrePrueba); //Para ejecutar
+
+    t_log* logger = log_create(rutaLogger, "memoria", true, LOG_LEVEL_INFO);
+	t_configuracion configuracion = cargarConfiguracion(rutaConfig, logger);
 	t_parametros_conexion_lissandra conexionLissandra = {.ip = string_duplicate(configuracion.ipFileSystem), .puerto = conexionLissandra.puerto = configuracion.puertoFileSystem};
 
 	//printf("%i",sizeof("memoria.cfg"));
-	//free(nombreArchivoConfiguracionConExtension);
 
     t_retardos_memoria* retardos = almacenarRetardosDeMemoria(configuracion);
 
@@ -1091,7 +1094,7 @@ int main(void) {
     //TODO Agregar "mi ip" al archivo de configuracion para que memorias tenga su propia ip en su lista de gossiping
     agregarIpMemoria(configuracion.ipMemoria, string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
 
-    pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, nombreArchivoConfiguracionConExtension, logger, retardos);
+    pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, argv[2], logger, retardos);
     pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);
     pthread_t* hiloConsola = (pthread_t*) crearHiloConsola(memoriaPrincipal, logger, conexionLissandra, semaforoJournaling);
     pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, conexionLissandra, retardos, semaforoJournaling);
@@ -1109,6 +1112,10 @@ int main(void) {
     pthread_detach(*hiloConsola);
     pthread_detach(*hiloJournal);
     pthread_detach(*hiloGossiping);
+
+    free(nombrePruebaDebug); //TODO: Si se esta ejecutando comentar esta linea
+    free(rutaConfig);
+    free(rutaLogger);
 
 	return 0;
 }

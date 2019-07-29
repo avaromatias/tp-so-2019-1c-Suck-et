@@ -9,8 +9,14 @@
 
 #include "kernel.h"
 
-int main(void) {
-    t_log *logger = log_create("../kernel.log", "kernel", false, LOG_LEVEL_INFO);
+int main(int argc, char* argv[]) {
+    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+    char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
+    //char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
+    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
+    //char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
+
+    t_log *logger = log_create(rutaLogger, "kernel", false, LOG_LEVEL_INFO);
     printf("Iniciando el proceso Kernel.\n");
     log_info(logger, "Iniciando el proceso Kernel");
 
@@ -35,7 +41,7 @@ int main(void) {
     sem_init(cantidadProcesosEnNew, 0, 0);
     sem_init(cantidadProcesosEnReady, 0, 0);
 
-    t_configuracion configuracion = cargarConfiguracion("kernel.cfg", logger);
+    t_configuracion configuracion = cargarConfiguracion(rutaConfig, logger);
 
     //INOTIFY
     t_datos_configuracion* datosConfiguracion = instanciarDatosConfiguracion(&configuracion);
@@ -145,6 +151,9 @@ int main(void) {
     pthread_detach(*hiloPlanificadorLargoPlazo);
     pthread_detach(*hiloMonitor);
 
+    free(nombrePruebaDebug); //TODO: Si se esta ejecutando comentar esta linea
+    free(rutaConfig);
+    free(rutaLogger);
     free(pConsolaKernel);
     free(parametrosPCP);
     free(parametrosPLP);

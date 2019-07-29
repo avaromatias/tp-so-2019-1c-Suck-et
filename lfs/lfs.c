@@ -1867,12 +1867,18 @@ void *atenderConexiones(void *parametrosThread) {
 }
 
 
-int main(void) {
-    logger = log_create("../lfs.log", "lfs", false, LOG_LEVEL_INFO);
+int main(int argc, char* argv[]) {
+    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+    char *rutaConfig = string_from_format("../../pruebas/%s/lfs/lfs.cfg", nombrePruebaDebug); //Para debuggear
+    //char *rutaConfig = string_from_format("../pruebas/%s/lfs/lfs.cfg", argv[1]); //Para ejecutar
+    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
+    //char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
 
-    log_info(logger, "Iniciando proceso Lissandra File System");
+    logger = log_create(rutaLogger, "Lissandra", false, LOG_LEVEL_INFO);
 
-    configuracion = cargarConfiguracion("../lfs.cfg", logger);
+    log_info(logger, "Iniciando Lissandra File System");
+
+    configuracion = cargarConfiguracion(rutaConfig, logger);
     metadatas = dictionary_create();
     archivosAbiertos = dictionary_create();
     memTable = dictionary_create();
@@ -1913,6 +1919,9 @@ int main(void) {
 
     pthread_join(*hiloConexiones, NULL);
 
+    free(nombrePruebaDebug); //TODO: Si se esta ejecutando comentar esta linea
+    free(rutaConfig);
+    free(rutaLogger);
     free(misConexiones);
     free(bloquesAsignados);
     free(metadatas);

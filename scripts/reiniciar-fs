@@ -1,0 +1,3 @@
+#!/bin/bash
+
+rm -Rf ../../lfs-compactacion/Tables ../../lfs-compactacion/Bloques ../../lfs-compactacion/Metadata/Bitmap.bin

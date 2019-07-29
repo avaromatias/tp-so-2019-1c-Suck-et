@@ -122,8 +122,11 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, int conexionLissandra, t
     }
 //    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
     char* request = string_from_format("SELECT %s %s", nombreTabla, key);
+//    printf("La request: %s se ha recibido con éxito.\n", request);
     log_info(logger, "Valor no encontrado en memoria. Se enviará la siguiente request a Lissandra: %s", request);
     respuesta = pedidoLissandra(conexionLissandra, SELECT, request, 0, logger);
+//    printf("Se ha enviado la request: %s con éxito.\n", request);
+//    printf(COLOR_ADVERT"Se ha recibido la siguiente respuesta: %s.\n"COLOR_RESET, respuesta.mensaje);
     free(request);
     if(respuesta.tipoMensaje == RESPUESTA)   {
         char** componentesSelect = string_split(respuesta.mensaje, ";");
@@ -139,9 +142,12 @@ t_paquete gestionarSelect(char *nombreTabla, char *key, int conexionLissandra, t
 t_paquete gestionarCreate(char *nombreTabla, char *tipoConsistencia, char *cantidadParticiones,
                           char *tiempoCompactacion, int conexionLissandra, t_log *logger)   {
     char* request = string_from_format("CREATE %s %s %s %s", nombreTabla, tipoConsistencia, cantidadParticiones, tiempoCompactacion);
+//    printf("La request: %s se ha recibido con éxito.\n", request);
     enviarPaquete(conexionLissandra, REQUEST, CREATE, request, -1);
+//    printf("Se ha enviado la request: %s con éxito.\n", request);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
+//    printf(COLOR_ADVERT"Se ha recibido la siguiente respuesta: %s.\n"COLOR_RESET, respuesta.mensaje);
     return respuesta;
 }
 
@@ -149,9 +155,12 @@ t_paquete gestionarDrop(char *nombreTabla, int conexionLissandra, t_memoria *mem
     char* resultado = drop(nombreTabla, memoria);
     log_info(logger, resultado);
     char* request = string_from_format("DROP %s", nombreTabla);
+//    printf("La request: %s se ha recibido con éxito.\n", request);
     enviarPaquete(conexionLissandra, REQUEST, DROP, request, -1);
+//    printf("Se ha enviado la request: %s con éxito.\n", request);
     free(request);
     t_paquete respuesta = recibirMensajeDeLissandra(conexionLissandra);
+//    printf(COLOR_ADVERT"Se ha recibido la siguiente respuesta: %s.\n"COLOR_RESET, respuesta.mensaje);
     if(respuesta.tipoMensaje == ERR)  {
         free(respuesta.mensaje);
         respuesta.mensaje = resultado;
@@ -180,10 +189,13 @@ void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, cha
 
 
     log_info(logger, request);
+//    printf("La request: %s se ha recibido con éxito.", request);
     enviarPaquete(parametrosJournal->conexionLissandra, REQUEST, INSERT, request, -1);
+//    printf("Se ha enviado la request: %s con éxito.", request);
     free(request);
 
     t_paquete respuesta = recibirMensajeDeLissandra(parametrosJournal->conexionLissandra);
+//    printf(COLOR_ADVERT"Se ha recibido la siguiente respuesta: %s.\n"COLOR_RESET, respuesta.mensaje);
     if(respuesta.tipoMensaje == RESPUESTA)   {
         log_info(logger, respuesta.mensaje);
     } else{

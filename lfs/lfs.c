@@ -1321,6 +1321,7 @@ t_response *gestionarRequest(t_comando comando) {
     switch (comando.tipoRequest) {
         case SELECT:
             retorno = lfsSelect(comando.parametros[0], comando.parametros[1]);
+//            printf("Se ha enviado la request: %s con éxito.\n", retorno->valor);
             return retorno;
 
         case INSERT:;
@@ -1337,11 +1338,13 @@ t_response *gestionarRequest(t_comando comando) {
             //printf("Timestamp: %i\n", (int) timestamp);
             //fflush(stdout);
             retorno = lfsInsert(comando.parametros[0], comando.parametros[1], comando.parametros[2], timestamp);
+//            printf("Se ha enviado la request: %s con éxito.\n", retorno->valor);
             return retorno;
 
         case CREATE:;
             retorno = lfsCreate(comando.parametros[0], comando.parametros[1], comando.parametros[2],
                                 comando.parametros[3]);
+//            printf("Se ha enviado la request: %s con éxito.\n", retorno->valor);
             return retorno;
 
         case DESCRIBE:
@@ -1354,6 +1357,7 @@ t_response *gestionarRequest(t_comando comando) {
 
         case DROP:
             retorno = lfsDrop(comando.parametros[0]);
+//            printf("Se ha enviado la request: %s con éxito.\n", retorno->valor);
             return retorno;
 
         case HELP:

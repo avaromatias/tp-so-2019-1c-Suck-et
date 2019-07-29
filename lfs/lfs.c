@@ -694,7 +694,7 @@ void* compactacion(void *parametrosThread) {
                     char *keyString = string_duplicate(linea[1]);
                     char *valorString = string_duplicate(linea[2]);
                     char *timestampString = string_duplicate(linea[0]);
-                    lfsInsertCompactacion(nombreTabla, keyString, valorString, (unsigned long long) strtol(timestampString, NULL, 10));
+                    lfsInsertCompactacion(nombreTabla, keyString, valorString, strtoull(timestampString, NULL, 10));
                     free(keyString);
                     free(valorString);
                     free(timestampString);

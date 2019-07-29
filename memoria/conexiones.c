@@ -327,8 +327,6 @@ pthread_t* crearHiloRequest(t_comando comando, t_memoria* memoria, t_control_con
 
     pthread_create(hiloRequest, NULL, &atenderRequestKernel, parametros);
 
-    pthread_detach(*hiloRequest);
-
     return hiloRequest;
 }
 
@@ -338,9 +336,10 @@ void atenderMensajes(Header header, void* mensaje, parametros_thread_memoria* pa
     sleep(retardosMemoria->retardoMemoria/1000);
     char** comandoParseado = parser(mensaje);
     t_comando comando = instanciarComando(comandoParseado);
-
+    pthread_mutex_lock(&parametros->semaforoJournaling->ejecutandoJournaling);
+    pthread_mutex_unlock(&parametros->semaforoJournaling->ejecutandoJournaling);
     pthread_t* hiloRequest = crearHiloRequest(comando, parametros->memoria, parametros->conexionKernel, parametros->conexionLissandra, parametros->logger, parametros->semaforoJournaling, header.pid);
-    pthread_join(*hiloRequest, NULL);
+    pthread_detach(*hiloRequest);
 }
 
 t_paquete pedidoLissandra(int fdLissandra, TipoRequest tipoRequest, char* request, int retardoLissandra, t_log* logger)    {

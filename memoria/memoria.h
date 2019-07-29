@@ -80,7 +80,7 @@ typedef struct  {
     char* key;
     t_marco* marco;
     bool modificada;
-    long ultimaVezUsada;
+    unsigned long long ultimaVezUsada;
 } t_pagina;
 
 typedef struct {
@@ -173,8 +173,8 @@ t_paquete gestionarCreate(char *nombreTabla, char *tipoConsistencia, char *canti
                           char *tiempoCompactacion, int conexionLissandra, t_log *logger);
 
 // drop
-t_paquete gestionarDrop(char *nombreTabla, int conexionLissandra, t_memoria *memoria, t_log *logger);
-char* drop(char* nombreTabla, t_memoria* memoria);
+t_paquete gestionarDrop(char *nombreTabla, int conexionLissandra, t_memoria *memoria, t_log *logger, t_sincro_journaling* semaforoJournaling);
+char* drop(char* nombreTabla, t_memoria* memoria, t_sincro_journaling* semaforoJournaling);
 void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria);
 void eliminarPagina(void* pagina);
 void eliminarSegmento(void* segmento);
@@ -188,8 +188,8 @@ typedef  struct {
 }parametros_journal;
 
 void mi_dictionary_iterator(parametros_journal* parametrosJournal, t_dictionary *self, void(*closure)(parametros_journal*,char*,void*));
-void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, char* timestamp);
-void vaciarMemoria(t_memoria* memoria, t_log* logger);
+void enviarInsertLissandra(parametros_journal* parametrosJournal, char* key, char* value, unsigned long long timestamp);
+void vaciarMemoria(t_memoria* memoria, t_log* logger, t_sincro_journaling* semaforoJournaling);
 pthread_t* crearHiloJournal(t_memoria* memoria, t_log* logger, t_parametros_conexion_lissandra conexionLissandra, t_retardos_memoria* retardos, t_sincro_journaling* semaforoJournaling);
 
 //monitoreo
@@ -228,7 +228,7 @@ void conectarYAgregarNuevaMemoria(char* ipNuevaMemoria, GestorConexiones* misCon
 
 char* getValueFromContenidoPagina(char* contenidoPagina);
 char* getKeyFromContenidoPagina(char* contenidoPagina);
-char* getTimestampFromContenidoPagina(char* contenidoPagina);
+unsigned long long getTimestampFromContenidoPagina(char* contenidoPagina);
 
 t_retardos_memoria* iniciarRetardos(t_configuracion configuracion);
 

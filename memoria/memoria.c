@@ -606,10 +606,8 @@ t_pagina* eliminarPaginaLruEInsertarNueva(t_reemplazo_pagina* tipoReemplazoPagin
     //dictionary_remove_and_destroy(tablaDePaginas, paginaLRU->key, &eliminarPagina);
     t_pagina* unaPagina = dictionary_remove(tablaDePaginasParaBorrar, tipoReemplazoPaginaLRU->paginaLRU->key);
     pthread_mutex_unlock(&unSegmento->enUso);
-    pthread_mutex_lock(&memoria->control.tablaDeMarcosEnUso);
     unaPagina->marco->ocupado = false;
     memoria->marcosOcupados--;
-    pthread_mutex_unlock(&memoria->control.tablaDeMarcosEnUso);
     free(unaPagina);
 //    printf("Inserto nueva pagina con key %s y contenido %s\n", keyNueva, nuevoValue);
     paginaNueva = insertarNuevaPagina(keyNueva, nuevoValue, tablaDePaginasParaInsertar, memoria, recibiTimestamp);
@@ -901,8 +899,10 @@ char* drop(char* nombreTabla, t_memoria* memoria, t_sincro_journaling* semaforoJ
 
 void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria)   {
     int cantidadPaginas = dictionary_size(tablaDePaginas);
+    pthread_mutex_lock(&memoria->control.tablaDeMarcosEnUso);
     dictionary_destroy_and_destroy_elements(tablaDePaginas, &eliminarPagina);
     memoria->marcosOcupados -= cantidadPaginas;
+    pthread_mutex_unlock(&memoria->control.tablaDeMarcosEnUso);
 }
 
 void eliminarPagina(void* data)    {

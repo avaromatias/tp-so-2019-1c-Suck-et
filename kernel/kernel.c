@@ -603,6 +603,7 @@ int
 gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID, estadisticasRequest *estadisticasRequest) {
     char *request = string_from_format("SELECT %s %s", nombreTabla, key);
     enviarPaquete(fdMemoria, REQUEST, SELECT, request, PID);
+//    printf("Se ha enviado la request: %s con éxito.", request);
     free(request);
     return 0;
 }
@@ -611,6 +612,7 @@ int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones
                           int fdMemoria, int PID) {
     char *request = string_from_format("CREATE %s %s %s %s", tabla, consistencia, cantParticiones, tiempoCompactacion);
     enviarPaquete(fdMemoria, REQUEST, CREATE, request, PID);
+//    printf("Se ha enviado la request: %s con éxito.", request);
     free(request);
     return 0;
 }
@@ -619,6 +621,7 @@ int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemor
                           estadisticasRequest *estadisticasRequest) {
     char *request = string_from_format("INSERT %s %s %s", nombreTabla, key, valor);
     enviarPaquete(fdMemoria, REQUEST, INSERT, request, PID);
+//    printf("Se ha enviado la request: %s con éxito.", request);
     free(request);
     return 0;
 }
@@ -626,6 +629,7 @@ int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemor
 int gestionarDropKernel(char *nombreTabla, int fdMemoria, int PID) {
     char *request = string_from_format("DROP %s", nombreTabla);
     enviarPaquete(fdMemoria, REQUEST, DROP, request, PID);
+//    printf("Se ha enviado la request: %s con éxito.", request);
     free(request);
     return 0;
 }
@@ -633,6 +637,7 @@ int gestionarDropKernel(char *nombreTabla, int fdMemoria, int PID) {
 int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria, int PID) {
     char *request = string_from_format("DESCRIBE %s", nombreTabla);
     enviarPaquete(fdMemoria, REQUEST, DESCRIBE, request, PID);
+//    printf("Se ha enviado la request: %s con éxito.", request);
     free(request);
     return 0;
 }
@@ -640,6 +645,7 @@ int gestionarDescribeTablaKernel(char *nombreTabla, int fdMemoria, int PID) {
 int gestionarDescribeGlobalKernel(int fdMemoria, int PID) {
     char *request = string_from_format("DESCRIBE");
     enviarPaquete(fdMemoria, REQUEST, DESCRIBE, request, PID);
+//    printf("Se ha enviado la request: %s con éxito.", request);
     free(request);
     return 0;
 }
@@ -826,7 +832,7 @@ int seleccionarMemoriaParaDescribe(p_consola_kernel *parametros) {
 
     int tamanioListaConexiones = list_size(parametros->conexiones->conexiones);
 
-    int numeroMemoriaElegida = rand() % (tamanioListaConexiones); //me devuelve un numero entre 0 y tamListaConex
+    int numeroMemoriaElegida = rand() % (tamanioListaConexiones);//me devuelve un numero entre 0 y tamListaConex
     fdMemoria = (int *) list_get(misConexiones->conexiones, numeroMemoriaElegida);
 
     return *fdMemoria;
@@ -874,7 +880,7 @@ int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int
                 if (cantidadFDsAsociadosEC > 0) {
                     //int elementoBuscado = (cantidadFDsAsociadosEC -(cantidadFDsAsociadosEC - 1));//Siempre el primero -ya se que tiene poco sentido-
                     //int elementoBuscado = 1;
-                    t_list *primeraMemoriaDeLaLista = list_take_and_remove(memoriasDelCriterioPedido, 1); //Lista nueva
+                    t_list *primeraMemoriaDeLaLista = list_take_and_remove(memoriasDelCriterioPedido, 1);
                     int *fdMemoriaElegida = (int *) list_get(primeraMemoriaDeLaLista, 0);
                     list_add(memoriasDelCriterioPedido, fdMemoriaElegida);
 
@@ -956,7 +962,7 @@ void *sincronizacionPLP(void *parametrosPLP) {
     while (1) {
         sem_wait(parametros_PLP->cantidadProcesosEnNew);
         sem_wait(semaforo_colaDeNew);
-        t_archivoLQL *unLQL = (t_archivoLQL *) queue_pop(parametros_PLP->colaDeNew);
+        t_archivoLQL *unLQL = (t_archivoLQL*) queue_pop(parametros_PLP->colaDeNew);
         sem_post(semaforo_colaDeNew);
         sem_wait(semaforo_colaDeReady);
         queue_push(parametros_PLP->colaDeReady, unLQL);

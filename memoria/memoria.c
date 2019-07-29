@@ -1064,11 +1064,11 @@ pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConf
 
 }
 int main(int argc, char* argv[]) {
-    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
-    char *rutaConfig = string_from_format("../../pruebas/%s/memoria/%s.cfg", nombrePruebaDebug, argv[2]); //Para debuggear
-    //char *rutaConfig = string_from_format("../pruebas/%s/memoria/%s.cfg", argv[1], argv[2]); //Para ejecutar
-    char *rutaLogger = string_from_format("%s.log", argv[2]); //Para debuggear
-    //char *rutaLogger = string_from_format("%s.log", nombrePrueba); //Para ejecutar
+    //char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+    //char *rutaConfig = string_from_format("../../pruebas/%s/memoria/%s.cfg", nombrePruebaDebug, argv[2]); //Para debuggear
+    char *rutaConfig = string_from_format("../pruebas/%s/memoria/%s.cfg", argv[1], argv[2]); //Para ejecutar
+    //char *rutaLogger = string_from_format("%s.log", nombrePrueba); //Para debuggear
+    char *rutaLogger = string_from_format("%s.log", argv[2]); //Para ejecutar
 
     t_log* logger = log_create(rutaLogger, "memoria", true, LOG_LEVEL_INFO);
 	t_configuracion configuracion = cargarConfiguracion(rutaConfig, logger);
@@ -1125,7 +1125,7 @@ int main(int argc, char* argv[]) {
     pthread_detach(*hiloJournal);
     pthread_detach(*hiloGossiping);
 
-    free(nombrePruebaDebug); //TODO: Si se esta ejecutando comentar esta linea
+    //free(nombrePruebaDebug); //TODO: Si se esta ejecutando comentar esta linea
     free(rutaConfig);
     free(rutaLogger);
 

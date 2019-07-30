@@ -61,6 +61,8 @@ void* atenderConexiones(void* parametrosThread)    {
                             // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                             // nombre_maravillosa_funcion();
 
+                            pthread_mutex_lock(parametros->semaforoMemoriasConocidas);
+
                             if (esNodoMemoria(fdConectado, memoria->nodosMemoria)){
 
                                 nodoMemoria* nodo;
@@ -71,11 +73,11 @@ void* atenderConexiones(void* parametrosThread)    {
                                 nodoMemoria* unNodoMemoria = (nodoMemoria*) list_find(memoria->nodosMemoria, mismoNodo);
                                 eliminarMemoriaConocida(memoria, unNodoMemoria);
                                 eliminarNodoMemoria(fdConectado, memoria->nodosMemoria);
-                            }
-                            else if(fdConectado == parametros->conexionKernel->fd)   {
+                            }else if(fdConectado == parametros->conexionKernel->fd)   {
                                 parametros->conexionKernel->fd = 0;
                                 sem_post(parametros->conexionKernel->semaforo);
                             }
+                            pthread_mutex_unlock(parametros->semaforoMemoriasConocidas);
                             desconectarCliente(fdConectado, unaConexion, logger);
 
 
@@ -93,6 +95,7 @@ void* atenderConexiones(void* parametrosThread)    {
                             else if(bytesRecibidos == 0)	{
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le desconecta alguien
                                 // nombre_maravillosa_funcion();
+                                pthread_mutex_lock(parametros->semaforoMemoriasConocidas);
                                 if (esNodoMemoria(fdConectado, memoria->nodosMemoria)){
 
                                     nodoMemoria* nodo;
@@ -108,6 +111,7 @@ void* atenderConexiones(void* parametrosThread)    {
                                     parametros->conexionKernel->fd = 0;
                                     sem_post(parametros->conexionKernel->semaforo);
                                 }
+                                pthread_mutex_unlock(parametros->semaforoMemoriasConocidas);
                                 desconectarCliente(fdConectado, unaConexion, logger);
                             }
                             else	{
@@ -209,9 +213,7 @@ void agregarMemoriasRecibidas(char* memoriasRecibidas, GestorConexiones* misCone
     int i = 0;
     while (memoriasNuevas[i] != NULL){
         //char** unaIpSpliteada = string_split(memoriasNuevas[i], ":");
-        pthread_mutex_lock(semaforoMemoriasConocidas);
         conectarYAgregarNuevaMemoria(memoriasNuevas[i], misConexiones, logger, memoria);
-        pthread_mutex_unlock(semaforoMemoriasConocidas);
         //agregarIpMemoria(unaIpSpliteada[0], unaIpSpliteada[1], memoriasConocidas, logger);
         i++;
     }
@@ -230,8 +232,10 @@ void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthre
     if(respuesta.mensaje == NULL || unaMemoria.fd == 0){
         log_info(logger, "Parece que una memoria se desconectó. Procedo a eliminarla.");
         desconectarCliente(fdDestinatario, misConexiones, logger);
+        //pthread_mutex_lock(semaforoMemoriasConocidas);
         eliminarMemoriaConocida(memoria, unNodoMemoria);
         eliminarNodoMemoria(unNodoMemoria->fdNodoMemoria, memoria->nodosMemoria);
+        //pthread_mutex_unlock(semaforoMemoriasConocidas);
 
 
     }else if (respuesta.tipoMensaje== RESPUESTA_GOSSIPING){
@@ -239,7 +243,9 @@ void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthre
         if (strcmp(respuesta.mensaje, "LISTA_VACIA") != 0){
             log_info(logger, string_from_format(("Del header %i recibi %s como respuesta al gossiping\n", unaMemoria.fd, respuesta.mensaje)));
             //printf("Del header %i recibi %s como respuesta al gossiping\n", unaMemoria.fd, respuesta.mensaje);
+            //pthread_mutex_lock(semaforoMemoriasConocidas);
             agregarMemoriasRecibidas(respuesta.mensaje,misConexiones, memoria, logger, semaforoMemoriasConocidas);
+            //pthread_mutex_unlock(semaforoMemoriasConocidas);
         } else{
             log_info(logger, "Recibi lista vacia como respuesta al gossiping");
             //printf("Recibi lista vacia\n");
@@ -263,7 +269,7 @@ void enviarPedidoGossiping(nodoMemoria* unNodoMemoria, t_memoria* memoria, pthre
 void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria* parametros){
 
     pthread_mutex_t* semaforoMemoriasConocidas = (pthread_mutex_t*)parametros->semaforoMemoriasConocidas;
-    //pthread_mutex_lock(semaforoMemoriasConocidas);
+
     t_memoria* memoria = (t_memoria*)parametros->memoria;
     t_list* memoriasConocidas = (t_list*)memoria->memoriasConocidas;
     t_log* logger = parametros->logger;
@@ -273,6 +279,7 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
         if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
             printf("Recibi un pedido de mi lista de gossiping de fd: %i, envio la respuesta\n", header.fdRemitente);
 
+            pthread_mutex_lock(semaforoMemoriasConocidas);
             char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
 
             if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
@@ -282,16 +289,20 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
                 printf("Mi lista estaba vacia primera respuesta\n");
                 enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA_GOSSIPING, "LISTA_VACIA", -1);
             }
+            pthread_mutex_unlock(semaforoMemoriasConocidas);
 
         }else if (header.tipoMensaje == RESPUESTA_GOSSIPING_2){
+
+            pthread_mutex_lock(semaforoMemoriasConocidas);
             if (strcmp(mensaje, "LISTA_VACIA") != 0){
                 printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
                 agregarMemoriasRecibidas(mensaje, misConexiones, memoria, logger, semaforoMemoriasConocidas);
             } else{
                 printf("Recibi lista vacia como respuesta 2\n");
             }
+            pthread_mutex_unlock(semaforoMemoriasConocidas);
     }
-    //pthread_mutex_unlock(semaforoMemoriasConocidas);
+
 }
 
 void* atenderRequestKernel(void* parametrosRequest)    {

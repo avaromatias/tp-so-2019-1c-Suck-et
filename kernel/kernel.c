@@ -10,11 +10,11 @@
 #include "kernel.h"
 
 int main(int argc, char* argv[]) {
-    //char *nombrePruebaDebug = string_duplicate("prueba-lfs");
-    //char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
-    char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
-    //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
-    char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
+    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+    char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
+    //char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
+    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
+    //char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
 
     t_log *logger = log_create(rutaLogger, "kernel", false, LOG_LEVEL_INFO);
     printf("Iniciando el proceso Kernel.\n");
@@ -88,8 +88,6 @@ int main(int argc, char* argv[]) {
 
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion);
 
-//    refreshMetadata(configuracion.refreshMetadata, metadataTablas, logger);
-
     p_consola_kernel *pConsolaKernel = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
     pConsolaKernel->conexiones = misConexiones;
@@ -108,7 +106,8 @@ int main(int argc, char* argv[]) {
     parametrosPLP->contadorPID = contadorPIDs;
     parametrosPLP->logger = logger;
 
-    pthread_t*  hiloMonitor = (pthread_t*)crearHiloMonitor(configuracion.directorioAMonitorear, "kernel.cfg", logger, datosConfiguracion, mutexDatosConfiguracion, memoriasConocidas);
+//    pthread_t *hiloRefreshMetadata = crearHiloRefreshMetadata(pConsolaKernel, configuracion.refreshMetadata, metadataTablas, logger);
+    pthread_t *hiloMonitor = (pthread_t*) crearHiloMonitor(configuracion.directorioAMonitorear, "kernel.cfg", logger, datosConfiguracion, mutexDatosConfiguracion, memoriasConocidas);
     pthread_t *hiloPlanificadorLargoPlazo = crearHiloPlanificadorLargoPlazo(parametrosPLP);
     pthread_t *hiloGossiping = (pthread_t *) crearHiloGossiping(misConexiones, memoriasConocidas, logger);
 
@@ -156,6 +155,7 @@ int main(int argc, char* argv[]) {
     free(rutaLogger);
     free(pConsolaKernel);
     free(parametrosPCP);
+    //free__plp(parametrosPLP);
     free(parametrosPLP);
     free(paramPlanificacionGeneral);
     return EXIT_SUCCESS;
@@ -165,7 +165,7 @@ int main(int argc, char* argv[]) {
  *** COMPORTAMIENTO KERNEL***
  ****************************/
 
-void *metricas(void *pMetricas) {
+/*void *metricas(void *pMetricas) {
     parametrosMetricas *parametros = (parametrosMetricas *) pMetricas;
     p_planificacion *paramPlanificacionGeneral = parametros->paramPlanificacionGeneral;
     while (1) {
@@ -193,7 +193,7 @@ void actualizarEstructurasMetricas(int fdMemoria, t_list *listadoDeCriterio, Tip
     estadisticasRequest->tipoRequest = tipoRequest;
     estadisticasRequest->duracionEnSegundos = tiempoTotal;
     list_add(listadoDeCriterio, estadisticasRequest);
-}
+}*/
 
 /*
     Read Latency / 30s: El tiempo promedio que tarda un SELECT en ejecutarse en los últimos 30 segundos.
@@ -203,6 +203,7 @@ void actualizarEstructurasMetricas(int fdMemoria, t_list *listadoDeCriterio, Tip
     Memory Load (por cada memoria):  Cantidad de INSERT / SELECT que se ejecutaron en esa memoria respecto de las operaciones totales.
 
  */
+/*
 double tiempoHaceTreintaSegundos() {
     time_t tiempo;
     time(&tiempo);
@@ -318,7 +319,7 @@ void mostrarMetricas(t_metricasDefinidas *metricasSC, t_metricasDefinidas *metri
     }
     log_info(logger, "Read Latency: %d.\t Write Latency: %d.\t Reads: %i.\t Writes: %i.\n", readLatency, writeLatency,
              reads, writes);
-}
+}*/
 
 t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logger) {
     t_configuracion configuracion;
@@ -378,7 +379,7 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
             continue;
         }
         *requestParseada = instanciarComando(comandoParseado);
-        free(comandoParseado);
+        free__char_as_as(comandoParseado);
         requestEsValida = analizarRequest(*requestParseada, parametros);
         if (requestEsValida == true) {
             seEncola = encolarDirectoNuevoPedido(*requestParseada);
@@ -462,8 +463,15 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
 //                                                  estadisticasRequest);
                     return respuesta;
                 } else {
-                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
+                    char *request = string_from_format(requestParseada.parametros[0], requestParseada.parametros[1],
+                                                        requestParseada.parametros[2]);
+                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida. "
+                           "La solicitud SELECT %s %s no se pudo realizar.\n" COLOR_RESET, requestParseada.parametros[0],
+                           requestParseada.parametros[1]);
+                    fflush(stdout);
                     log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
+                    pthread_mutex_unlock(mutexDeHiloRequest);
+                    free(request);
                     return -1;
                 }
             case INSERT:
@@ -483,11 +491,17 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     } else {
                         printf(COLOR_ERROR "El criterio es nulo, no se puede analizar.\n" COLOR_RESET);
                         log_error(logger, "El criterio es nulo, no se puede analizar.");
+                        fflush(stdout);
                         return -1;
                     }
                 } else {
-                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
+                    char *request = string_from_format(requestParseada.parametros[0], requestParseada.parametros[1],
+                                                        requestParseada.parametros[2]);
+                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida. "
+                                       "La solicitud INSERT %s no se pudo realizar.\n" COLOR_RESET, request);
                     log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
+                    pthread_mutex_unlock(mutexDeHiloRequest);
+                    free(request);
                     return -1;
                 }
             case CREATE:
@@ -498,8 +512,9 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                                                  requestParseada.parametros[2], requestParseada.parametros[3],
                                                  fdMemoria, PID);
                 } else {
-                    printf(COLOR_ERROR "El criterio es nulo, no se puede analizar.\n" COLOR_RESET);
                     log_error(logger, "El criterio es nulo, no se puede analizar.");
+                    printf(COLOR_ERROR "El criterio es nulo, no se puede analizar.\n" COLOR_RESET);
+                    fflush(stdout);
                     return -1;
                 }
             case DROP:
@@ -508,8 +523,11 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, NULL);
                     return gestionarDropKernel(requestParseada.parametros[0], fdMemoria, PID);
                 } else {
-                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
                     log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
+                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida. "
+                           "La solicitud DROP %s no se pudo realizar.\n" COLOR_RESET, requestParseada.parametros[0]);
+                    fflush(stdout);
+                    pthread_mutex_unlock(mutexDeHiloRequest);
                     return -1;
                 }
             case DESCRIBE:
@@ -520,8 +538,9 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                         fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, NULL);
                         return gestionarDescribeTablaKernel(requestParseada.parametros[0], fdMemoria, PID);
                     } else {
-                        printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
                         log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
+                        printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
+                        fflush(stdout);
                         return -1;
                     }
                 } else {
@@ -729,6 +748,7 @@ int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp
                 t_comando *requestParseada = (t_comando *) malloc(sizeof(t_comando));
                 char **lineaParseada = parser(lineas[i]);
                 *requestParseada = instanciarComando(lineaParseada);
+                free__char_as_as(lineaParseada);
                 queue_push(unLQL->colaDeRequests, requestParseada);
             }
             unLQL->cantidadDeLineas = queue_size(unLQL->colaDeRequests);
@@ -833,6 +853,7 @@ int gestionarAdd(char **parametrosDeRequest, p_planificacion *paramPlanificacion
 void imprimirMensajeAdd(int numeroMemoria, char *criterio) {
     printf(COLOR_EXITO "Tipo de Request: %s %i \n" COLOR_RESET, "ADD MEMORY", numeroMemoria);
     printf(COLOR_EXITO "To: %s\n" COLOR_RESET, criterio);
+    fflush(stdout);
 }
 
 int seleccionarMemoriaParaDescribe(p_consola_kernel *parametros) {
@@ -1023,6 +1044,7 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
     p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
     t_log *logger = paramPlanifGeneral->parametrosConsola->logger;
     int quantumMaximo = (int) paramPlanifGeneral->parametrosPCP->quantum;
+    int retardoEjecucion = (int) paramPlanifGeneral->parametrosPCP->retardoEjecucion;
     time_t tiempoInicioRequest;
     t_archivoLQL *unLQL = archivoLQL;
     bool requestEsValida = true;
@@ -1039,6 +1061,7 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
                 time(&infoRequest->instanteInicio);
                 gestionarRequestPrimitivas(*comando, paramPlanifGeneral, semaforoHilo, infoRequest,
                                            semConcurrenciaMetricas, unLQL->PID);
+                //sleep(retardoEjecucion);
             } else { //Si es 0 es comando de Kernel
                 gestionarRequestKernel(*comando, paramPlanifGeneral);
             }
@@ -1334,23 +1357,62 @@ pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConf
 
 }
 
+void refreshMetadata(t_refreshMetadata *parametros) {
 
-/*void refreshMetadata(p_planificacion *paramPlanificacionGeneral, int tiempoDeRefresh, t_dictionary *metadataTablas,
-                     t_log *logger) {
+    p_consola_kernel *pConsolaKernel = parametros->pConsolaKernel;
+    int tiempoDeRefresh = parametros->refreshMetadata;
+    t_log *logger = parametros->logger;
 
-    int PID = paramPlanificacionGeneral->parametrosPLP->contadorPID;
+    int PID = 1000; //paramPlanificacionGeneral->parametrosPLP->contadorPID;
     int *fdMemoria;
 
     while (1) {
         sleep(tiempoDeRefresh);
-        p_consola_kernel *pConsolaKernel = paramPlanificacionGeneral->parametrosConsola;
-        char *criterio = pConsolaKernel;
         fdMemoria = seleccionarMemoriaParaDescribe(pConsolaKernel);
         int resultado = gestionarDescribeGlobalKernel(fdMemoria, PID);
         if (resultado == 0) {
             log_info(logger, "Se actualizó correctamente la metadata del kernel.\n");
+            printf(COLOR_JOURNAL "Se actualizó correctamente la metadata del kernel.\n"COLOR_RESET);
         } else {
             log_error(logger, "No se ha actualizado correctamente la metadata del kernel.\n");
+            printf(COLOR_ERROR "No se ha actualizado correctamente la metadata del kernel.\n"COLOR_RESET);
         }
+        fflush(stdout);
     }
+}
+
+pthread_t *crearHiloRefreshMetadata(p_consola_kernel *pConsola, int refreshMet, t_dictionary *metadataTablas, t_log *logger) {
+    pthread_t *hiloRefresh = (pthread_t*) malloc(sizeof(pthread_t));
+
+    t_refreshMetadata *parametros = (t_refreshMetadata*) malloc(sizeof(t_refreshMetadata));
+
+    parametros->pConsolaKernel = pConsola;
+    parametros->refreshMetadata = refreshMet;
+    parametros->metadataTablas = metadataTablas;
+    parametros->logger = logger;
+
+    pthread_create(hiloRefresh, NULL, &refreshMetadata, parametros);
+
+    return hiloRefresh;
+}
+
+void free__char_as_as(char** comandoALiberar){
+    int tamanioComandoALiberar = tamanioDeArrayDeStrings(comandoALiberar);
+    for (int i = 0; i < tamanioComandoALiberar; i++) {
+        free(comandoALiberar[i]);
+    }
+    free(comandoALiberar);
+}
+/*
+void free__comando(t_comando* comando){
+    free__char_as_as(comando->parametros);
+    free(comando);
+}
+
+void free__plp(parametros_plp *parametrosPLP){
+    queue_destroy_and_destroy_elements(parametrosPLP->colaDeNew, (void*)free__comando(param));
+    log_destroy(parametrosPLP->logger);
+    queue_destroy_and_destroy_elements(parametrosPLP->colaDeReady (void*)free__comando);
+    parametrosPLP->cantidadProcesosEnReady
+
 }*/

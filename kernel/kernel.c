@@ -1137,11 +1137,12 @@ void gossiping(parametros_gossiping* parametros){
     t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
     t_log* logger = (t_log*) parametros->logger;
     t_nodoMemoria* nodoMemoriaPrincipal = list_get(memoriasConocidas, 0);
+    //t_configuracion* configuracion = (t_configuracion*) parametros->configuracion;
 
     int i = 0;
     while (1){
 
-        sleep(200); //corregir para que se pueda ingresar por archivo configuracion
+        sleep(20); //corregir para que se pueda ingresar por archivo configuracion
         enviarPaquete(nodoMemoriaPrincipal->fdNodoMemoria, GOSSIPING, INVALIDO, "DAME_LISTA_GOSSIPING", -1);
         conectarseANuevasMemorias(memoriasConocidas, misConexiones, logger);
         i++;

@@ -156,6 +156,7 @@ typedef struct {
     t_log *logger;
     t_list *memoriasConocidas;
     GestorConexiones *misConexiones;
+    //t_configuracion* configuracion;
 } parametros_gossiping;
 
 typedef struct {

@@ -119,6 +119,14 @@ typedef struct {
     t_list* memoriasConocidas;
 } p_planificacion;
 
+//Estructura necesaria para refrescar la Metadata del Kernel
+typedef struct {
+    p_consola_kernel *pConsolaKernel;
+    int refreshMetadata;
+    t_dictionary *metadataTablas;
+    t_log *logger;
+} t_refreshMetadata;
+
 //Estructura
 typedef struct {
     char* ipNodoMemoria;

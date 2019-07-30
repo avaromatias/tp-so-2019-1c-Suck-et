@@ -106,8 +106,7 @@ void *atenderConexiones(void *parametrosThread) {
                                         log_info(logger,
                                                  "La memoria conectada recientemente ya se encuentra disponible para ser utilizada.\n");
                                         break;
-                                        //Componente componente = *((Componente *) mensaje);
-                                        //atenderHandshake(header, componente, parametros);
+
                                     case CONEXION_RECHAZADA:
                                         break;
                                     case RESPUESTA_GOSSIPING:
@@ -121,6 +120,7 @@ void *atenderConexiones(void *parametrosThread) {
                                         pthread_mutex_t *semaforo = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PID);
 //                                        pthread_mutex_unlock(mutexEstrucSupervisorHilos);
                                         pthread_mutex_unlock(semaforo);
+                                        log_info(logger, mensaje);
                                         printf(mensaje);
                                         free(PID);
                                         break;
@@ -261,6 +261,7 @@ void crearTablaEnMetadata(t_dictionary *metadataTablas, char *mensaje, t_log *lo
         dictionary_put(metadataTablas, nombreTabla, consistencia);
         printf(COLOR_EXITO "La metadata se actualizó correctamente.\n" COLOR_RESET);
         log_info(logger, "La metadata se actualizó correctamente");
+        fflush(stdout);
     }
 }
 
@@ -273,8 +274,9 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
         semaforoADesbloquear = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PIDCasteado);
     } else {
         if (strcmp(PIDCasteado, "-1") == 0 && tipoRequest == JOURNAL){
-            printf(COLOR_EXITO "El JOURNAL enviado a la memoria (socket %i) fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
             log_info(logger, "El Journal enviado a la memoria (socket %i) fue procesado correctamente.", fdMemoria);
+            printf(COLOR_JOURNAL "El JOURNAL enviado a la memoria (socket %i) fue procesado correctamente.\n"COLOR_RESET, fdMemoria);
+            fflush(stdout);
             free(PIDCasteado);
             return;
         }
@@ -324,6 +326,7 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
             break;
     }
     pthread_mutex_unlock(semaforoADesbloquear);
+    fflush(stdout);
     free(PIDCasteado);
 }
 

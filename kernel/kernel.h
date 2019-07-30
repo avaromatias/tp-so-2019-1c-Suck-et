@@ -36,7 +36,7 @@ typedef struct {
     int multiprocesamiento;
     int refreshMetadata;
     int retardoEjecucion;
-    char* directorioAMonitorear;
+    char *directorioAMonitorear;
 } t_configuracion;
 
 t_list *listaMetricasSC;
@@ -54,18 +54,17 @@ void inicializarSemyMutex();
 
 pthread_t *crearHiloMetricas(p_planificacion *paramPlanificacionGeneral);
 
-void mostrarMetricas(t_metricasDefinidas* metricasSC,t_metricasDefinidas* metricasSHC,t_metricasDefinidas* metricasEC, bool mostrarPorPantalla,t_log *logger);
+void mostrarMetricas(t_metricasDefinidas *metricasSC, t_metricasDefinidas *metricasSHC, t_metricasDefinidas *metricasEC,
+                     bool mostrarPorPantalla, t_log *logger);
 
 t_configuracion cargarConfiguracion(char *, t_log *);
 
 void inicializarEstructurasKernel(t_dictionary *tablaDeMemoriasConCriterios);
 
-int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral,
-                               pthread_mutex_t *mutexDeHiloRequest, estadisticasRequest *estadisticasRequest,
-                               sem_t *semConcurrenciaMetricas, int PID);
+int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral, pthread_mutex_t *mutexDeHiloRequest,
+                               estadisticasRequest *estadisticasRequest, sem_t *semConcurrenciaMetricas, int PID);
 
 void calcularMetricas(bool mostrarPorPantalla, p_planificacion *paramPlanifGeneral);
-
 
 t_list *getListaMetricasPorCriterio(char *criterio);
 
@@ -89,12 +88,9 @@ void imprimirMensajeAdd(int numeroMemoria, char *criterio);
 
 int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID, estadisticasRequest *estadisticasRequest);
 
-int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion,
-                          int fdMemoria, int PID);
+int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion, int fdMemoria, int PID);
 
-int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, int PID,
-                          estadisticasRequest *estadisticasRequest);
-
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, int PID, estadisticasRequest *estadisticasRequest);
 
 int gestionarDropKernel(char *nombreTabla, int fdMemoria, int PID);
 
@@ -109,8 +105,6 @@ int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp
 int gestionarJournalKernel(p_planificacion *paramPlanifGeneral);
 
 int diferenciarRequest(t_comando requestParseada);
-
-void actualizarCantRequest(t_archivoLQL *archivoLQL, t_comando requestParseada);
 
 int extensionCorrecta(char *direccionAbsoluta);
 
@@ -145,22 +139,19 @@ void *sincronizacionPLP(void *parametrosPLP);
 
 void instanciarPCPs(p_planificacion *);
 
-void
-planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t *semaforoHilo);
+void planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t *semaforoHilo);
 
+void refreshMetadata(t_refreshMetadata *parametros);
+
+pthread_t *crearHiloRefreshMetadata(p_consola_kernel *pConsola, int refreshMet, t_dictionary *metadataTablas, t_log *logger);
 
 //Gossiping
-
 
 typedef struct {
     t_log *logger;
     t_list *memoriasConocidas;
     GestorConexiones *misConexiones;
 } parametros_gossiping;
-
-typedef struct {
-    p_planificacion *paramPlanificacionGeneral;
-} parametrosMetricas;
 
 pthread_t *crearHiloGossiping(GestorConexiones *misConexiones, t_list *memoriasConocidas, t_log *logger);
 
@@ -170,22 +161,20 @@ void gossiping(parametros_gossiping *parametros);
 
 int conectarseANuevoNodoMemoria(char *ipMemoria, int puertoMemoria, GestorConexiones *misConexiones, t_log *logger);
 
+typedef struct {
+    char *directorioAMonitorear;
+    t_log *logger;
+    char *nombreArchivoDeConfiguracion;
+    pthread_mutex_t *mutexDatosConfiguracion;
+    t_datos_configuracion *datosConfiguracion;
+    t_list *memoriasConocidas;
+} parametros_hilo_monitor;
 
-typedef struct{
+pthread_t *crearHiloMonitor(char *directorioAMonitorear, char *nombreArchivoConfiguracionConExtension, t_log *logger,
+                            t_datos_configuracion *datosConfiguracion, pthread_mutex_t *mutexDatosConfiguracion,
+                            t_list *memoriasConocidas);
 
-    char* directorioAMonitorear;
-
-    t_log* logger;
-    char* nombreArchivoDeConfiguracion;
-    pthread_mutex_t* mutexDatosConfiguracion;
-    t_datos_configuracion* datosConfiguracion;
-    t_list* memoriasConocidas;
-
-}parametros_hilo_monitor;
-
-
-pthread_t* crearHiloMonitor(char* directorioAMonitorear, char* nombreArchivoConfiguracionConExtension, t_log* logger, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion, t_list* memoriasConocidas);
-t_datos_configuracion* instanciarDatosConfiguracion(t_configuracion* configuracion);
+t_datos_configuracion *instanciarDatosConfiguracion(t_configuracion *configuracion);
 
 
 #endif /* KERNEL_H_ */

@@ -790,7 +790,7 @@ char **filtrarKeyMax(char **listaLineas) {
             char *listaLineasString = string_duplicate(listaLineas[i]);
             char **linea = desarmarLinea(listaLineasString);
             char *key = linea[1];
-            int timestamp = atoi(linea[0]);
+            int timestamp = strtoull(linea[0], NULL, 10);
             if (strcmp(keyD, key) == 0 && timestamp >= mayorTimestamp) {
                 vaciarString(&mayorLinea);
                 mayorTimestamp = timestamp;
@@ -1017,7 +1017,7 @@ char *generarContenidoParaParticion(char *tamanio, char *bloques) {
 bool ordenarPorLinea(char *linea, char *linea2) {
     char **lineaDesarmada = desarmarLinea(linea);
     char **linea2Desarmada = desarmarLinea(linea2);
-    bool esMenor = atoi(lineaDesarmada[0]) < atoi(linea2Desarmada[0]);
+    bool esMenor = strtoull(lineaDesarmada[0], NULL, 10) < strtoull(linea2Desarmada[0], NULL, 10);
     return esMenor;
 }
 
@@ -1085,9 +1085,9 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                         if (elemento != NULL) {
                             char **lineaPartida = desarmarLinea(elemento);
                             char **lineaPartida2 = desarmarLinea(mayorLinea);
-                            int mayorTimestampMem = atoi(lineaPartida[0]);
+                            int mayorTimestampMem = strtoull(lineaPartida[0], NULL, 10);
                             if (lineaPartida2[0]) {
-                                int mayorTimestampBlock = atoi(lineaPartida2[0]);
+                                int mayorTimestampBlock = strtoull(lineaPartida2[0], NULL, 10);
                                 if (mayorTimestampMem > mayorTimestampBlock) {
                                     mayorLinea = elemento;
                                 }
@@ -1162,8 +1162,8 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
                     lineaContinuaEnOtroArchivo = false;
                     string_append(&timestampEncontrado, palabras[0]);
                     string_append(&keyEncontrado, palabras[1]);
-                    if (strcmp(keyEncontrado, key) == 0 && (atoi(timestampEncontrado) >= mayorTimestamp)) {
-                        mayorTimestamp = atoi(timestampEncontrado);
+                    if (strcmp(keyEncontrado, key) == 0 && (strtoull(timestampEncontrado, NULL, 10) >= mayorTimestamp)) {
+                        mayorTimestamp = strtoull(timestampEncontrado, NULL, 10);
                         vaciarString(&mayorLinea);
                         string_append(&mayorLinea, linea);
                     }

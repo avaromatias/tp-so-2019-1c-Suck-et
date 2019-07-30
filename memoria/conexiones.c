@@ -277,16 +277,16 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
 
 
         if (strcmp(mensaje, "DAME_LISTA_GOSSIPING") == 0){
-            printf("Recibi un pedido de mi lista de gossiping de fd: %i, envio la respuesta\n", header.fdRemitente);
+            //printf("Recibi un pedido de mi lista de gossiping de fd: %i, envio la respuesta\n", header.fdRemitente);
 
             pthread_mutex_lock(semaforoMemoriasConocidas);
             char* memoriasConocidasConcatenadas = concatenarMemoriasConocidas(memoriasConocidas);
 
             if (memoriasConocidasConcatenadas != NULL && strlen(memoriasConocidasConcatenadas)> 0){
-                printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, header.fdRemitente);
+                //printf("Envio las memorias conocidas concatenadas: %s para %i\n", memoriasConocidasConcatenadas, header.fdRemitente);
                 enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA_GOSSIPING, memoriasConocidasConcatenadas, -1);
             } else{
-                printf("Mi lista estaba vacia primera respuesta\n");
+                //printf("Mi lista estaba vacia primera respuesta\n");
                 enviarPaquete(header.fdRemitente, RESPUESTA_GOSSIPING, RESPUESTA_GOSSIPING, "LISTA_VACIA", -1);
             }
             pthread_mutex_unlock(semaforoMemoriasConocidas);
@@ -295,10 +295,10 @@ void atenderPedidoMemoria(Header header,char* mensaje, parametros_thread_memoria
 
             pthread_mutex_lock(semaforoMemoriasConocidas);
             if (strcmp(mensaje, "LISTA_VACIA") != 0){
-                printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
+                //printf("Del header %i recibi %s como respuesta al gossiping\n", header.fdRemitente, mensaje);
                 agregarMemoriasRecibidas(mensaje, misConexiones, memoria, logger, semaforoMemoriasConocidas);
             } else{
-                printf("Recibi lista vacia como respuesta 2\n");
+                //printf("Recibi lista vacia como respuesta 2\n");
             }
             pthread_mutex_unlock(semaforoMemoriasConocidas);
     }

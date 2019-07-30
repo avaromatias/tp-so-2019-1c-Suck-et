@@ -1083,7 +1083,7 @@ int main(int argc, char* argv[]) {
     //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
     char *rutaLogger = string_from_format("%s.log", argv[2]); //Para ejecutar
 
-    t_log* logger = log_create(rutaLogger, "memoria", true, LOG_LEVEL_INFO);
+    t_log* logger = log_create(rutaLogger, "memoria", false, LOG_LEVEL_INFO);
 	t_configuracion configuracion = cargarConfiguracion(rutaConfig, logger);
 	t_parametros_conexion_lissandra conexionLissandra = {.ip = string_duplicate(configuracion.ipFileSystem), .puerto = conexionLissandra.puerto = configuracion.puertoFileSystem};
 

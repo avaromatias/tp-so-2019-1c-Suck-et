@@ -155,6 +155,7 @@ int main(int argc, char* argv[]) {
     free(rutaLogger);
     free(pConsolaKernel);
     free(parametrosPCP);
+    //free__plp(parametrosPLP);
     free(parametrosPLP);
     free(paramPlanificacionGeneral);
     return EXIT_SUCCESS;
@@ -378,7 +379,7 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
             continue;
         }
         *requestParseada = instanciarComando(comandoParseado);
-        free(comandoParseado);
+        free__char_as_as(comandoParseado);
         requestEsValida = analizarRequest(*requestParseada, parametros);
         if (requestEsValida == true) {
             seEncola = encolarDirectoNuevoPedido(*requestParseada);
@@ -397,7 +398,6 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
             printf(COLOR_ERROR "No se pudo procesar la request solicitada.\n" COLOR_RESET);
             log_error(parametros->logger, "No se pudo procesar la request solicitada.");
             }
-        //free(leido);
     } while (requestParseada->tipoRequest != EXIT);
     printf(COLOR_EXITO "Ya analizamos todo lo solicitado.\n" COLOR_RESET);
     exit(-1);
@@ -462,8 +462,15 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
 //                                                  estadisticasRequest);
                     return respuesta;
                 } else {
-                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
+                    char *request = string_from_format(requestParseada.parametros[0], requestParseada.parametros[1],
+                                                        requestParseada.parametros[2]);
+                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida. "
+                           "La solicitud SELECT %s %s no se pudo realizar.\n" COLOR_RESET, requestParseada.parametros[0],
+                           requestParseada.parametros[1]);
                     log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
+                    pthread_mutex_unlock(mutexDeHiloRequest);
+                    free(request);
+                    fflush(stdout);
                     return -1;
                 }
             case INSERT:
@@ -483,11 +490,17 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     } else {
                         printf(COLOR_ERROR "El criterio es nulo, no se puede analizar.\n" COLOR_RESET);
                         log_error(logger, "El criterio es nulo, no se puede analizar.");
+                        fflush(stdout);
                         return -1;
                     }
                 } else {
-                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
+                    char *request = string_from_format(requestParseada.parametros[0], requestParseada.parametros[1],
+                                                        requestParseada.parametros[2]);
+                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida. "
+                                       "La solicitud INSERT %s no se pudo realizar.\n" COLOR_RESET, request);
                     log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
+                    pthread_mutex_unlock(mutexDeHiloRequest);
+                    free(request);
                     return -1;
                 }
             case CREATE:
@@ -498,8 +511,9 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                                                  requestParseada.parametros[2], requestParseada.parametros[3],
                                                  fdMemoria, PID);
                 } else {
-                    printf(COLOR_ERROR "El criterio es nulo, no se puede analizar.\n" COLOR_RESET);
                     log_error(logger, "El criterio es nulo, no se puede analizar.");
+                    printf(COLOR_ERROR "El criterio es nulo, no se puede analizar.\n" COLOR_RESET);
+                    fflush(stdout);
                     return -1;
                 }
             case DROP:
@@ -508,8 +522,11 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, NULL);
                     return gestionarDropKernel(requestParseada.parametros[0], fdMemoria, PID);
                 } else {
-                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
                     log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
+                    printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida. "
+                           "La solicitud DROP %s no se pudo realizar.\n" COLOR_RESET, requestParseada.parametros[0]);
+                    fflush(stdout);
+                    pthread_mutex_unlock(mutexDeHiloRequest);
                     return -1;
                 }
             case DESCRIBE:
@@ -520,8 +537,9 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                         fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterioConsistencia, NULL);
                         return gestionarDescribeTablaKernel(requestParseada.parametros[0], fdMemoria, PID);
                     } else {
-                        printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
                         log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
+                        printf(COLOR_ERROR "La tabla no se encuentra dentro de la Metadata conocida.\n" COLOR_RESET);
+                        fflush(stdout);
                         return -1;
                     }
                 } else {
@@ -723,12 +741,13 @@ int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp
             fclose(archivo);
 
             textoDelArchivo[tamanioArchivo] = 0;
-            char **lineas = string_split(textoDelArchivo, "\n");
+            char **lineas = string_split(textoDelArchivo, "\n");//cambio \0 por \n para mejor funcionamiento
             int cantidadRequests = tamanioDeArrayDeStrings(lineas);
             for (int i = 0; i < cantidadRequests; i++) {
                 t_comando *requestParseada = (t_comando *) malloc(sizeof(t_comando));
                 char **lineaParseada = parser(lineas[i]);
                 *requestParseada = instanciarComando(lineaParseada);
+                free__char_as_as(lineaParseada);
                 queue_push(unLQL->colaDeRequests, requestParseada);
             }
             unLQL->cantidadDeLineas = queue_size(unLQL->colaDeRequests);
@@ -1040,7 +1059,7 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
                 time(&infoRequest->instanteInicio);
                 gestionarRequestPrimitivas(*comando, paramPlanifGeneral, semaforoHilo, infoRequest,
                                            semConcurrenciaMetricas, unLQL->PID);
-                sleep(retardoEjecucion);
+                //sleep(retardoEjecucion);
             } else { //Si es 0 es comando de Kernel
                 gestionarRequestKernel(*comando, paramPlanifGeneral);
             }
@@ -1373,3 +1392,24 @@ pthread_t *crearHiloRefreshMetadata(p_consola_kernel *pConsola, int refreshMet, 
 
     return hiloRefresh;
 }
+
+void free__char_as_as(char** comandoALiberar){
+    int tamanioComandoALiberar = tamanioDeArrayDeStrings(comandoALiberar);
+    for (int i = 0; i < tamanioComandoALiberar; i++) {
+        free(comandoALiberar[i]);
+    }
+    free(comandoALiberar);
+}
+/*
+void free__comando(t_comando* comando){
+    free__char_as_as(comando->parametros);
+    free(comando);
+}
+
+void free__plp(parametros_plp *parametrosPLP){
+    queue_destroy_and_destroy_elements(parametrosPLP->colaDeNew, (void*)free__comando(param));
+    log_destroy(parametrosPLP->logger);
+    queue_destroy_and_destroy_elements(parametrosPLP->colaDeReady (void*)free__comando);
+    parametrosPLP->cantidadProcesosEnReady
+
+}*/

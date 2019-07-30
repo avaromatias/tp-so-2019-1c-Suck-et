@@ -110,6 +110,8 @@ int extensionCorrecta(char *direccionAbsoluta);
 
 void enviarJournal(int memoriaSeleccionada, p_planificacion *paramPlanifGeneral);
 
+void free__char_as_as(char** comandoALiberar);
+
 /******************************
  ***** MANEJO DE MEMORIAS *****
  ******************************/

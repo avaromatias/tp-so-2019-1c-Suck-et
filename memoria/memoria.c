@@ -534,9 +534,9 @@ void* gossiping(void* parametrosGossiping){
     pthread_mutex_t* semaforoMemoriasConocidas = parametros->semaforoMemoriasConocidas;
     pthread_mutex_t* semaforoRetardos = (pthread_mutex_t*)parametros->semaforoRetardos;
     while (1){
-        pthread_mutex_lock(semaforoRetardos);
-        sleep(configuracion.retardoGossiping);
-        pthread_mutex_unlock(semaforoRetardos);
+        //pthread_mutex_lock(semaforoRetardos);
+        sleep(configuracion.retardoGossiping/1000);
+        //pthread_mutex_unlock(semaforoRetardos);
         //Se conecta a memorias y las agrega como nodos de memoria
         gestionarGossiping(misConexiones, configuracion.ipSeeds, configuracion.puertoSeeds, logger, memoria, semaforoMemoriasConocidas);
         intercambiarListaGossiping(memoria, semaforoMemoriasConocidas, logger, misConexiones);

@@ -607,7 +607,6 @@ t_pagina* eliminarPaginaLruEInsertarNueva(t_reemplazo_pagina* tipoReemplazoPagin
     //Tabla de donde se elimina la pagina
     pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     t_segmento* unSegmento = (t_segmento*)dictionary_get(memoria->tablaDeSegmentos, tipoReemplazoPaginaLRU->nombreTabla);
-    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
     pthread_mutex_lock(&unSegmento->enUso);
     t_dictionary* tablaDePaginasParaBorrar = (t_dictionary*)unSegmento->tablaDePaginas;
 
@@ -620,6 +619,7 @@ t_pagina* eliminarPaginaLruEInsertarNueva(t_reemplazo_pagina* tipoReemplazoPagin
     free(unaPagina);
 //    printf("Inserto nueva pagina con key %s y contenido %s\n", keyNueva, nuevoValue);
     paginaNueva = insertarNuevaPagina(keyNueva, nuevoValue, tablaDePaginasParaInsertar, memoria, recibiTimestamp);
+    pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
     return paginaNueva;
 
 }

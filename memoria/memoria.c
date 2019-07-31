@@ -614,6 +614,7 @@ t_pagina* eliminarPaginaLruEInsertarNueva(t_reemplazo_pagina* tipoReemplazoPagin
     //dictionary_remove_and_destroy(tablaDePaginas, paginaLRU->key, &eliminarPagina);
     t_pagina* unaPagina = dictionary_remove(tablaDePaginasParaBorrar, tipoReemplazoPaginaLRU->paginaLRU->key);
     printf("\n%s\n", unaPagina->key);
+    fflush(stdout);
     pthread_mutex_unlock(&unSegmento->enUso);
     unaPagina->marco->ocupado = false;
     memoria->marcosOcupados--;

@@ -884,9 +884,11 @@ char* drop(char* nombreTabla, t_memoria* memoria, t_sincro_journaling* semaforoJ
     pthread_mutex_lock(&memoria->control.tablaDeSegmentosEnUso);
     if(dictionary_has_key(memoria->tablaDeSegmentos, nombreTabla))  {
         t_segmento* segmento = dictionary_get(memoria->tablaDeSegmentos, nombreTabla);
+        pthread_mutex_lock(&memoria->control.tablaDeMarcosEnUso);
         pthread_mutex_lock(&segmento->enUso);
         liberarPaginasSegmento(segmento->tablaDePaginas, memoria);
         pthread_mutex_unlock(&segmento->enUso);
+        pthread_mutex_unlock(&memoria->control.tablaDeMarcosEnUso);
         char* respuesta = string_from_format("Se eliminó la tabla %s de la memoria.", nombreTabla);
         dictionary_remove_and_destroy(memoria->tablaDeSegmentos, nombreTabla, &eliminarSegmento);
         pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
@@ -908,10 +910,8 @@ char* drop(char* nombreTabla, t_memoria* memoria, t_sincro_journaling* semaforoJ
 
 void liberarPaginasSegmento(t_dictionary* tablaDePaginas, t_memoria* memoria)   {
     int cantidadPaginas = dictionary_size(tablaDePaginas);
-    pthread_mutex_lock(&memoria->control.tablaDeMarcosEnUso);
     dictionary_destroy_and_destroy_elements(tablaDePaginas, &eliminarPagina);
     memoria->marcosOcupados -= cantidadPaginas;
-    pthread_mutex_unlock(&memoria->control.tablaDeMarcosEnUso);
 }
 
 void eliminarPagina(void* data)    {

@@ -1106,7 +1106,7 @@ int main(int argc, char* argv[]) {
     pthread_mutex_init(semaforoMemoriasConocidas, NULL);
 
     t_sincro_journaling* semaforoJournaling = (t_sincro_journaling*) malloc(sizeof(t_sincro_journaling));
-    semaforoJournaling->cantidadRequestsEnParalelo = 3;
+    semaforoJournaling->cantidadRequestsEnParalelo = 1;
     sem_init(&semaforoJournaling->semaforoJournaling, 0, semaforoJournaling->cantidadRequestsEnParalelo);
     pthread_mutex_init(&semaforoJournaling->mutexNivel, NULL);
     pthread_mutex_init(&semaforoJournaling->ejecutandoJournaling, NULL);

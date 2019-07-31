@@ -164,6 +164,7 @@ void* atenderConexiones(void* parametrosThread)    {
 void actualizarNivelMultiprocesamiento(void* mensaje, t_sincro_journaling* semaforoJournaling)  {
     int nuevoNivel = atoi((char*) mensaje);
     int viejoNivel = semaforoJournaling->cantidadRequestsEnParalelo;
+    log_info("Recibí un nuevo nivel de multiprocesamiento: %i", nuevoNivel);
     pthread_mutex_lock(&semaforoJournaling->mutexNivel);
     semaforoJournaling->cantidadRequestsEnParalelo = nuevoNivel;
     if(viejoNivel < nuevoNivel)

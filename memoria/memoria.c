@@ -613,6 +613,7 @@ t_pagina* eliminarPaginaLruEInsertarNueva(t_reemplazo_pagina* tipoReemplazoPagin
     //la pagina que obtiene está llegando sin un char* key
     //dictionary_remove_and_destroy(tablaDePaginas, paginaLRU->key, &eliminarPagina);
     t_pagina* unaPagina = dictionary_remove(tablaDePaginasParaBorrar, tipoReemplazoPaginaLRU->paginaLRU->key);
+    printf("\n%s\n", unaPagina->key);
     pthread_mutex_unlock(&unSegmento->enUso);
     unaPagina->marco->ocupado = false;
     memoria->marcosOcupados--;
@@ -1125,19 +1126,19 @@ int main(int argc, char* argv[]) {
     pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, argv[2], logger, retardos, semaforoRetardos);
     pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);
     pthread_t* hiloConsola = (pthread_t*) crearHiloConsola(memoriaPrincipal, logger, conexionLissandra, semaforoJournaling);
-    pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, conexionLissandra, retardos, semaforoJournaling, semaforoRetardos);
+    //pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, conexionLissandra, retardos, semaforoJournaling, semaforoRetardos);
     pthread_t* hiloGossiping = (pthread_t*) crearHiloGossiping(misConexiones, memoriaPrincipal, logger, configuracion, semaforoMemoriasConocidas, semaforoJournaling, retardos, semaforoRetardos);
 
     pthread_join(*hiloConexiones, NULL);
     pthread_join(*hiloConsola, NULL);
-    pthread_join(*hiloJournal, NULL);
+    //pthread_join(*hiloJournal, NULL);
     pthread_join(*hiloGossiping, NULL);
     pthread_join(*hiloMonitor, NULL);
 
     pthread_detach(*hiloMonitor);
     pthread_detach(*hiloConexiones);
     pthread_detach(*hiloConsola);
-    pthread_detach(*hiloJournal);
+    //pthread_detach(*hiloJournal);
     pthread_detach(*hiloGossiping);
 
     //free(nombrePruebaDebug); //TODO: Si se esta ejecutando comentar esta linea

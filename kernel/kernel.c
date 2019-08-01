@@ -10,11 +10,11 @@
 #include "kernel.h"
 
 int main(int argc, char* argv[]) {
-    //char *nombrePruebaDebug = string_duplicate("prueba-lfs");
-    //char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
-    char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
-    //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
-    char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
+    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+    char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
+    //char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
+    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
+    //char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
 
     t_log *logger = log_create(rutaLogger, "kernel", false, LOG_LEVEL_INFO);
     printf("Iniciando el proceso Kernel.\n");
@@ -548,7 +548,8 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     return gestionarDescribeGlobalKernel(fdMemoria, PID);
                 }
             case JOURNAL:
-                return gestionarJournalKernel(paramPlanifGeneral);
+
+                return gestionarJournalKernel(paramPlanifGeneral, mutexDeHiloRequest);
         } //fin del switch
     } else {
         errorNoHayMemoriasAsociadas(logger);
@@ -678,7 +679,7 @@ int gestionarDescribeGlobalKernel(int fdMemoria, int PID) {
     return 0;
 }
 
-int gestionarJournalKernel(p_planificacion *paramPlanifGeneral) {
+int gestionarJournalKernel(p_planificacion *paramPlanifGeneral, pthread_mutex_t* mutexDeHiloRequest) {
     p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
     t_list *memoriasConectadas = pConsolaKernel->conexiones->conexiones;
     int cantidadMemoriasConectadas = list_size(memoriasConectadas);
@@ -687,6 +688,7 @@ int gestionarJournalKernel(p_planificacion *paramPlanifGeneral) {
         int *memoriaSeleccionada = list_get(memoriasConectadas, i);
         enviarJournal(*memoriaSeleccionada, paramPlanifGeneral);
     }
+    pthread_mutex_unlock(mutexDeHiloRequest);
     return 0;
 }
 

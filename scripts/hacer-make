@@ -1,0 +1,18 @@
+#!/bin/bash
+
+rm /home/utnso/tp-2019-1c-Suck-et/lfs/CMakeCache.txt
+cd /home/utnso/tp-2019-1c-Suck-et/lfs/
+cmake CMakeLists.txt
+make
+
+rm /home/utnso/tp-2019-1c-Suck-et/memoria/CMakeCache.txt
+cd /home/utnso/tp-2019-1c-Suck-et/memoria/
+cmake CMakeLists.txt
+make
+
+rm /home/utnso/tp-2019-1c-Suck-et/kernel/CMakeCache.txt
+cd /home/utnso/tp-2019-1c-Suck-et/kernel/
+cmake CMakeLists.txt
+make
+
+cd /home/utnso/tp-2019-1c-Suck-et/

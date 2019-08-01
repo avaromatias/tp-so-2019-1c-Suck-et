@@ -615,12 +615,12 @@ t_pagina* eliminarPaginaLruEInsertarNueva(t_reemplazo_pagina* tipoReemplazoPagin
     t_pagina* unaPagina = dictionary_remove(tablaDePaginasParaBorrar, tipoReemplazoPaginaLRU->paginaLRU->key);
     printf("\n%s\n", unaPagina->key);
     fflush(stdout);
-    pthread_mutex_unlock(&unSegmento->enUso);
     unaPagina->marco->ocupado = false;
     memoria->marcosOcupados--;
     free(unaPagina);
 //    printf("Inserto nueva pagina con key %s y contenido %s\n", keyNueva, nuevoValue);
     paginaNueva = insertarNuevaPagina(keyNueva, nuevoValue, tablaDePaginasParaInsertar, memoria, recibiTimestamp);
+    pthread_mutex_unlock(&unSegmento->enUso);
     pthread_mutex_unlock(&memoria->control.tablaDeSegmentosEnUso);
     return paginaNueva;
 

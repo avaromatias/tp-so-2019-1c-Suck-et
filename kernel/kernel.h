@@ -136,7 +136,7 @@ t_archivoLQL *crearLQL(parametros_plp *parametrosPLP);
 
 bool encolarDirectoNuevoPedido(t_comando requestParseada);
 
-t_archivoLQL *convertirRequestALQL(t_comando *requestParseada);
+t_archivoLQL *convertirRequestALQL(t_comando *requestParseada, parametros_plp *parametrosPLP);
 
 pthread_t *crearHiloPlanificadorLargoPlazo(parametros_plp *parametros);
 

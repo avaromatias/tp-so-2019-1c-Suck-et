@@ -10,11 +10,11 @@
 #include "kernel.h"
 
 int main(int argc, char* argv[]) {
-    //char *nombrePruebaDebug = string_duplicate("prueba-lfs");
-    //char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
-    char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
-    //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
-    char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
+    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+    char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
+    //char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
+    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
+    //char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
 
     t_log *logger = log_create(rutaLogger, "kernel", false, LOG_LEVEL_INFO);
     printf("Iniciando el proceso Kernel.\n");
@@ -385,7 +385,7 @@ void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion
         if (requestEsValida == true) {
             seEncola = encolarDirectoNuevoPedido(*requestParseada);
             if (seEncola == true) {
-                t_archivoLQL *unLQL = convertirRequestALQL(requestParseada);
+                t_archivoLQL *unLQL = convertirRequestALQL(requestParseada, parametrosPLP);
                 unLQL->nombreLQL = "Request unitaria";
                 sem_wait(semaforo_colaDeNew);
                 queue_push(parametrosPLP->colaDeNew, unLQL);
@@ -699,7 +699,7 @@ int gestionarJournalKernel(p_planificacion *paramPlanifGeneral) {
 
 void enviarJournal(int fdMemoria, p_planificacion *paramPlanifGeneral) {
     int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
-    enviarPaquete(fdMemoria, REQUEST, JOURNAL, "JOURNAL", PID);
+
     char *PIDCasteado = string_itoa(PID);
     pthread_mutex_t *mutexDeHiloRequest;
     if (dictionary_has_key(paramPlanifGeneral->supervisorDeHilos, PIDCasteado)) {
@@ -708,6 +708,7 @@ void enviarJournal(int fdMemoria, p_planificacion *paramPlanifGeneral) {
         mutexDeHiloRequest = paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
         dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
     }
+    enviarPaquete(fdMemoria, REQUEST, JOURNAL, "JOURNAL", PID);
     pthread_mutex_lock(mutexDeHiloRequest);
 }
 
@@ -1033,11 +1034,12 @@ bool encolarDirectoNuevoPedido(t_comando requestParseada) {
     }
 }
 
-t_archivoLQL *convertirRequestALQL(t_comando *requestParseada) {
+t_archivoLQL *convertirRequestALQL(t_comando *requestParseada, parametros_plp *parametrosPLP ) {
     t_archivoLQL *unLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
 
     unLQL->colaDeRequests = queue_create();
-    unLQL->PID = 0;
+    unLQL->PID = parametrosPLP->contadorPID;
+
 
     queue_push(unLQL->colaDeRequests, requestParseada);
     unLQL->cantidadDeLineas = queue_size(unLQL->colaDeRequests);
@@ -1052,7 +1054,7 @@ pthread_t *crearHiloPlanificadorCortoPlazo(p_planificacion *paramPlanificacionGe
     return hiloPCP;
 }
 
-void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t *semaforoHilo) {
+void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t *mutexDeHiloRequest) {
     estadisticasRequest *infoRequest = (estadisticasRequest *) malloc(sizeof(estadisticasRequest));
     sem_t *semConcurrenciaMetricas = (sem_t *) malloc(sizeof(sem_t));
     sem_init(semConcurrenciaMetricas, 0, 1);
@@ -1074,7 +1076,7 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
             if ((diferenciarRequest(*comando) == 1)) { //Si es 1 es primitiva
                 infoRequest->inicioRequest=clock();
                 time(&infoRequest->instanteInicio);
-                gestionarRequestPrimitivas(*comando, paramPlanifGeneral, semaforoHilo, infoRequest,
+                gestionarRequestPrimitivas(*comando, paramPlanifGeneral, mutexDeHiloRequest, infoRequest,
                                            semConcurrenciaMetricas, unLQL->PID);
                 //sleep(retardoEjecucion);
             } else { //Si es 0 es comando de Kernel
@@ -1111,8 +1113,8 @@ void instanciarPCPs(p_planificacion *paramPlanificacionGeneral) {
 
     pthread_mutex_t *mutexJournal = parametrosPCP->mutexJournal;
 
-    pthread_mutex_t *semaforoHilo = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t));
-    int init = pthread_mutex_init(semaforoHilo, NULL);
+    pthread_mutex_t *mutexDeHiloRequest = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t));
+    int init = pthread_mutex_init(mutexDeHiloRequest, NULL);
 
     while (1) {
         sem_wait(semaforo_cantidadProcesosEnReady);
@@ -1120,7 +1122,7 @@ void instanciarPCPs(p_planificacion *paramPlanificacionGeneral) {
         t_archivoLQL *nuevoLQL = (t_archivoLQL *) queue_pop(parametrosPCP->colaDeReady);
         sem_post(semaforo_mutexColaDeReady);
 
-        planificarRequest(paramPlanificacionGeneral, nuevoLQL, semaforoHilo);
+        planificarRequest(paramPlanificacionGeneral, nuevoLQL, mutexDeHiloRequest);
     }
 }
 

@@ -135,6 +135,14 @@ typedef struct {
     int memoryNumber;
 } t_nodoMemoria;
 
+//Estructura necesaria para el manejo de archivosLQL
+typedef struct {
+    char *nombreLQL;
+    t_queue *colaDeRequests;//cada Request va a ser un t_comando
+    int cantidadDeLineas;
+    int PID;
+} t_archivoLQL;
+
 p_planificacion *paramPlanificacionGeneral;
 
 //Conexión con Memoria
@@ -170,14 +178,5 @@ void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *
 //Inotify
 
 void avisoNuevoNivelDeMultiProcesamiento(char* nuevoNivelDeMP, t_list* memoriasConocidas);
-
-
-//Estructura necesaria para el manejo de archivosLQL
-typedef struct {
-    t_queue *colaDeRequests;//cada Request va a ser un t_comando
-    int cantidadDeLineas;
-    int PID;
-} t_archivoLQL;
-
 
 #endif //KERNEL_CONEXIONES_H

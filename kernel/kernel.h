@@ -61,14 +61,15 @@ t_configuracion cargarConfiguracion(char *, t_log *);
 
 void inicializarEstructurasKernel(t_dictionary *tablaDeMemoriasConCriterios);
 
-int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral, pthread_mutex_t *mutexDeHiloRequest,
+int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *paramPlanifGeneral,
+                               pthread_mutex_t *mutexDeHiloRequest,
                                estadisticasRequest *estadisticasRequest, sem_t *semConcurrenciaMetricas, int PID);
 
 void calcularMetricas(bool mostrarPorPantalla, p_planificacion *paramPlanifGeneral);
 
 t_list *getListaMetricasPorCriterio(char *criterio);
 
-int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlanifGeneral);
+int gestionarRequestKernel(t_comando requestParseada, p_planificacion *paramPlanifGeneral, char *nombreLQL);
 
 void ejecutarConsola(p_consola_kernel *parametros, t_configuracion configuracion, p_planificacion *paramPlanifGral);
 
@@ -86,11 +87,15 @@ bool esComandoValidoDeKernel(t_comando comando);
 
 void imprimirMensajeAdd(int numeroMemoria, char *criterio);
 
-int gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID, estadisticasRequest *estadisticasRequest);
+int
+gestionarSelectKernel(char *nombreTabla, char *key, int fdMemoria, int PID, estadisticasRequest *estadisticasRequest);
 
-int gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion, int fdMemoria, int PID);
+int
+gestionarCreateKernel(char *tabla, char *consistencia, char *cantParticiones, char *tiempoCompactacion, int fdMemoria,
+                      int PID);
 
-int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, int PID, estadisticasRequest *estadisticasRequest);
+int gestionarInsertKernel(char *nombreTabla, char *key, char *valor, int fdMemoria, int PID,
+                          estadisticasRequest *estadisticasRequest);
 
 int gestionarDropKernel(char *nombreTabla, int fdMemoria, int PID);
 
@@ -100,7 +105,7 @@ int gestionarDescribeGlobalKernel(int fdMemoria, int PID);
 
 int gestionarAdd(char **parametrosDeRequest, p_planificacion *paramPlanificacionGeneral);
 
-int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP);
+int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP, char *nombreLQL);
 
 int gestionarJournalKernel(p_planificacion *paramPlanifGeneral);
 
@@ -110,7 +115,7 @@ int extensionCorrecta(char *direccionAbsoluta);
 
 void enviarJournal(int memoriaSeleccionada, p_planificacion *paramPlanifGeneral);
 
-void free__char_as_as(char** comandoALiberar);
+void free__char_as_as(char **comandoALiberar);
 
 /******************************
  ***** MANEJO DE MEMORIAS *****
@@ -120,7 +125,7 @@ bool existenMemoriasConectadas(GestorConexiones *misConexiones);
 
 char *criterioBuscado(t_comando requestParseada, t_dictionary *metadataTablas);
 
-int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int key);
+int seleccionarMemoriaIndicada(p_consola_kernel *parametros, char *criterio, int key, pthread_mutex_t *mutexDeHiloRequest);
 
 int seleccionarMemoriaParaDescribe(p_consola_kernel *parametros);
 
@@ -141,11 +146,13 @@ void *sincronizacionPLP(void *parametrosPLP);
 
 void instanciarPCPs(p_planificacion *);
 
-void planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t *semaforoHilo);
+void
+planificarRequest(p_planificacion *paramPlanificacionGeneral, t_archivoLQL *archivoLQL, pthread_mutex_t *semaforoHilo);
 
 void refreshMetadata(t_refreshMetadata *parametros);
 
-pthread_t *crearHiloRefreshMetadata(p_consola_kernel *pConsola, int refreshMet, t_dictionary *metadataTablas, t_log *logger);
+pthread_t *
+crearHiloRefreshMetadata(p_consola_kernel *pConsola, int refreshMet, t_dictionary *metadataTablas, t_log *logger);
 
 //Gossiping
 

@@ -49,8 +49,7 @@ void* atenderConexiones(void* parametrosThread)    {
                 int fdConectado = *((int*) list_get(unaConexion->conexiones, i));
 
                 if(FD_ISSET(fdConectado, &emisores))    {
-                    int bytesRecibidos = recv(fdConectado, &headerSerializado, sizeof(Header), MSG_DONTWAIT);
-
+                    int bytesRecibidos = recv(fdConectado, &headerSerializado, sizeof(Header), MSG_WAITALL);
                     switch(bytesRecibidos)  {
                         // hubo un error al recibir los datos
                         case -1:
@@ -89,7 +88,7 @@ void* atenderConexiones(void* parametrosThread)    {
                             header.fdRemitente = fdConectado;
                             int pesoMensaje = header.tamanioMensaje * sizeof(char);
                             void* mensaje = (void*) malloc(pesoMensaje);
-                            bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
+                            bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_WAITALL);
                             if(bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
                                 log_warning(logger, "Hubo un error al recibir el mensaje proveniente del socket %i", fdConectado);
                             else if(bytesRecibidos == 0)	{

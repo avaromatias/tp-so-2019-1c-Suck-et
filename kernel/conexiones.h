@@ -178,6 +178,7 @@ void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *
 
 //Inotify
 
+pthread_mutex_t * mutexMemoriasConocidas;
 void avisoNuevoNivelDeMultiProcesamiento(char* nuevoNivelDeMP, t_list* memoriasConocidas);
 
 #endif //KERNEL_CONEXIONES_H

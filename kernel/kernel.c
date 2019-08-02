@@ -10,10 +10,10 @@
 #include "kernel.h"
 
 int main(int argc, char* argv[]) {
-    //char *nombrePruebaDebug = string_duplicate("prueba-lfs");
-    //char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
+//    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+//    char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
     char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
-    //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
+//    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
     char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
 
     t_log *logger = log_create(rutaLogger, "kernel", false, LOG_LEVEL_INFO);
@@ -28,6 +28,8 @@ int main(int argc, char* argv[]) {
     listaMetricasSHC = list_create();
     listaMetricasEC = list_create();
 
+    mutexMemoriasConocidas = malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(mutexMemoriasConocidas, NULL);
     pthread_mutex_t *mutexJournal = malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutexJournal, NULL);
     sem_t *mutexColaDeNew = (sem_t *) malloc(sizeof(sem_t));
@@ -85,7 +87,9 @@ int main(int argc, char* argv[]) {
     GestorConexiones *misConexiones = inicializarConexion();
     int fdMemoriaPrincipal = conectarseAMemoriaPrincipal(configuracion.ipMemoria, configuracion.puertoMemoria, misConexiones, logger);
     agregarIpMemoria(configuracion.ipMemoria, configuracion.puertoMemoria, memoriasConocidas, logger);
+    pthread_mutex_lock(mutexMemoriasConocidas);
     t_nodoMemoria *nodoMemoriaPrincipal = list_get(memoriasConocidas, 0);
+    pthread_mutex_unlock(mutexMemoriasConocidas);
     nodoMemoriaPrincipal->fdNodoMemoria = fdMemoriaPrincipal;
 
     pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion);
@@ -811,8 +815,9 @@ int gestionarAdd(char **parametrosDeRequest, p_planificacion *paramPlanificacion
 
         }
     }
+    pthread_mutex_lock(mutexMemoriasConocidas);
     list_iterate(memoriasConocidas, esMemoriaBuscada);
-
+    pthread_mutex_unlock(mutexMemoriasConocidas);
     if (haySuficientesMemorias && fdMemoriaSolicitada != NULL) {
 
         //BUSCO LA MEMORIA CORRESPONDIENTE A LA POSICION DESEADA
@@ -1177,7 +1182,9 @@ void conectarseANuevasMemorias(t_list* memoriasConocidas, GestorConexiones* misC
         }
 
     }
+    pthread_mutex_lock(mutexMemoriasConocidas);
     list_iterate(memoriasConocidas, conectarseANodoMemoria);
+    pthread_mutex_unlock(mutexMemoriasConocidas);
 }
 void gossiping(parametros_gossiping* parametros){
 
@@ -1185,7 +1192,9 @@ void gossiping(parametros_gossiping* parametros){
     GestorConexiones* misConexiones = (GestorConexiones*) parametros->misConexiones;
     t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
     t_log* logger = (t_log*) parametros->logger;
+    pthread_mutex_lock(mutexMemoriasConocidas);
     t_nodoMemoria* nodoMemoriaPrincipal = list_get(memoriasConocidas, 0);
+    pthread_mutex_unlock(mutexMemoriasConocidas);
     //t_configuracion* configuracion = (t_configuracion*) parametros->configuracion;
 
     int i = 0;

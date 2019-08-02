@@ -662,14 +662,11 @@ void* compactacion(void *parametrosThread) {
         pthread_mutex_lock(mutexTablasEnUso);
         pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
         pthread_mutex_unlock(mutexTablasEnUso);
-        time_t start1, end1, start2, end2;
+        time_t start1, end1;
         double total;
         pthread_mutex_lock(sem);
         start1 = clock();
         int existenTemporales = renombrarTemporales(nombreTabla);
-        pthread_mutex_unlock(sem);
-        end1 = clock();
-        total = (double) (end1 - start1);
         if (existenTemporales == 1) {
             char *bloquesBin = obtenerStringBloquesSegunExtension(nombreTabla, ".bin");
             char *bloquesTemp = obtenerStringBloquesSegunExtension(nombreTabla, ".tmpc");
@@ -685,8 +682,6 @@ void* compactacion(void *parametrosThread) {
             char **lineas = obtenerLineasDeBloques(bloques);
             if (tamanioDeArrayDeStrings(lineas) > 0) {
                 char **lineasMaximas = filtrarKeyMax(lineas);
-                pthread_mutex_lock(sem);
-                start2 = clock();
                 liberarBloques(bloques);
                 int tamanioArray = tamanioDeArrayDeStrings(lineasMaximas);
                 for (int j = 0; j < tamanioArray; j++) {
@@ -703,9 +698,6 @@ void* compactacion(void *parametrosThread) {
                 eliminarArchivosSegunExtension(nombreTabla, ".bin");
                 t_metadata *meta = obtenerMetadata(nombreTabla);
                 crearBinarios(nombreTabla, meta->partitions);
-                pthread_mutex_unlock(sem);
-                end2 = clock();
-                total += (double) (end2 - start2);
                 freeArrayDeStrings(lineasMaximas);
             }
             free(bloquesBin);
@@ -713,6 +705,9 @@ void* compactacion(void *parametrosThread) {
             free(bloquesTotales);
             freeArrayDeStrings(lineas);
         }
+        pthread_mutex_unlock(sem);
+        end1 = clock();
+        total = (double) (end1 - start1);
         //log_info(logger, "La tabla %s estuvo bloqueada por %f segundos.", nombreTabla,(double) (total / CLOCKS_PER_SEC));
     }
     free(nombreTabla);
@@ -785,12 +780,12 @@ char **filtrarKeyMax(char **listaLineas) {
     char **lineasSinRepetir = calloc(dictionary_size(keys) + 1, sizeof(char *));
     void* obtenerMaxTimestamp(char *keyD, char *valorD) {
         char *mayorLinea = string_new();
-        int mayorTimestamp = -1;
+        unsigned long long mayorTimestamp = 0;
         for (int i = 0; i < tamanioArray; i++) {
             char *listaLineasString = string_duplicate(listaLineas[i]);
             char **linea = desarmarLinea(listaLineasString);
             char *key = linea[1];
-            int timestamp = strtoull(linea[0], NULL, 10);
+            unsigned long long timestamp = strtoull(linea[0], NULL, 10);
             if (strcmp(keyD, key) == 0 && timestamp >= mayorTimestamp) {
                 vaciarString(&mayorLinea);
                 mayorTimestamp = timestamp;
@@ -798,7 +793,9 @@ char **filtrarKeyMax(char **listaLineas) {
             }
             free(listaLineasString);
         }
-        lineasSinRepetir[tamanioDeArrayDeStrings(lineasSinRepetir)] = string_duplicate(mayorLinea);
+        if(!string_is_empty(mayorLinea)){
+            lineasSinRepetir[tamanioDeArrayDeStrings(lineasSinRepetir)] = string_duplicate(mayorLinea);
+        }
     }
     dictionary_iterator(keys, (void *)obtenerMaxTimestamp);
     lineasSinRepetir[tamanioDeArrayDeStrings(lineasSinRepetir)] = NULL;
@@ -1085,9 +1082,9 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                         if (elemento != NULL) {
                             char **lineaPartida = desarmarLinea(elemento);
                             char **lineaPartida2 = desarmarLinea(mayorLinea);
-                            int mayorTimestampMem = strtoull(lineaPartida[0], NULL, 10);
+                            unsigned long long mayorTimestampMem = strtoull(lineaPartida[0], NULL, 10);
                             if (lineaPartida2[0]) {
-                                int mayorTimestampBlock = strtoull(lineaPartida2[0], NULL, 10);
+                                unsigned long long mayorTimestampBlock = strtoull(lineaPartida2[0], NULL, 10);
                                 if (mayorTimestampMem > mayorTimestampBlock) {
                                     mayorLinea = elemento;
                                 }
@@ -1136,7 +1133,7 @@ char *obtenerLineaMasReciente(char **bloques, char *key) {
     str[1] = '\0';
     char **palabras = NULL;
     char *mayorLinea = string_new();
-    int mayorTimestamp = 0;
+    unsigned long long mayorTimestamp = 0;
     int tamanioArray = tamanioDeArrayDeStrings(bloques);
 
     for (int i = 0; i < tamanioArray; i++) {
@@ -1872,10 +1869,10 @@ void *atenderConexiones(void *parametrosThread) {
 
 
 int main(int argc, char* argv[]) {
-    //char *nombrePruebaDebug = string_duplicate("prueba-lfs");
-    //char *rutaConfig = string_from_format("../../pruebas/%s/lfs/lfs.cfg", nombrePruebaDebug); //Para debuggear
+   // char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+//    char *rutaConfig = string_from_format("../../pruebas/%s/lfs/lfs.cfg", nombrePruebaDebug); //Para debuggear
     char *rutaConfig = string_from_format("../pruebas/%s/lfs/lfs.cfg", argv[1]); //Para ejecutar
-    //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
+//    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
     char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
 
     logger = log_create(rutaLogger, "Lissandra", false, LOG_LEVEL_INFO);

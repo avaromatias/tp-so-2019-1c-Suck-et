@@ -449,7 +449,9 @@ void asociarMemoryNumberAMemoria(Header header,char *mensaje,t_list *memoriasCon
 
         }
     }
+    pthread_mutex_lock(mutexMemoriasConocidas);
     list_iterate(memoriasConocidas, esMemoriaBuscada);
+    pthread_mutex_unlock(mutexMemoriasConocidas);
 }
 
 //GOSSIPING
@@ -486,7 +488,7 @@ void agregarIpMemoria(char* ipNuevaMemoria, int puertoNuevaMemoria, t_list* memo
             return false;
         }
     }
-
+    pthread_mutex_lock(mutexMemoriasConocidas);
     if (!list_any_satisfy(memoriasConocidas, sonMismaMemoria)){
 
 
@@ -496,8 +498,10 @@ void agregarIpMemoria(char* ipNuevaMemoria, int puertoNuevaMemoria, t_list* memo
         nuevoNodoMemoria->puertoNodoMemoria = puertoNuevaMemoria;
         nuevoNodoMemoria->fdNodoMemoria = 0;
         list_add(memoriasConocidas, nuevoNodoMemoria);
+        pthread_mutex_unlock(mutexMemoriasConocidas);
         log_info(logger, "Nueva memoria agregada a lista de memorias conocidas");
     }else{
+        pthread_mutex_unlock(mutexMemoriasConocidas);
         log_info(logger, "Memoria ya conocida");
     }
 }
@@ -549,8 +553,9 @@ void avisoNuevoNivelDeMultiProcesamiento(char* nuevoNivelDeMP, t_list* memoriasC
             enviarPaquete(unNodoMemoria->fdNodoMemoria, NIVEL_MULTIPROCESAMIENTO, REQUEST, nuevoNivelDeMP, -1);
         }
     }
-
+    pthread_mutex_lock(mutexMemoriasConocidas);
     list_iterate(memoriasConocidas, avisoNuevoNivelMP);
+    pthread_mutex_unlock(mutexMemoriasConocidas);
 }
 
 

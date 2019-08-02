@@ -120,6 +120,7 @@ typedef struct {
     double relojActual;
     t_list* memoriasConocidas;
     t_dictionary* diccionarioDePID;
+    pthread_mutex_t* mutexDiccionarioDePID;
 } p_planificacion;
 
 //Estructura necesaria para refrescar la Metadata del Kernel

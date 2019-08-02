@@ -120,18 +120,19 @@ void *atenderConexiones(void *parametrosThread) {
                                         agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
                                         break;
                                     case ERR:;
-                                        //char *PID = string_itoa(header.pid);
+                                        char *PID = string_itoa(header.pid);
 //                                        pthread_mutex_lock(mutexEstrucSupervisorHilos);
-                                        //pthread_mutex_t *semaforo = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PID);
                                         //t_semaforo_y_pid* unSemaforoYUnFd = (t_semaforo_y_pid*)dictionary_get(supervisorDeHilos, string_itoa(header.fdRemitente));
 //                                        pthread_mutex_unlock(mutexEstrucSupervisorHilos);
                                         //pthread_mutex_unlock(unSemaforoYUnFd->semaforo);
                                         pthread_mutex_lock(mutexJournal);
-                                        desbloquearSemaforoQueEsperabaRespuesta(diccionarioDePID, supervisorDeHilos, header.fdRemitente);
+                                        pthread_mutex_t* semaforo = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PID);
+                                        pthread_mutex_unlock(semaforo);
+                                        //desbloquearSemaforoQueEsperabaRespuesta(diccionarioDePID, supervisorDeHilos, header.fdRemitente);
                                         pthread_mutex_unlock(mutexJournal);
 
                                         //printf(mensaje);
-//                                        free(PID);
+                                        free(PID);
                                         break;
                                 }
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje

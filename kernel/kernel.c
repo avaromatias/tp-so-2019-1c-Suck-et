@@ -10,19 +10,11 @@
 #include "kernel.h"
 
 int main(int argc, char* argv[]) {
-<<<<<<< HEAD
-    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
-    char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
-    //char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
-    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
-    //char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
-=======
 //    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
 //    char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
     char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
 //    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
     char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
->>>>>>> d7ba22efd35c3d3b134a6eee052b15e1d4581b8b
 
     t_log *logger = log_create(rutaLogger, "kernel", false, LOG_LEVEL_INFO);
     printf("Iniciando el proceso Kernel.\n");
@@ -78,6 +70,8 @@ int main(int argc, char* argv[]) {
     t_dictionary *metadataTablas = dictionary_create(); //voy a tener el nombreTabla, criterio, particiones y tpo_Compactación
     t_dictionary *tablaDeMemoriasConCriterios = dictionary_create();//tendremos por cada criterio una lista de memorias
     t_dictionary* diccionarioDePID = dictionary_create();
+
+    pthread_mutex_t* mutexDiccionarioDePID = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t*));
 
     t_list *listaDeCriteriosSC = list_create();
     t_list *listaDeCriteriosSHC = list_create();
@@ -149,7 +143,7 @@ int main(int argc, char* argv[]) {
     paramPlanificacionGeneral->supervisorDeHilos = supervisorDeHilos;
     paramPlanificacionGeneral->memoriasUtilizables = memoriasUtilizables;
     paramPlanificacionGeneral->memoriasConocidas = memoriasConocidas;
-    paramPlanificacionGeneral->diccionarioDePID  = diccionarioDePID ;
+    paramPlanificacionGeneral->diccionarioDePID  = diccionarioDePID;
 
     //pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
 

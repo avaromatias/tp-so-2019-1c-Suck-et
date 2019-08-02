@@ -186,4 +186,5 @@ pthread_t *crearHiloMonitor(char *directorioAMonitorear, char *nombreArchivoConf
 t_datos_configuracion *instanciarDatosConfiguracion(t_configuracion *configuracion);
 
 
+
 #endif /* KERNEL_H_ */

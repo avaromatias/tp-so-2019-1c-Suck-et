@@ -68,7 +68,8 @@ typedef struct {
     t_queue *colaDeNew;
     sem_t* cantidadProcesosEnNew;
     t_datos_configuracion* datosConfiguracion;
-    pthread_mutex_t* mutexDatosConfiguracion
+    pthread_mutex_t* mutexDatosConfiguracion;
+    t_dictionary* diccionarioDePID;
 } parametros_thread_k;
 
 //Estructura necesaria para manejar las consistencias y la metadata
@@ -118,6 +119,7 @@ typedef struct {
     int memoriasUtilizables;
     double relojActual;
     t_list* memoriasConocidas;
+    t_dictionary* diccionarioDePID;
 } p_planificacion;
 
 //Estructura necesaria para refrescar la Metadata del Kernel
@@ -148,7 +150,7 @@ p_planificacion *paramPlanificacionGeneral;
 
 //Conexión con Memoria
 //crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion);
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios, t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion);
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios, t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion, pthread_mutex_t* diccionarioDePID);
 
 void *atenderConexiones(void *parametrosThread);
 
@@ -160,7 +162,7 @@ void desconexionMemoria(int fdConectado, GestorConexiones *conexiones, t_diction
                         t_log *logger, pthread_mutex_t *mutexJournal);
 
 void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dictionary *supervisorDeHilos,
-                        t_dictionary *memoriasConCriterios, t_dictionary *metadata, char *mensaje, t_log *logger);
+                        t_dictionary *memoriasConCriterios, t_dictionary *metadata, char *mensaje, t_log *logger, pthread_mutex_t* mutexJournal);
 
 char **obtenerDatosDeConexion(char *datosConexionMemoria); //para Gossiping
 
@@ -180,4 +182,9 @@ void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *
 
 void avisoNuevoNivelDeMultiProcesamiento(char* nuevoNivelDeMP, t_list* memoriasConocidas);
 
+
+typedef struct {
+ pthread_mutex_t* semaforo;
+ int fdAsociado;
+}t_semaforo_y_pid;
 #endif //KERNEL_CONEXIONES_H

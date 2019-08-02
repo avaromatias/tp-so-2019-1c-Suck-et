@@ -10,11 +10,11 @@
 #include "kernel.h"
 
 int main(int argc, char* argv[]) {
-    //char *nombrePruebaDebug = string_duplicate("prueba-lfs");
-    //char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
-    char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
-    //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
-    char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
+    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+    char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
+    //char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
+    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
+    //char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
 
     t_log *logger = log_create(rutaLogger, "kernel", false, LOG_LEVEL_INFO);
     printf("Iniciando el proceso Kernel.\n");
@@ -67,6 +67,7 @@ int main(int argc, char* argv[]) {
 
     t_dictionary *metadataTablas = dictionary_create(); //voy a tener el nombreTabla, criterio, particiones y tpo_Compactación
     t_dictionary *tablaDeMemoriasConCriterios = dictionary_create();//tendremos por cada criterio una lista de memorias
+    t_dictionary* diccionarioDePID = dictionary_create();
 
     t_list *listaDeCriteriosSC = list_create();
     t_list *listaDeCriteriosSHC = list_create();
@@ -88,7 +89,7 @@ int main(int argc, char* argv[]) {
     t_nodoMemoria *nodoMemoriaPrincipal = list_get(memoriasConocidas, 0);
     nodoMemoriaPrincipal->fdNodoMemoria = fdMemoriaPrincipal;
 
-    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion);
+    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion, diccionarioDePID);
 
     p_consola_kernel *pConsolaKernel = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
@@ -109,8 +110,11 @@ int main(int argc, char* argv[]) {
     parametrosPLP->logger = logger;
     parametrosPLP->mutexContadorPID = mutexContadorPID;
 
+
+
+
 //    pthread_t *hiloRefreshMetadata = crearHiloRefreshMetadata(pConsolaKernel, configuracion.refreshMetadata, metadataTablas, logger);
-    pthread_t *hiloMonitor = (pthread_t*) crearHiloMonitor(configuracion.directorioAMonitorear, "kernel.cfg", logger, datosConfiguracion, mutexDatosConfiguracion, memoriasConocidas);
+    //pthread_t *hiloMonitor = (pthread_t*) crearHiloMonitor(configuracion.directorioAMonitorear, "kernel.cfg", logger, datosConfiguracion, mutexDatosConfiguracion, memoriasConocidas);
     pthread_t *hiloPlanificadorLargoPlazo = crearHiloPlanificadorLargoPlazo(parametrosPLP);
     pthread_t *hiloGossiping = (pthread_t *) crearHiloGossiping(misConexiones, memoriasConocidas, logger);
 
@@ -133,6 +137,7 @@ int main(int argc, char* argv[]) {
     paramPlanificacionGeneral->supervisorDeHilos = supervisorDeHilos;
     paramPlanificacionGeneral->memoriasUtilizables = memoriasUtilizables;
     paramPlanificacionGeneral->memoriasConocidas = memoriasConocidas;
+    paramPlanificacionGeneral->diccionarioDePID  = diccionarioDePID ;
 
     //pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
 
@@ -146,12 +151,12 @@ int main(int argc, char* argv[]) {
     pthread_join(*hiloRespuestas, NULL);
     pthread_join(*hiloGossiping, NULL);
     pthread_join(*hiloPlanificadorLargoPlazo, NULL);
-    pthread_join(*hiloMonitor, NULL);
+    //pthread_join(*hiloMonitor, NULL);
 
     pthread_detach(*hiloRespuestas);
     pthread_detach(*hiloGossiping);
     pthread_detach(*hiloPlanificadorLargoPlazo);
-    pthread_detach(*hiloMonitor);
+    //pthread_detach(*hiloMonitor);
 
     //free(nombrePruebaDebug); //TODO: Si se esta ejecutando comentar esta linea
     free(rutaConfig);
@@ -450,6 +455,13 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
     int fdMemoria;
     int respuesta;
     t_log *logger = pConsolaKernel->logger;
+    //Diccionario con key fd que contiene colas;
+    //Cola de pids
+    //Diccionario de semaforos con key PID
+
+    t_dictionary* diccionarioDePID = (t_dictionary*) paramPlanifGeneral->diccionarioDePID;
+
+
 
     if (paramPlanifGeneral->memoriasUtilizables > 0) {
 
@@ -464,6 +476,17 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     criterio = criterioBuscado(requestParseada, pConsolaKernel->metadataTablas);
                     int key = atoi(requestParseada.parametros[1]);
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterio, key, mutexDeHiloRequest);
+
+                    if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
+                        t_queue* colaDePIDS = (t_queue*) dictionary_get(diccionarioDePID, string_itoa(fdMemoria));
+                        queue_push(colaDePIDS, PIDCasteado);
+                        dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
+                    }else{
+                        t_queue* colaDePIDS = queue_create();
+                        queue_push(colaDePIDS, PIDCasteado);
+                        dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
+                    }
+
                     respuesta = gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                                           fdMemoria, PID, estadisticasRequest);
 //                    t_list *listaCriterio = getListaMetricasPorCriterio(criterioConsistencia);
@@ -488,6 +511,17 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     if (criterio != NULL) {
                         int key = atoi(requestParseada.parametros[2]);
                         fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterio, key, mutexDeHiloRequest);
+
+                        if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
+                            t_queue* colaDePIDS = (t_queue*) dictionary_get(diccionarioDePID, string_itoa(fdMemoria));
+                            queue_push(colaDePIDS, PIDCasteado);
+                            dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
+                        }else{
+                            t_queue* colaDePIDS = queue_create();
+                            queue_push(colaDePIDS, PIDCasteado);
+                            dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
+                        }
+
                         respuesta = gestionarInsertKernel(requestParseada.parametros[0],
                                                               requestParseada.parametros[1],
                                                               requestParseada.parametros[2], fdMemoria, PID,
@@ -516,6 +550,17 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                 criterio = criterioBuscado(requestParseada, pConsolaKernel->metadataTablas);
                 if (criterio != NULL) {
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterio, NULL, mutexDeHiloRequest);
+
+                    if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
+                        t_queue* colaDePIDS = (t_queue*) dictionary_get(diccionarioDePID, string_itoa(fdMemoria));
+                        queue_push(colaDePIDS, PIDCasteado);
+                        dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
+                    }else{
+                        t_queue* colaDePIDS = queue_create();
+                        queue_push(colaDePIDS, PIDCasteado);
+                        dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
+                    }
+
                     return gestionarCreateKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                                  requestParseada.parametros[2], requestParseada.parametros[3],
                                                  fdMemoria, PID);
@@ -529,6 +574,17 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                 if (dictionary_has_key(pConsolaKernel->metadataTablas, requestParseada.parametros[0])) {
                     criterio = criterioBuscado(requestParseada, pConsolaKernel->metadataTablas);
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterio, NULL, mutexDeHiloRequest);
+
+                    if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
+                        t_queue* colaDePIDS = (t_queue*) dictionary_get(diccionarioDePID, string_itoa(fdMemoria));
+                        queue_push(colaDePIDS, PIDCasteado);
+                        dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
+                    }else{
+                        t_queue* colaDePIDS = queue_create();
+                        queue_push(colaDePIDS, PIDCasteado);
+                        dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
+                    }
+
                     return gestionarDropKernel(requestParseada.parametros[0], fdMemoria, PID);
                 } else {
                     log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
@@ -544,6 +600,17 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     if (dictionary_has_key(pConsolaKernel->metadataTablas, requestParseada.parametros[0])) {
                         criterio = criterioBuscado(requestParseada, pConsolaKernel->metadataTablas);
                         fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterio, NULL, mutexDeHiloRequest);
+
+                        if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
+                            t_queue* colaDePIDS = (t_queue*) dictionary_get(diccionarioDePID, string_itoa(fdMemoria));
+                            queue_push(colaDePIDS, PIDCasteado);
+                            dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
+                        }else{
+                            t_queue* colaDePIDS = queue_create();
+                            queue_push(colaDePIDS, PIDCasteado);
+                            dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
+                        }
+
                         return gestionarDescribeTablaKernel(requestParseada.parametros[0], fdMemoria, PID);
                     } else {
                         log_error(logger, "La tabla no se encuentra dentro de la Metadata conocida.");
@@ -553,6 +620,17 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     }
                 } else {
                     fdMemoria = seleccionarMemoriaParaDescribe(pConsolaKernel);
+
+                    if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
+                        t_queue* colaDePIDS = (t_queue*) dictionary_get(diccionarioDePID, string_itoa(fdMemoria));
+                        queue_push(colaDePIDS, PIDCasteado);
+                        dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
+                    }else{
+                        t_queue* colaDePIDS = queue_create();
+                        queue_push(colaDePIDS, PIDCasteado);
+                        dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
+                    }
+
                     return gestionarDescribeGlobalKernel(fdMemoria, PID);
                 }
             case JOURNAL:

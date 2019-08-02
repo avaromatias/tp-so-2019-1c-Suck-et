@@ -90,6 +90,7 @@ typedef struct {
     sem_t *cantidadProcesosEnNew;
     sem_t *cantidadProcesosEnReady;
     int contadorPID;
+    pthread_mutex_t* mutexContadorPID;
     t_log *logger;
 } parametros_plp;
 

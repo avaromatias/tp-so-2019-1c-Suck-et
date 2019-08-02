@@ -40,6 +40,8 @@ int main(int argc, char* argv[]) {
     sem_init(mutexListaFinalizados, 0, 1);
     sem_init(cantidadProcesosEnNew, 0, 0);
     sem_init(cantidadProcesosEnReady, 0, 0);
+    pthread_mutex_t* mutexContadorPID = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(mutexContadorPID, NULL);
 
     t_configuracion configuracion = cargarConfiguracion(rutaConfig, logger);
 
@@ -105,6 +107,7 @@ int main(int argc, char* argv[]) {
     parametrosPLP->cantidadProcesosEnReady = cantidadProcesosEnReady;
     parametrosPLP->contadorPID = contadorPIDs;
     parametrosPLP->logger = logger;
+    parametrosPLP->mutexContadorPID = mutexContadorPID;
 
 //    pthread_t *hiloRefreshMetadata = crearHiloRefreshMetadata(pConsolaKernel, configuracion.refreshMetadata, metadataTablas, logger);
     pthread_t *hiloMonitor = (pthread_t*) crearHiloMonitor(configuracion.directorioAMonitorear, "kernel.cfg", logger, datosConfiguracion, mutexDatosConfiguracion, memoriasConocidas);
@@ -553,7 +556,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     return gestionarDescribeGlobalKernel(fdMemoria, PID);
                 }
             case JOURNAL:
-                respuesta = gestionarJournalKernel(paramPlanifGeneral);
+                respuesta = gestionarJournalKernel(paramPlanifGeneral, PID);
                 pthread_mutex_unlock(mutexDeHiloRequest);
                 return respuesta;
         } //fin del switch
@@ -685,20 +688,22 @@ int gestionarDescribeGlobalKernel(int fdMemoria, int PID) {
     return 0;
 }
 
-int gestionarJournalKernel(p_planificacion *paramPlanifGeneral) {
+int gestionarJournalKernel(p_planificacion *paramPlanifGeneral, int PID) {
     p_consola_kernel *pConsolaKernel = paramPlanifGeneral->parametrosConsola;
     t_list *memoriasConectadas = pConsolaKernel->conexiones->conexiones;
     int cantidadMemoriasConectadas = list_size(memoriasConectadas);
 
     for (int i = 0; i < cantidadMemoriasConectadas; i++) {
         int *memoriaSeleccionada = list_get(memoriasConectadas, i);
-        enviarJournal(*memoriaSeleccionada, paramPlanifGeneral);
+        enviarJournal(*memoriaSeleccionada, paramPlanifGeneral, PID);
     }
     return 0;
 }
 
-void enviarJournal(int fdMemoria, p_planificacion *paramPlanifGeneral) {
-    int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
+void enviarJournal(int fdMemoria, p_planificacion *paramPlanifGeneral, int PID) {
+    //int PID = paramPlanifGeneral->parametrosPLP->contadorPID;
+    //int PID = getUltimoValorPID(paramPlanifGeneral->parametrosPLP);
+    //paramPlanifGeneral->parametrosPLP->contadorPID++;
 
     char *PIDCasteado = string_itoa(PID);
     pthread_mutex_t *mutexDeHiloRequest;
@@ -724,8 +729,8 @@ t_archivoLQL *crearLQL(parametros_plp *parametrosPLP) {
     t_archivoLQL *unLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
     unLQL->colaDeRequests = queue_create();
     unLQL->cantidadDeLineas = 0;
-    unLQL->PID = parametrosPLP->contadorPID;
-    parametrosPLP->contadorPID++;
+    unLQL->PID = getUltimoValorPID(parametrosPLP);
+    //parametrosPLP->contadorPID++;
     return unLQL;
 }
 
@@ -1038,7 +1043,7 @@ t_archivoLQL *convertirRequestALQL(t_comando *requestParseada, parametros_plp *p
     t_archivoLQL *unLQL = (t_archivoLQL *) malloc(sizeof(t_archivoLQL));
 
     unLQL->colaDeRequests = queue_create();
-    unLQL->PID = parametrosPLP->contadorPID;
+    unLQL->PID = getUltimoValorPID(parametrosPLP);
 
 
     queue_push(unLQL->colaDeRequests, requestParseada);
@@ -1423,6 +1428,14 @@ void free__char_as_as(char** comandoALiberar){
         free(comandoALiberar[i]);
     }
     free(comandoALiberar);
+}
+
+int getUltimoValorPID(parametros_plp* parametrosPLP){
+    int contadorPID = (int)parametrosPLP->contadorPID;
+    pthread_mutex_lock( (pthread_mutex_t*) parametrosPLP->mutexContadorPID);
+    parametrosPLP->contadorPID++;
+    pthread_mutex_unlock((pthread_mutex_t*) parametrosPLP->mutexContadorPID);
+    return contadorPID;
 }
 /*
 void free__comando(t_comando* comando){

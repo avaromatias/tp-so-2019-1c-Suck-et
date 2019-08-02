@@ -504,13 +504,6 @@ t_response *lfsDrop(char *nombreTabla) {
             pthread_mutex_unlock(mutexTablasEnUso);
             pthread_mutex_lock(semaforoTabla);
             pthread_mutex_unlock(semaforoTabla);
-        } else {
-            pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
-            int init = pthread_mutex_init(semaforoTabla, NULL);
-            dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
-            pthread_mutex_unlock(mutexTablasEnUso);
-            pthread_mutex_lock(semaforoTabla);
-            pthread_mutex_unlock(semaforoTabla);
         }
 
         pthread_mutex_lock(mutexHilosTablas);
@@ -741,16 +734,17 @@ void eliminarArchivosSegunExtension(char *nombreTabla, char *extension) {
 
 void liberarBloques(char **nroBloques) {
     int tamanioArray = tamanioDeArrayDeStrings(nroBloques);
+    pthread_mutex_lock(mutexAsignacionBloques);
     for (int i = 0; i < tamanioArray; i++) {
         liberarBloque(nroBloques[i]);
     }
+    pthread_mutex_unlock(mutexAsignacionBloques);
     freeArrayDeStrings(nroBloques);
 }
 
 void liberarBloque(char *nroBloque) {
     char *bloquePath = obtenerPathBloque(atoi(nroBloque));
     vaciarArchivo(bloquePath);
-    pthread_mutex_lock(mutexAsignacionBloques);
     if (dictionary_has_key(bloquesAsignados, nroBloque)) {
         t_bloqueAsignado *bloque = dictionary_get(bloquesAsignados, nroBloque);
         free(bloque->tabla);
@@ -761,7 +755,6 @@ void liberarBloque(char *nroBloque) {
     bitarray_clean_bit(bitarray, atoi(nroBloque));
     pthread_mutex_unlock(mutexBitarray);
     free(bloquePath);
-    pthread_mutex_unlock(mutexAsignacionBloques);
 }
 
 char **filtrarKeyMax(char **listaLineas) {
@@ -838,14 +831,6 @@ t_response *lfsInsert(char *nombreTabla, char *key, char *valor, unsigned long l
             pthread_mutex_lock(mutexTablasEnUso);
             if (dictionary_has_key(tablasEnUso, nombreTabla)) {
                 pthread_mutex_t *semaforoTabla = dictionary_get(tablasEnUso, nombreTabla);
-                pthread_mutex_unlock(mutexTablasEnUso);
-                pthread_mutex_lock(semaforoTabla);
-                pthread_mutex_unlock(semaforoTabla);
-            } else {
-                pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
-                int init = pthread_mutex_init(semaforoTabla, NULL);
-                pthread_mutex_unlock(semaforoTabla);
-                dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
                 pthread_mutex_unlock(mutexTablasEnUso);
                 pthread_mutex_lock(semaforoTabla);
                 pthread_mutex_unlock(semaforoTabla);
@@ -1019,18 +1004,11 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
 
     //1. Verificar que la tabla exista en el File System
     if (existeTabla(nombreTabla) == 0) {
-//        if (dictionary_has_key(tablasEnUso, nombreTabla)) {
-//            pthread_mutex_t *semaforoTabla = dictionary_get(tablasEnUso, nombreTabla);
-//            pthread_mutex_lock(semaforoTabla);
-//            pthread_mutex_unlock(semaforoTabla);
-//        } else {
-//            pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
-//            int init = pthread_mutex_init(semaforoTabla, NULL);
-//            pthread_mutex_unlock(semaforoTabla);
-//            dictionary_put(tablasEnUso, nombreTabla, semaforoTabla);
-//            pthread_mutex_lock(semaforoTabla);
-//            pthread_mutex_unlock(semaforoTabla);
-//        }
+        if (dictionary_has_key(tablasEnUso, nombreTabla)) {
+            pthread_mutex_t *semaforoTabla = dictionary_get(tablasEnUso, nombreTabla);
+            pthread_mutex_lock(semaforoTabla);
+            pthread_mutex_unlock(semaforoTabla);
+        }
 
         char *path = obtenerPathMetadata(nombreTabla, configuracion.puntoMontaje);
         if (existeElArchivo(path)) {
@@ -1081,7 +1059,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                             unsigned long long mayorTimestampMem = strtoull(lineaPartida[0], NULL, 10);
                             if (lineaPartida2[0]) {
                                 unsigned long long mayorTimestampBlock = strtoull(lineaPartida2[0], NULL, 10);
-                                if (mayorTimestampMem > mayorTimestampBlock) {
+                                if (mayorTimestampMem >= mayorTimestampBlock) {
                                     mayorLinea = elemento;
                                 }
                             } else {
@@ -1542,6 +1520,7 @@ void cargarBloquesAsignados(char *path) {
             free(nombreTabla);
             continue;
         }
+        // TODO validar que haya tablas existentes en el directorio de tablas
         pthread_mutex_t *semaforoTabla = malloc(sizeof(pthread_mutex_t));
         int init = pthread_mutex_init(semaforoTabla, NULL);
         pthread_mutex_lock(mutexTablasEnUso);

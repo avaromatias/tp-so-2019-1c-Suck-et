@@ -263,35 +263,31 @@ int obtenerBloqueDisponible(char *nombreTabla, int particion) {
 
 
 void retardo() {
-    t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
-    if (config_has_property(archivoConfig, "RETARDO")) {
-        int retardo = config_get_int_value(archivoConfig, "RETARDO");
+    int retardo = configuracion.retardo;
+    if (retardo != NULL) {
         if (retardo < 0) {
-            //log_error(logger, "El RETARDO no esta seteado en el Archivo de Configuracion.");
-            printf("El RETARDO no esta seteado en el Archivo de Configuracion.\n");
+            //log_error(logger, "El retardo no esta seteado en el archivo de configuracion o es invalido.");
+            printf("El retardo no esta seteado en el archivo de configuracion o es invalido.\n");
             fflush(stdout);
             return;
         }
         retardo = retardo / 1000;
         sleep(retardo);
     }
-    config_destroy(archivoConfig);
     return;
 }
 
 void* lfsDump() {
     while (1) {
-        t_config *archivoConfig = abrirArchivoConfiguracion("../lfs.cfg", logger);
-        if (config_has_property(archivoConfig, "TIEMPO_DUMP")) {
-            int tiempoDump = config_get_int_value(archivoConfig, "TIEMPO_DUMP");
-            if (!tiempoDump) {
-                //log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
-                printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
+        int tiempoDump = configuracion.tiempoDump;
+        if (tiempoDump != NULL) {
+            if (tiempoDump < 0) {
+                //log_error(logger, "El tiempo dump no esta seteado en el archivo de configuracion o es invalido.");
+                printf("El tiempo dump no esta seteado en el archivo de configuracion o es invalido.\n");
                 fflush(stdout);
                 continue;
             }
             tiempoDump = tiempoDump / 1000;
-            config_destroy(archivoConfig);
             sleep(tiempoDump);
             //log_info(logger,"Iniciando Proceso de Dump.");
             void* dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
@@ -1869,11 +1865,11 @@ void *atenderConexiones(void *parametrosThread) {
 
 
 int main(int argc, char* argv[]) {
-   // char *nombrePruebaDebug = string_duplicate("prueba-lfs");
-//    char *rutaConfig = string_from_format("../../pruebas/%s/lfs/lfs.cfg", nombrePruebaDebug); //Para debuggear
-    char *rutaConfig = string_from_format("../pruebas/%s/lfs/lfs.cfg", argv[1]); //Para ejecutar
-//    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
-    char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
+    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+    char *rutaConfig = string_from_format("../pruebas/%s/lfs/lfs.cfg", nombrePruebaDebug); //Para debuggear
+    //char *rutaConfig = string_from_format("../pruebas/%s/lfs/lfs.cfg", argv[1]); //Para ejecutar
+    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
+    //char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
 
     logger = log_create(rutaLogger, "Lissandra", false, LOG_LEVEL_INFO);
 

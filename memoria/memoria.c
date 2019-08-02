@@ -613,8 +613,6 @@ t_pagina* eliminarPaginaLruEInsertarNueva(t_reemplazo_pagina* tipoReemplazoPagin
     //la pagina que obtiene está llegando sin un char* key
     //dictionary_remove_and_destroy(tablaDePaginas, paginaLRU->key, &eliminarPagina);
     t_pagina* unaPagina = dictionary_remove(tablaDePaginasParaBorrar, tipoReemplazoPaginaLRU->paginaLRU->key);
-    printf("\n%s\n", unaPagina->key);
-    fflush(stdout);
     unaPagina->marco->ocupado = false;
     memoria->marcosOcupados--;
     free(unaPagina);
@@ -950,6 +948,10 @@ int getTamanioValue(t_parametros_conexion_lissandra parametrosLissandra, t_log* 
             log_error(logger, "Se cerró la conexión con Lissandra. Finalizando memoria.");
             exit(-1);
         }
+    }
+    else    {
+        log_error(logger, "No se pudo establecer la conexión con Lissandra. Cerrando el proceso.");
+        exit(-1);
     }
     cerrarSocket(conexionLissandra, logger);
 }

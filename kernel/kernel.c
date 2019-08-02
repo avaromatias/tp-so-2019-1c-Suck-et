@@ -10,10 +10,10 @@
 #include "kernel.h"
 
 int main(int argc, char* argv[]) {
-//    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
-//    char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
+    //char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+    //char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
     char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
-//    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
+    //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
     char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
 
     t_log *logger = log_create(rutaLogger, "kernel", false, LOG_LEVEL_INFO);
@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) {
     pthread_mutex_unlock(mutexMemoriasConocidas);
     nodoMemoriaPrincipal->fdNodoMemoria = fdMemoriaPrincipal;
 
-    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion, diccionarioDePID);
+    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion, diccionarioDePID, mutexDiccionarioDePID);
 
     p_consola_kernel *pConsolaKernel = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
@@ -144,6 +144,7 @@ int main(int argc, char* argv[]) {
     paramPlanificacionGeneral->memoriasUtilizables = memoriasUtilizables;
     paramPlanificacionGeneral->memoriasConocidas = memoriasConocidas;
     paramPlanificacionGeneral->diccionarioDePID  = diccionarioDePID;
+    paramPlanificacionGeneral->mutexDiccionarioDePID = mutexDiccionarioDePID;
 
     //pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
 
@@ -466,6 +467,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
     //Diccionario de semaforos con key PID
 
     t_dictionary* diccionarioDePID = (t_dictionary*) paramPlanifGeneral->diccionarioDePID;
+    pthread_mutex_t* mutexDiccionarioDePID = (pthread_mutex_t*) paramPlanifGeneral->mutexDiccionarioDePID;
 
 
 
@@ -483,6 +485,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     int key = atoi(requestParseada.parametros[1]);
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterio, key, mutexDeHiloRequest);
 
+                    pthread_mutex_lock(mutexDiccionarioDePID);
                     if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
                         t_queue* colaDePIDS = (t_queue*) dictionary_get(diccionarioDePID, string_itoa(fdMemoria));
                         queue_push(colaDePIDS, PIDCasteado);
@@ -492,6 +495,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                         queue_push(colaDePIDS, PIDCasteado);
                         dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
                     }
+                    pthread_mutex_unlock(mutexDiccionarioDePID);
 
                     respuesta = gestionarSelectKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                                           fdMemoria, PID, estadisticasRequest);
@@ -518,6 +522,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                         int key = atoi(requestParseada.parametros[2]);
                         fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterio, key, mutexDeHiloRequest);
 
+                        pthread_mutex_lock(mutexDiccionarioDePID);
                         if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
                             t_queue* colaDePIDS = (t_queue*) dictionary_get(diccionarioDePID, string_itoa(fdMemoria));
                             queue_push(colaDePIDS, PIDCasteado);
@@ -527,6 +532,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                             queue_push(colaDePIDS, PIDCasteado);
                             dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
                         }
+                        pthread_mutex_unlock(mutexDiccionarioDePID);
 
                         respuesta = gestionarInsertKernel(requestParseada.parametros[0],
                                                               requestParseada.parametros[1],
@@ -557,6 +563,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                 if (criterio != NULL) {
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterio, NULL, mutexDeHiloRequest);
 
+                    pthread_mutex_lock(mutexDiccionarioDePID);
                     if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
                         t_queue* colaDePIDS = (t_queue*) dictionary_get(diccionarioDePID, string_itoa(fdMemoria));
                         queue_push(colaDePIDS, PIDCasteado);
@@ -566,6 +573,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                         queue_push(colaDePIDS, PIDCasteado);
                         dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
                     }
+                    pthread_mutex_unlock(mutexDiccionarioDePID);
 
                     return gestionarCreateKernel(requestParseada.parametros[0], requestParseada.parametros[1],
                                                  requestParseada.parametros[2], requestParseada.parametros[3],
@@ -581,6 +589,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                     criterio = criterioBuscado(requestParseada, pConsolaKernel->metadataTablas);
                     fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterio, NULL, mutexDeHiloRequest);
 
+                    pthread_mutex_lock(mutexDiccionarioDePID);
                     if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
                         t_queue* colaDePIDS = (t_queue*) dictionary_get(diccionarioDePID, string_itoa(fdMemoria));
                         queue_push(colaDePIDS, PIDCasteado);
@@ -590,6 +599,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                         queue_push(colaDePIDS, PIDCasteado);
                         dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
                     }
+                    pthread_mutex_unlock(mutexDiccionarioDePID);
 
                     return gestionarDropKernel(requestParseada.parametros[0], fdMemoria, PID);
                 } else {
@@ -607,6 +617,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                         criterio = criterioBuscado(requestParseada, pConsolaKernel->metadataTablas);
                         fdMemoria = seleccionarMemoriaIndicada(pConsolaKernel, criterio, NULL, mutexDeHiloRequest);
 
+                        pthread_mutex_lock(mutexDiccionarioDePID);
                         if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
                             t_queue* colaDePIDS = (t_queue*) dictionary_get(diccionarioDePID, string_itoa(fdMemoria));
                             queue_push(colaDePIDS, PIDCasteado);
@@ -616,6 +627,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                             queue_push(colaDePIDS, PIDCasteado);
                             dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
                         }
+                        pthread_mutex_unlock(mutexDiccionarioDePID);
 
                         return gestionarDescribeTablaKernel(requestParseada.parametros[0], fdMemoria, PID);
                     } else {
@@ -627,6 +639,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                 } else {
                     fdMemoria = seleccionarMemoriaParaDescribe(pConsolaKernel);
 
+                    pthread_mutex_lock(mutexDiccionarioDePID);
                     if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
                         t_queue* colaDePIDS = (t_queue*) dictionary_get(diccionarioDePID, string_itoa(fdMemoria));
                         queue_push(colaDePIDS, PIDCasteado);
@@ -636,6 +649,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                         queue_push(colaDePIDS, PIDCasteado);
                         dictionary_put(diccionarioDePID, string_itoa(fdMemoria), colaDePIDS);
                     }
+                    pthread_mutex_unlock(mutexDiccionarioDePID);
 
                     return gestionarDescribeGlobalKernel(fdMemoria, PID);
                 }

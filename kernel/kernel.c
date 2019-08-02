@@ -10,7 +10,8 @@
 #include "kernel.h"
 
 int main(int argc, char* argv[]) {
-    //char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+    //char *nombrePruebaDebug = string_duplicate("stress");
+
     //char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
     char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
     //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
@@ -71,7 +72,8 @@ int main(int argc, char* argv[]) {
     t_dictionary *tablaDeMemoriasConCriterios = dictionary_create();//tendremos por cada criterio una lista de memorias
     t_dictionary* diccionarioDePID = dictionary_create();
 
-    pthread_mutex_t* mutexDiccionarioDePID = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t*));
+    pthread_mutex_t* mutexDiccionarioDePID = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(mutexDiccionarioDePID, NULL);
 
     t_list *listaDeCriteriosSC = list_create();
     t_list *listaDeCriteriosSHC = list_create();
@@ -95,7 +97,7 @@ int main(int argc, char* argv[]) {
     pthread_mutex_unlock(mutexMemoriasConocidas);
     nodoMemoriaPrincipal->fdNodoMemoria = fdMemoriaPrincipal;
 
-    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion, diccionarioDePID, mutexDiccionarioDePID);
+    pthread_t *hiloRespuestas = (pthread_t*)crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion, diccionarioDePID, mutexDiccionarioDePID);
 
     p_consola_kernel *pConsolaKernel = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
@@ -121,7 +123,7 @@ int main(int argc, char* argv[]) {
 
 //    pthread_t *hiloRefreshMetadata = crearHiloRefreshMetadata(pConsolaKernel, configuracion.refreshMetadata, metadataTablas, logger);
     //pthread_t *hiloMonitor = (pthread_t*) crearHiloMonitor(configuracion.directorioAMonitorear, "kernel.cfg", logger, datosConfiguracion, mutexDatosConfiguracion, memoriasConocidas);
-    pthread_t *hiloPlanificadorLargoPlazo = crearHiloPlanificadorLargoPlazo(parametrosPLP);
+    pthread_t *hiloPlanificadorLargoPlazo = (pthread_t*) crearHiloPlanificadorLargoPlazo(parametrosPLP);
     pthread_t *hiloGossiping = (pthread_t *) crearHiloGossiping(misConexiones, memoriasConocidas, logger);
 
     parametros_pcp *parametrosPCP = (parametros_pcp *) malloc(sizeof(parametros_pcp));
@@ -350,7 +352,6 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
                 "MULTIPROCESAMIENTO",
                 "METADATA_REFRESH",
                 "SLEEP_EJECUCION",
-                "DIRECTORIO_CONFIGURACION"
         };
 
         for (int i = 0; i < COUNT_OF(clavesObligatorias); i++) {
@@ -637,7 +638,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
                         return -1;
                     }
                 } else {
-                    fdMemoria = seleccionarMemoriaParaDescribe(pConsolaKernel);
+                    fdMemoria = (int)seleccionarMemoriaParaDescribe(pConsolaKernel);
 
                     pthread_mutex_lock(mutexDiccionarioDePID);
                     if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
@@ -1294,7 +1295,7 @@ void gossiping(parametros_gossiping* parametros){
     int i = 0;
     while (1){
 
-        sleep(20); //corregir para que se pueda ingresar por archivo configuracion
+        sleep(10); //corregir para que se pueda ingresar por archivo configuracion
         enviarPaquete(nodoMemoriaPrincipal->fdNodoMemoria, GOSSIPING, INVALIDO, "DAME_LISTA_GOSSIPING", -1);
         conectarseANuevasMemorias(memoriasConocidas, misConexiones, logger);
         i++;
@@ -1497,7 +1498,7 @@ void refreshMetadata(t_refreshMetadata *parametros) {
 
     while (1) {
         sleep(tiempoDeRefresh);
-        fdMemoria = seleccionarMemoriaParaDescribe(pConsolaKernel);
+        fdMemoria = (int)seleccionarMemoriaParaDescribe(pConsolaKernel);
         int resultado = gestionarDescribeGlobalKernel(fdMemoria, PID);
         if (resultado == 0) {
             log_info(logger, "Se actualizó correctamente la metadata del kernel.\n");

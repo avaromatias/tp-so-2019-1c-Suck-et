@@ -185,6 +185,7 @@ pthread_t *crearHiloMonitor(char *directorioAMonitorear, char *nombreArchivoConf
 
 t_datos_configuracion *instanciarDatosConfiguracion(t_configuracion *configuracion);
 
-
+void errorNoHayMemoriasAsociadas(t_log *logger);
+int getUltimoValorPID(parametros_plp* parametrosPLP);
 
 #endif /* KERNEL_H_ */

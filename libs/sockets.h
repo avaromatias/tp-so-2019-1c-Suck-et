@@ -52,6 +52,7 @@ typedef struct  {
     int descriptorMaximo;
     int servidor;
     t_list* conexiones;
+    pthread_mutex_t mutexConexiones;
 } GestorConexiones;
 
 typedef struct	{

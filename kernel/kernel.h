@@ -107,13 +107,13 @@ int gestionarAdd(char **parametrosDeRequest, p_planificacion *paramPlanificacion
 
 int gestionarRun(char *pathArchivo, p_consola_kernel *parametros, parametros_plp *parametrosPLP, char *nombreLQL);
 
-int gestionarJournalKernel(p_planificacion *paramPlanifGeneral);
+int gestionarJournalKernel(p_planificacion *paramPlanifGeneral, int PID);
 
 int diferenciarRequest(t_comando requestParseada);
 
 int extensionCorrecta(char *direccionAbsoluta);
 
-void enviarJournal(int memoriaSeleccionada, p_planificacion *paramPlanifGeneral);
+void enviarJournal(int memoriaSeleccionada, p_planificacion *paramPlanifGeneral, int PID);
 
 void free__char_as_as(char **comandoALiberar);
 

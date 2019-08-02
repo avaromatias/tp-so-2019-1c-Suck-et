@@ -143,9 +143,11 @@ bool hayNuevoMensaje(GestorConexiones* unaConexion, fd_set* emisores)    {
 int conectarseAServidor(char* ip, int puerto, GestorConexiones* conexion, t_log* logger)  {
     int* fdNuevoServidor = (int*) malloc(sizeof(int));
     *fdNuevoServidor = crearSocketCliente(ip, puerto, logger);
+    pthread_mutex_lock(&conexion->mutexConexiones);
     if(*fdNuevoServidor > 0)
         list_add(conexion->conexiones, fdNuevoServidor);
     conexion->descriptorMaximo = getFdMaximo(conexion);
+    pthread_mutex_unlock(&conexion->mutexConexiones);
 
     return *fdNuevoServidor;
 }
@@ -179,8 +181,10 @@ void eliminarFdDeListaDeConexiones(int fdCliente, GestorConexiones* unaConexion)
     bool esElClienteDesconectado(void* cliente)	{
         return *((int*) cliente) == fdCliente;
     }
+    pthread_mutex_lock(&unaConexion->mutexConexiones);
     list_remove_and_destroy_by_condition(unaConexion->conexiones, esElClienteDesconectado, free);
     unaConexion->descriptorMaximo = getFdMaximo(unaConexion);
+    pthread_mutex_unlock(&unaConexion->mutexConexiones);
 }
 
 void enviarPaquete(int fdDestinatario, TipoMensaje tipoMensaje, TipoRequest tipoRequest, char* mensaje, int pid)  {
@@ -267,6 +271,7 @@ GestorConexiones* inicializarConexion() {
     nuevaConexion->descriptorMaximo = -1;
     nuevaConexion->servidor = -1;
     nuevaConexion->conexiones = list_create();
+    pthread_mutex_init(&nuevaConexion->mutexConexiones, NULL);
 
     return nuevaConexion;
 }

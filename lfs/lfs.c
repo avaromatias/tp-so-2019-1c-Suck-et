@@ -995,6 +995,8 @@ void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, unsigned l
         char *tablePath = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
         nombreArchivo = concat(4, tablePath, "/", p, ".bin");
         escribirEnBloque(linea, nombreTabla, particion, nombreArchivo);
+        free(linea);
+        free(p);
         free(path);
         free(tablePath);
         free(nombreArchivo);
@@ -1046,8 +1048,8 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
         FILE *fParticion = fopen(nombreArchivo, "w");
 
         char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, particion);
-        int cantidadBloquesAsignados = tamanioDeArrayDeStrings(
-                convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
+        char **arrayBlock = convertirStringDeBloquesAArray(bloquesAsignadosAParticion);
+        int cantidadBloquesAsignados = tamanioDeArrayDeStrings(arrayBlock);
         int tamanio = ((cantidadBloquesAsignados - 1) * metadataFS->block_size) +
                       obtenerTamanioBloque(bloque);
         char *tamanioString = string_itoa(tamanio);
@@ -1058,6 +1060,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
         pthread_mutex_unlock(semArchivo);
         free(contenido);
         free(bloquesAsignadosAParticion);
+        freeArrayDeStrings(arrayBlock);
         free(tamanioString);
     }
 }
@@ -1109,6 +1112,8 @@ bool ordenarPorLinea(char *linea, char *linea2) {
     char **lineaDesarmada = desarmarLinea(linea);
     char **linea2Desarmada = desarmarLinea(linea2);
     bool esMenor = strtoull(lineaDesarmada[0], NULL, 10) < strtoull(linea2Desarmada[0], NULL, 10);
+    freeArrayDeStrings(lineaDesarmada);
+    freeArrayDeStrings(linea2Desarmada);
     return esMenor;
 }
 

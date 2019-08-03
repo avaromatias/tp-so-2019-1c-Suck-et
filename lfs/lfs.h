@@ -33,6 +33,8 @@
 #include "../libs/sockets.h"
 #include "../libs/consola.h"
 
+#define EVENT_SIZE  ( sizeof (struct inotify_event) + 24 )
+#define BUF_LEN     ( 512 * EVENT_SIZE )
 
 //Variables y estructuras
 typedef struct {
@@ -41,6 +43,7 @@ typedef struct {
     int retardo;
     int tamanioValue;
     int tiempoDump;
+    char* directorioAMonitorear;
 } t_configuracion;
 
 typedef struct {
@@ -80,6 +83,12 @@ typedef struct {
     int particion;
 } t_bloqueAsignado;
 
+typedef struct{
+    char* directorioAMonitorear;
+    char* nombreArchivoDeConfiguracion;
+
+}parametros_hilo_monitor;
+
 t_configuracion configuracion;
 t_log *logger;
 t_dictionary *bloquesAsignados;
@@ -96,6 +105,7 @@ t_dictionary *hilosTablas;
 pthread_mutex_t *mutexHilosTablas;
 t_bitarray *bitarray;
 pthread_mutex_t *mutexBitarray;
+pthread_mutex_t *mutexDatosConfiguracion;
 t_metadata_fs *metadataFS;
 sem_t *cantidadRegistrosMemtable;
 void *bitmap;

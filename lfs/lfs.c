@@ -14,12 +14,13 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     t_config *archivoConfig = abrirArchivoConfiguracion(pathArchivoConfiguracion, logger);
 
     bool existenTodasLasClavesObligatorias(t_config *archivoConfig, t_configuracion configuracion) {
-        char *clavesObligatorias[5] = {
+        char *clavesObligatorias[6] = {
                 "PUERTO_ESCUCHA",
                 "PUNTO_MONTAJE",
                 "RETARDO",
                 "TAMAÑO_VALUE",
-                "TIEMPO_DUMP"
+                "TIEMPO_DUMP",
+                "DIRECTORIO_CONFIGURACION"
         };
 
         for (int i = 0; i < COUNT_OF(clavesObligatorias); i++) {
@@ -44,6 +45,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
         } else {
             configuracion.puntoMontaje = concat(1, puntoMontaje);
         }
+        configuracion.directorioAMonitorear = string_duplicate(config_get_string_value(archivoConfig, "DIRECTORIO_CONFIGURACION"));
         configuracion.retardo = config_get_int_value(archivoConfig, "RETARDO");
         configuracion.tamanioValue = config_get_int_value(archivoConfig, "TAMAÑO_VALUE");
         configuracion.tiempoDump = config_get_int_value(archivoConfig, "TIEMPO_DUMP");
@@ -263,7 +265,9 @@ int obtenerBloqueDisponible(char *nombreTabla, int particion) {
 
 
 void retardo() {
+    pthread_mutex_lock(mutexDatosConfiguracion);
     int retardo = configuracion.retardo;
+    pthread_mutex_unlock(mutexDatosConfiguracion);
     if (retardo != NULL) {
         if (retardo < 0) {
             log_error(logger, "El retardo no esta seteado en el archivo de configuracion o es invalido.");
@@ -279,7 +283,9 @@ void retardo() {
 
 void* lfsDump() {
     while (1) {
+        pthread_mutex_lock(mutexDatosConfiguracion);
         int tiempoDump = configuracion.tiempoDump;
+        pthread_mutex_unlock(mutexDatosConfiguracion);
         if (tiempoDump != NULL) {
             if (tiempoDump < 0) {
                 log_error(logger, "El tiempo dump no esta seteado en el archivo de configuracion o es invalido.");
@@ -469,6 +475,99 @@ int borrarContenidoDeDirectorio(char *dirPath) {
     }
     free(dirPath);
     return 1;
+}
+
+void atenderInotify(parametros_hilo_monitor* parametros){
+
+    char* nombreDirectorio = (char*) parametros->directorioAMonitorear;
+    char* nombreArchivoDeConfiguracion = (char*) parametros->nombreArchivoDeConfiguracion;
+  
+    log_info(logger, "Inicio el hilo que atiende inotify que monitorea %s",nombreArchivoDeConfiguracion);
+    char buffer[BUF_LEN];
+
+    int file_descriptor = inotify_init();
+    if (file_descriptor < 0) {
+        perror("inotify_init");
+    }
+
+    // Creamos un monitor sobre un path indicando que eventos queremos escuchar
+    int watch_descriptor = inotify_add_watch(file_descriptor, nombreDirectorio, IN_MODIFY);
+
+    // El file descriptor creado por inotify, es el que recibe la información sobre los eventos ocurridos
+    // para leer esta información el descriptor se lee como si fuera un archivo comun y corriente pero
+    // la diferencia esta en que lo que leemos no es el contenido de un archivo sino la información
+    // referente a los eventos ocurridos
+    int offset = 0;
+    int length = read(file_descriptor, buffer, BUF_LEN);
+    if (length < 0) {
+        perror("read");
+    }
+    // Luego del read buffer es un array de n posiciones donde cada posición contiene
+    // un eventos ( inotify_event ) junto con el nombre de este.
+    while (offset < length) {
+
+        // El buffer es de tipo array de char, o array de bytes. Esto es porque como los
+        // nombres pueden tener nombres mas cortos que 24 caracteres el tamaño va a ser menor
+        // a sizeof( struct inotify_event ) + 24.
+        struct inotify_event *event = (struct inotify_event *) &buffer[offset];
+
+        // El campo "len" nos indica la longitud del tamaño del nombre
+        if (event->len) {
+            // Dentro de "mask" tenemos el evento que ocurrio y sobre donde ocurrio
+            // sea un archivo o un directorio
+           if (event->mask & IN_MODIFY) {
+                if (event->mask & IN_ISDIR) {
+                    //printf("Se modificó el directorio %s.\n", event->name);
+//                    printf("Se modificó el archivo %s.\n", event->name);
+                    pthread_mutex_lock(mutexDatosConfiguracion);
+                    t_config* config=abrirArchivoConfiguracion(nombreArchivoDeConfiguracion,logger);
+//                    configuracion.retardo=config_get_int_value(config,"RETARDO");
+                    configuracion.tiempoDump=config_get_int_value(config,"TIEMPO_DUMP");
+                    config_destroy(config);
+                    log_info(logger,"Se modifico el archivo de configuracion.");
+                    pthread_mutex_unlock(mutexDatosConfiguracion);
+                } else {
+
+//                    printf("Se modificó el archivo%s.\n", event->name);
+                    pthread_mutex_lock(mutexDatosConfiguracion);
+                    t_config* config=abrirArchivoConfiguracion(nombreArchivoDeConfiguracion,logger);
+//                    configuracion.retardo=config_get_int_value(config,"RETARDO");
+                    configuracion.tiempoDump=config_get_int_value(config,"TIEMPO_DUMP");
+                    config_destroy(config);
+                    log_info(logger,"Se modifico el archivo de configuracion.");
+                    pthread_mutex_unlock(mutexDatosConfiguracion);
+                }
+            }
+        }
+        offset += sizeof (struct inotify_event) + event->len;
+    }
+
+    inotify_rm_watch(file_descriptor, watch_descriptor);
+    close(file_descriptor);
+    log_info(logger, "Finalizo el hilo que atiende inotify");
+}
+
+void monitorearDirectorio(parametros_hilo_monitor* parametros){
+
+    while(1){
+        //pthread_create(hiloInotify, NULL, &atenderInotify, parametros);
+
+        //pthread_detach(*hiloInotify);
+        atenderInotify(parametros);
+    }
+
+}
+
+pthread_t* crearHiloMonitor(){
+    pthread_t* hiloMonitor= malloc(sizeof(pthread_t));
+    parametros_hilo_monitor* parametros = (parametros_hilo_monitor*) malloc(sizeof(parametros_hilo_monitor));
+
+    parametros->directorioAMonitorear=string_duplicate(configuracion.directorioAMonitorear);
+    parametros->nombreArchivoDeConfiguracion = string_from_format("%slfs.cfg",parametros->directorioAMonitorear);
+
+    pthread_create(hiloMonitor, NULL, &monitorearDirectorio, parametros);
+    return hiloMonitor;
+
 }
 
 void vaciarArchivo(char *path) {
@@ -1844,11 +1943,11 @@ void *atenderConexiones(void *parametrosThread) {
 
 
 int main(int argc, char* argv[]) {
-    //char *nombrePruebaDebug = string_duplicate("prueba-lfs");
-    //char *rutaConfig = string_from_format("../pruebas/%s/lfs/lfs.cfg", nombrePruebaDebug); //Para debuggear
-    char *rutaConfig = string_from_format("../pruebas/%s/lfs/lfs.cfg", argv[1]); //Para ejecutar
-    //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
-    char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
+    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
+    char *rutaConfig = string_from_format("/home/utnso/Repos/tp-2019-1c-Suck-et/pruebas/%s/lfs/lfs.cfg", nombrePruebaDebug); //Para debuggear
+//    char *rutaConfig = string_from_format("/home/utnso/Repos/tp-2019-1c-Suck-et/pruebas/%s/lfs/lfs.cfg", argv[1]); //Para ejecutar
+    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
+//    char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
 
     logger = log_create(rutaLogger, "Lissandra", false, LOG_LEVEL_INFO);
 
@@ -1868,14 +1967,16 @@ int main(int argc, char* argv[]) {
     mutexTablasEnUso = malloc(sizeof(pthread_mutex_t));
     mutexHilosTablas = malloc(sizeof(pthread_mutex_t));
     mutexBitarray = malloc(sizeof(pthread_mutex_t));
+    mutexDatosConfiguracion = malloc(sizeof(pthread_mutex_t));
     cantidadRegistrosMemtable = malloc(sizeof(sem_t));
-    int init = pthread_mutex_init(mutexAsignacionBloques, NULL);
-    int init1 = pthread_mutex_init(mutexMemtable, NULL);
-    int init2 = pthread_mutex_init(mutexMetadatas, NULL);
-    int init3 = pthread_mutex_init(mutexArchivosAbiertos, NULL);
-    int init4 = pthread_mutex_init(mutexTablasEnUso, NULL);
-    int init5 = pthread_mutex_init(mutexHilosTablas, NULL);
-    int init6 = pthread_mutex_init(mutexBitarray, NULL);
+    pthread_mutex_init(mutexAsignacionBloques, NULL);
+    pthread_mutex_init(mutexMemtable, NULL);
+    pthread_mutex_init(mutexMetadatas, NULL);
+    pthread_mutex_init(mutexArchivosAbiertos, NULL);
+    pthread_mutex_init(mutexTablasEnUso, NULL);
+    pthread_mutex_init(mutexHilosTablas, NULL);
+    pthread_mutex_init(mutexBitarray, NULL);
+    pthread_mutex_init(mutexDatosConfiguracion, NULL);
     sem_init(cantidadRegistrosMemtable, 0, 0);
     inicializarLFS(configuracion.puntoMontaje);
 
@@ -1884,6 +1985,7 @@ int main(int argc, char* argv[]) {
     log_info(logger, "Retardo: %i", configuracion.retardo);
     log_info(logger, "Tamaño value: %i", configuracion.tamanioValue);
     log_info(logger, "Tiempo dump: %i", configuracion.tiempoDump);
+    log_info(logger, "Directorio Configuracion: %s", configuracion.directorioAMonitorear);
 
     GestorConexiones *misConexiones = inicializarConexion();
 
@@ -1891,6 +1993,7 @@ int main(int argc, char* argv[]) {
 
     pthread_t *hiloConexiones = crearHiloConexiones(misConexiones, configuracion.tamanioValue, logger);
     pthread_t *hiloDump = crearHiloDump(logger);
+    pthread_t*  hiloMonitor = (pthread_t*)crearHiloMonitor(configuracion.directorioAMonitorear);
     ejecutarConsola();
 
     pthread_join(*hiloConexiones, NULL);

@@ -184,8 +184,10 @@ void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *
 
 pthread_mutex_t * mutexMemoriasConocidas;
 void avisoNuevoNivelDeMultiProcesamiento(char* nuevoNivelDeMP, t_list* memoriasConocidas);
-void desbloquearSemaforoQueEsperabaRespuesta(t_dictionary* diccionarioDePID, t_dictionary* supervisorDeHilos, int fdDesconectado, pthread_mutex_t* mutexDiccionarioDePID);
-void asociarMemoryNumberAMemoria(Header header,char *mensaje,t_list *memoriasConocidas, parametros_thread_k *parametros);
-void eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(int fdDesconectado, t_dictionary *tablaDeMemoriasConCriterios, pthread_mutex_t *mutexJournal, t_log* logger);
-void eliminarFileDescriptorDeNodosMemoriaConocidas(int fdDesconectado, t_list* listaDeNodosMemorias, t_log* logger);
+
+
+typedef struct {
+ pthread_mutex_t* semaforo;
+ int fdAsociado;
+}t_semaforo_y_pid;
 #endif //KERNEL_CONEXIONES_H

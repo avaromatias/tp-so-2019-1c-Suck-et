@@ -57,7 +57,6 @@ void *atenderConexiones(void *parametrosThread) {
     while (1) {
         if (hayNuevoMensaje(unaConexion, &emisores)) {
             // voy a recorrer todos los FD a los cuales estoy conectado para saber cuál de todos es el que tiene un nuevo mensaje
-            //pthread_mutex_lock(&unaConexion->mutexConexiones);
             for (int i = 0; i < list_size(unaConexion->conexiones); i++) {
                 Header headerSerializado;
                 int fdConectado = *((int *) list_get(unaConexion->conexiones, i));
@@ -145,8 +144,6 @@ void *atenderConexiones(void *parametrosThread) {
                     }
                 }
             }
-            //pthread_mutex_unlock(&unaConexion->mutexConexiones);
-            //pthread_mutex_lock(&unaConexion->mutexConexiones);
             // me fijo si hay algún nuevo conectado
             if (FD_ISSET(unaConexion->servidor, &emisores)) {
                 int *fdNuevoCliente = malloc(sizeof(int));
@@ -159,7 +156,6 @@ void *atenderConexiones(void *parametrosThread) {
                 // acá cada uno setea una maravillosa función que hace cada uno cuando se le conecta un nuevo cliente
                 // nombre_maravillosa_funcion();
             }
-            //pthread_mutex_unlock(&unaConexion->mutexConexiones);
         }
     }
 }
@@ -345,6 +341,8 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
             log_info(logger, "Memoria (socket %i) | Respuesta recibida: %s\n", fdMemoria, mensaje);
             break;
     }
+    pthread_mutex_unlock(semaforoADesbloquear);
+
     pthread_mutex_lock(mutexDiccionarioDePID);
     if (dictionary_has_key(diccionarioDePID, string_itoa(fdMemoria))){
         t_queue* unaColaDePID = (t_queue*) dictionary_get(diccionarioDePID, string_itoa(fdMemoria));
@@ -360,8 +358,6 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
         }
     }
     pthread_mutex_unlock(mutexDiccionarioDePID);
-
-    pthread_mutex_unlock(semaforoADesbloquear);
 
     free(PIDCasteado);
 }

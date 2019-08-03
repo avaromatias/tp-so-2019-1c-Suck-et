@@ -1516,7 +1516,7 @@ void refreshMetadata(t_refreshMetadata *parametros) {
     int *fdMemoria;
 
     while (1) {
-        sleep(tiempoDeRefresh);
+        sleep(tiempoDeRefresh/1000);
         fdMemoria = (int)seleccionarMemoriaParaDescribe(pConsolaKernel);
         int resultado = gestionarDescribeGlobalKernel(fdMemoria, PID);
         if (resultado == 0) {

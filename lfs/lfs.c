@@ -326,6 +326,7 @@ void* lfsDump() {
                     list_destroy_and_destroy_elements(listaDeRegistros, free);
                 }
                 dictionary_iterator(tablaDeKeys, (void *)_dumpKey);
+                dictionary_destroy(tablaDeKeys);
                 pthread_mutex_unlock(sem);
                 free(nombreDump);
                 free(nombreArchivo);
@@ -335,6 +336,7 @@ void* lfsDump() {
             sem_getvalue(cantidadRegistrosMemtable, &cantidadInsertsActual);
             sem_wait_n(cantidadRegistrosMemtable, cantidadInsertsActual);
             dictionary_iterator(memTable, (void *)dumpTabla);
+            dictionary_clean(memTable);
 
             pthread_mutex_unlock(mutexMemtable);
         } else {

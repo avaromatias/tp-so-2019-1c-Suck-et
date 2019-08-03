@@ -1579,8 +1579,6 @@ pthread_t *crearHiloRequest(Header header, char *mensaje) {
     parametros->mensaje = string_duplicate(mensaje);
     pthread_create(hiloRequest, NULL, &atenderMensajes, parametros);
     pthread_detach(*hiloRequest);
-    free(parametros->mensaje);
-    free(parametros);
 
     return hiloRequest;
 }

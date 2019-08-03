@@ -1420,7 +1420,7 @@ void atenderInotify(parametros_hilo_monitor* parametros){
                 }
             } else if (event->mask & IN_MODIFY) {
                 if (event->mask & IN_ISDIR) {
-                    printf("Se modificó el directorio %s.\n", event->name);
+                    //printf("Se modificó el directorio %s.\n", event->name);
                     printf("Se modificó el archivo %s.\n", event->name);
                     pthread_mutex_lock(mutexDatosConfiguracion);
                     log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));

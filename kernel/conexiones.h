@@ -52,6 +52,7 @@ typedef  struct{
     int refreshMetadata;
     int Quantum;
     int retardoEjecucion;
+    char* directorioAMonitorear
 }t_datos_configuracion;
 
 

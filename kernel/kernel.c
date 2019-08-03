@@ -66,12 +66,14 @@ int main(int argc, char* argv[]) {
     log_info(logger, "Multiprocesamiento: %i", configuracion.multiprocesamiento);
     log_info(logger, "Refresh Metadata: %i", configuracion.refreshMetadata);
     log_info(logger, "Retardo de Ejecución : %i", configuracion.refreshMetadata);
+    log_info(logger, "Directorio de Config : %s", configuracion.directorioAMonitorear);
 
     t_dictionary *metadataTablas = dictionary_create(); //voy a tener el nombreTabla, criterio, particiones y tpo_Compactación
     t_dictionary *tablaDeMemoriasConCriterios = dictionary_create();//tendremos por cada criterio una lista de memorias
     t_dictionary* diccionarioDePID = dictionary_create();
 
-    pthread_mutex_t* mutexDiccionarioDePID = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t*));
+    pthread_mutex_t* mutexDiccionarioDePID = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(mutexDiccionarioDePID, NULL);
 
     t_list *listaDeCriteriosSC = list_create();
     t_list *listaDeCriteriosSHC = list_create();
@@ -118,10 +120,10 @@ int main(int argc, char* argv[]) {
 
 
 
-
+    char* ruteConfigAbsoluta=string_from_format("%skernel.cfg",configuracion.directorioAMonitorear);
 //    pthread_t *hiloRefreshMetadata = crearHiloRefreshMetadata(pConsolaKernel, configuracion.refreshMetadata, metadataTablas, logger);
-    //pthread_t *hiloMonitor = (pthread_t*) crearHiloMonitor(configuracion.directorioAMonitorear, "kernel.cfg", logger, datosConfiguracion, mutexDatosConfiguracion, memoriasConocidas);
-    pthread_t *hiloPlanificadorLargoPlazo = crearHiloPlanificadorLargoPlazo(parametrosPLP);
+    pthread_t *hiloMonitor = (pthread_t*) crearHiloMonitor(configuracion.directorioAMonitorear, ruteConfigAbsoluta, logger, datosConfiguracion, mutexDatosConfiguracion, memoriasConocidas);
+    pthread_t *hiloPlanificadorLargoPlazo = (pthread_t*) crearHiloPlanificadorLargoPlazo(parametrosPLP);
     pthread_t *hiloGossiping = (pthread_t *) crearHiloGossiping(misConexiones, memoriasConocidas, logger);
 
     parametros_pcp *parametrosPCP = (parametros_pcp *) malloc(sizeof(parametros_pcp));
@@ -361,8 +363,8 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 
     if (!existenTodasLasClavesObligatorias(archivoConfig, configuracion)) {
-        printf(COLOR_ERROR "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.\n" COLOR_RESET);
-        log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
+        printf(COLOR_ERROR "Alguna de las claves obligatorias no están seteadas en el archivo de configuración.\n" COLOR_RESET);
+        log_error(logger, "Alguna de las claves obligatorias no están seteadas en el archivo de configuración.");
         config_destroy(archivoConfig);
         exit(1); // settear algún código de error para cuando falte alguna key
     } else {
@@ -372,6 +374,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
         configuracion.multiprocesamiento = config_get_int_value(archivoConfig, "MULTIPROCESAMIENTO");
         configuracion.refreshMetadata = config_get_int_value(archivoConfig, "METADATA_REFRESH");
         configuracion.retardoEjecucion = config_get_int_value(archivoConfig, "SLEEP_EJECUCION");
+        configuracion.directorioAMonitorear = config_get_string_value(archivoConfig, "DIRECTORIO_CONFIGURACION");
 
         config_destroy(archivoConfig);
 
@@ -1294,7 +1297,7 @@ void gossiping(parametros_gossiping* parametros){
     int i = 0;
     while (1){
 
-        sleep(20); //corregir para que se pueda ingresar por archivo configuracion
+        sleep(10); //corregir para que se pueda ingresar por archivo configuracion
         enviarPaquete(nodoMemoriaPrincipal->fdNodoMemoria, GOSSIPING, INVALIDO, "DAME_LISTA_GOSSIPING", -1);
         conectarseANuevasMemorias(memoriasConocidas, misConexiones, logger);
         i++;
@@ -1335,7 +1338,7 @@ void atenderInotify(parametros_hilo_monitor* parametros){
     pthread_mutex_t* mutexDatosConfiguracion = (pthread_mutex_t*) parametros->mutexDatosConfiguracion;
     t_list* memoriasConocidas = (t_list*) parametros->memoriasConocidas;
 
-    log_info(logger, "Inicio el hilo que atiende inofity");
+    log_info(logger, "Inicio el hilo que atiende inotify que monitorea %s",nombreArchivoDeConfiguracion);
     char buffer[BUF_LEN];
 
     int file_descriptor = inotify_init();
@@ -1344,7 +1347,7 @@ void atenderInotify(parametros_hilo_monitor* parametros){
     }
 
     // Creamos un monitor sobre un path indicando que eventos queremos escuchar
-    int watch_descriptor = inotify_add_watch(file_descriptor, "/home/utnso/operativos/tp-2019-1c-Suck-et/kernel/", IN_MODIFY);
+    int watch_descriptor = inotify_add_watch(file_descriptor, nombreDirectorio, IN_MODIFY);
 
     // El file descriptor creado por inotify, es el que recibe la información sobre los eventos ocurridos
     // para leer esta información el descriptor se lee como si fuera un archivo comun y corriente pero
@@ -1375,7 +1378,7 @@ void atenderInotify(parametros_hilo_monitor* parametros){
                     //printf("Se creó el archivo%s.\n", event->name);
                     //printf("Se modificó el archivo%s.\n", event->name);
                     pthread_mutex_lock(mutexDatosConfiguracion);
-                    //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
+                    log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
                     t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
 
                     //Si cambió el nivel de multiprocesamiento
@@ -1388,7 +1391,8 @@ void atenderInotify(parametros_hilo_monitor* parametros){
                     datosConfiguracion->nivelDeMultiProcesamiento = nuevaConfiguracion.multiprocesamiento;
                     datosConfiguracion->Quantum= nuevaConfiguracion.quantum;
                     datosConfiguracion->refreshMetadata = nuevaConfiguracion.refreshMetadata;
-                    //log_info(logger, string_from_format("Quantum nuevo: %i. Nivel de MP nuevo: %i. Metadata-refresh nuevo: %i. Sleep ejecucion nuevo: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
+                    datosConfiguracion->directorioAMonitorear = nuevaConfiguracion.directorioAMonitorear;
+                    log_info(logger, string_from_format("Quantum nuevo: %i. Nivel de MP nuevo: %i. Metadata-refresh nuevo: %i. Sleep ejecucion nuevo: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
                     log_info(logger, "Datos de archivo de configuracion actualizados");
                     pthread_mutex_unlock(mutexDatosConfiguracion);
                 }
@@ -1409,17 +1413,18 @@ void atenderInotify(parametros_hilo_monitor* parametros){
                     datosConfiguracion->nivelDeMultiProcesamiento = nuevaConfiguracion.multiprocesamiento;
                     datosConfiguracion->Quantum= nuevaConfiguracion.quantum;
                     datosConfiguracion->refreshMetadata = nuevaConfiguracion.refreshMetadata;
+                    datosConfiguracion->directorioAMonitorear = nuevaConfiguracion.directorioAMonitorear;
                     //log_info(logger, string_from_format("Quantum nuevo: %i. Nivel de MP nuevo: %i. Metadata-refresh nuevo: %i. Sleep ejecucion nuevo: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
                     log_info(logger, "Datos de archivo de configuracion actualizados");
                     pthread_mutex_unlock(mutexDatosConfiguracion);
                 }
             } else if (event->mask & IN_MODIFY) {
                 if (event->mask & IN_ISDIR) {
-                    //printf("Se modificó el directorio %s.\n", event->name);
-                    //printf("Se modificó el archivo%s.\n", event->name);
+                    printf("Se modificó el directorio %s.\n", event->name);
+                    printf("Se modificó el archivo%s.\n", event->name);
                     pthread_mutex_lock(mutexDatosConfiguracion);
-                    //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
-                    t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
+                    log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
+                    t_configuracion nuevaConfiguracion = cargarConfiguracion("/home/utnso/Repos/tp-2019-1c-Suck-et/pruebas/prueba-lfs/kernel/kernel.cfg", logger);
                     if (nuevaConfiguracion.multiprocesamiento != datosConfiguracion->nivelDeMultiProcesamiento){
                         //enviarMensajeAMemorias
                         avisoNuevoNivelDeMultiProcesamiento(string_itoa(nuevaConfiguracion.multiprocesamiento), memoriasConocidas);
@@ -1428,14 +1433,15 @@ void atenderInotify(parametros_hilo_monitor* parametros){
                     datosConfiguracion->nivelDeMultiProcesamiento = nuevaConfiguracion.multiprocesamiento;
                     datosConfiguracion->Quantum= nuevaConfiguracion.quantum;
                     datosConfiguracion->refreshMetadata = nuevaConfiguracion.refreshMetadata;
-                    //log_info(logger, string_from_format("Quantum nuevo: %i. Nivel de MP nuevo: %i. Metadata-refresh nuevo: %i. Sleep ejecucion nuevo: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
+                    datosConfiguracion->directorioAMonitorear = nuevaConfiguracion.directorioAMonitorear;
+                    log_info(logger, string_from_format("Quantum nuevo: %i. Nivel de MP nuevo: %i. Metadata-refresh nuevo: %i. Sleep ejecucion nuevo: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
                     log_info(logger, "Datos de archivo de configuracion actualizados");
                     pthread_mutex_unlock(mutexDatosConfiguracion);
                 } else {
 
-                    //printf("Se modificó el archivo%s.\n", event->name);
+                    printf("Se modificó el archivo%s.\n", event->name);
                     pthread_mutex_lock(mutexDatosConfiguracion);
-                    //log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
+                    log_info(logger, string_from_format("Quantum anterior: %i. Nivel de MP anterior: %i. Metadata-refresh anterior: %i. Sleep ejecucion anterior: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
                     t_configuracion nuevaConfiguracion = cargarConfiguracion(nombreArchivoDeConfiguracion, logger);
                     if (nuevaConfiguracion.multiprocesamiento != datosConfiguracion->nivelDeMultiProcesamiento){
                         //enviarMensajeAMemorias
@@ -1445,7 +1451,8 @@ void atenderInotify(parametros_hilo_monitor* parametros){
                     datosConfiguracion->nivelDeMultiProcesamiento = nuevaConfiguracion.multiprocesamiento;
                     datosConfiguracion->Quantum= nuevaConfiguracion.quantum;
                     datosConfiguracion->refreshMetadata = nuevaConfiguracion.refreshMetadata;
-                    //log_info(logger, string_from_format("Quantum nuevo: %i. Nivel de MP nuevo: %i. Metadata-refresh nuevo: %i. Sleep ejecucion nuevo: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
+                    datosConfiguracion->directorioAMonitorear = nuevaConfiguracion.directorioAMonitorear;
+                    log_info(logger, string_from_format("Quantum nuevo: %i. Nivel de MP nuevo: %i. Metadata-refresh nuevo: %i. Sleep ejecucion nuevo: %i", datosConfiguracion->Quantum, datosConfiguracion->nivelDeMultiProcesamiento, datosConfiguracion->refreshMetadata, datosConfiguracion->retardoEjecucion));
                     log_info(logger, "Datos de archivo de configuracion actualizados");
                     pthread_mutex_unlock(mutexDatosConfiguracion);
                 }
@@ -1456,7 +1463,7 @@ void atenderInotify(parametros_hilo_monitor* parametros){
 
     inotify_rm_watch(file_descriptor, watch_descriptor);
     close(file_descriptor);
-    log_info(logger, "Finalizo el hilo que atiende inofity");
+    log_info(logger, "Finalizo el hilo que atiende inotify");
 }
 
 void monitorearDirectorio(parametros_hilo_monitor* parametros){
@@ -1497,7 +1504,7 @@ void refreshMetadata(t_refreshMetadata *parametros) {
 
     while (1) {
         sleep(tiempoDeRefresh);
-        fdMemoria = seleccionarMemoriaParaDescribe(pConsolaKernel);
+        fdMemoria = (int)seleccionarMemoriaParaDescribe(pConsolaKernel);
         int resultado = gestionarDescribeGlobalKernel(fdMemoria, PID);
         if (resultado == 0) {
             log_info(logger, "Se actualizó correctamente la metadata del kernel.\n");

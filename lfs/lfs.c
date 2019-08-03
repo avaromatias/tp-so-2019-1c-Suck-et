@@ -155,8 +155,8 @@ void crearBinarios(char *nombreTabla, int particiones) {
             pthread_mutex_lock(semArchivo);
             FILE *file = fopen(pathArchivo, "w");
             char *bloquesAsignadosAParticion = obtenerBloquesAsignados(nombreTabla, i);
-            int cantidadBloquesAsignados = tamanioDeArrayDeStrings(
-                    convertirStringDeBloquesAArray(bloquesAsignadosAParticion));
+            char **arrayBlock = convertirStringDeBloquesAArray(bloquesAsignadosAParticion);
+            int cantidadBloquesAsignados = tamanioDeArrayDeStrings(arrayBlock);
             int tamanio = ((cantidadBloquesAsignados - 1) * metadataFS->block_size) +
                           obtenerTamanioBloque(bloque);
             char *tamanioString = string_itoa(tamanio);
@@ -860,10 +860,12 @@ char **filtrarKeyMax(char **listaLineas) {
     t_dictionary *keys = dictionary_create();
     int tamanioArray = tamanioDeArrayDeStrings(listaLineas);
     for (int i = 0; i < tamanioArray; i++) {
-        char *key = desarmarLinea(listaLineas[i])[1];
+        char **lineaDesarmada = desarmarLinea(listaLineas[i]);
+        char *key = string_duplicate(lineaDesarmada[1]);
         if (!dictionary_has_key(keys, key)) {
             dictionary_put(keys, key, key);
         }
+        freeArrayDeStrings(lineaDesarmada);
     }
     char **lineasSinRepetir = calloc(dictionary_size(keys) + 1, sizeof(char *));
     void* obtenerMaxTimestamp(char *keyD, char *valorD) {
@@ -887,7 +889,7 @@ char **filtrarKeyMax(char **listaLineas) {
     }
     dictionary_iterator(keys, (void *)obtenerMaxTimestamp);
     lineasSinRepetir[tamanioDeArrayDeStrings(lineasSinRepetir)] = NULL;
-    dictionary_destroy(keys);
+    dictionary_destroy_and_destroy_elements(keys, free);
     return lineasSinRepetir;
 }
 

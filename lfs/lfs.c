@@ -1943,11 +1943,11 @@ void *atenderConexiones(void *parametrosThread) {
 
 
 int main(int argc, char* argv[]) {
-    char *nombrePruebaDebug = string_duplicate("prueba-lfs");
-    char *rutaConfig = string_from_format("/home/utnso/Repos/tp-2019-1c-Suck-et/pruebas/%s/lfs/lfs.cfg", nombrePruebaDebug); //Para debuggear
-//    char *rutaConfig = string_from_format("/home/utnso/Repos/tp-2019-1c-Suck-et/pruebas/%s/lfs/lfs.cfg", argv[1]); //Para ejecutar
-    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
-//    char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
+    //char *nombrePruebaDebug = string_duplicate("stress");
+    //char *rutaConfig = string_from_format("/home/utnso/tp-2019-1c-Suck-et/pruebas/%s/lfs/lfs.cfg", nombrePruebaDebug); //Para debuggear
+    char *rutaConfig = string_from_format("/home/utnso/tp-2019-1c-Suck-et/pruebas/%s/lfs/lfs.cfg", argv[1]); //Para ejecutar
+    //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
+    char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
 
     logger = log_create(rutaLogger, "Lissandra", false, LOG_LEVEL_INFO);
 

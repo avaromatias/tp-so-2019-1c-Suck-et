@@ -1083,7 +1083,7 @@ int main(int argc, char* argv[]) {
     //char *nombrePruebaDebug = string_duplicate("prueba-lfs"); //Para debuggear
     //char *nombreConfigDebug = string_duplicate("memoria1"); //Para debuggear
     //char *rutaConfig = string_from_format("../pruebas/%s/memoria/%s.cfg", nombrePruebaDebug, nombreConfigDebug); //Para debuggear
-    char *rutaConfig = string_from_format("/home/utnso/pruebas/%s/memoria/%s.cfg", argv[1], argv[2]); //Para ejecutar
+    char *rutaConfig = string_from_format("../pruebas/%s/memoria/%s.cfg", argv[1], argv[2]); //Para ejecutar
     //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
     char *rutaLogger = string_from_format("%s.log", argv[2]); //Para ejecutar
 

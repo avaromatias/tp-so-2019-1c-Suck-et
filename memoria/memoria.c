@@ -1097,7 +1097,7 @@ int main(int argc, char* argv[]) {
 
     t_retardos_memoria* retardos = almacenarRetardosDeMemoria(configuracion);
 
-    char* directorioAMonitorear = "/home/utnso/tp-2019-1c-Suck-et/prueba/prueba-lfs/memoria/";
+    char* directorioAMonitorear = configuracion.directorioConfiguracion;
     //monitorearDirectorio("/home/utnso/tp-2019-1c-Suck-et/memoria/", nombreArchivoConfiguracionConExtension, logger, retardos);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};
@@ -1126,7 +1126,7 @@ int main(int argc, char* argv[]) {
     agregarIpMemoria(configuracion.ipMemoria, string_itoa(configuracion.puerto), memoriaPrincipal->memoriasConocidas, logger);
     pthread_mutex_unlock(semaforoMemoriasConocidas);
 
-    pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, argv[2], logger, retardos, semaforoRetardos);
+    //pthread_t * hiloMonitor = (pthread_t*)crearHiloMonitor(directorioAMonitorear, argv[2], logger, retardos, semaforoRetardos);
     pthread_t* hiloConexiones = (pthread_t*)crearHiloConexiones(misConexiones, memoriaPrincipal, &conexionKernel, conexionLissandra, logger, semaforoMemoriasConocidas, semaforoJournaling, retardos);
     pthread_t* hiloConsola = (pthread_t*) crearHiloConsola(memoriaPrincipal, logger, conexionLissandra, semaforoJournaling);
     pthread_t* hiloJournal = (pthread_t*) crearHiloJournal(memoriaPrincipal, logger, conexionLissandra, retardos, semaforoJournaling, semaforoRetardos);
@@ -1136,9 +1136,9 @@ int main(int argc, char* argv[]) {
     pthread_join(*hiloConsola, NULL);
     pthread_join(*hiloJournal, NULL);
     pthread_join(*hiloGossiping, NULL);
-    pthread_join(*hiloMonitor, NULL);
+    //pthread_join(*hiloMonitor, NULL);
 
-    pthread_detach(*hiloMonitor);
+    //pthread_detach(*hiloMonitor);
     pthread_detach(*hiloConexiones);
     pthread_detach(*hiloConsola);
     pthread_detach(*hiloJournal);

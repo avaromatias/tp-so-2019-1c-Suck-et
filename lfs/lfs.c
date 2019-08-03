@@ -1137,9 +1137,13 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             //3. Calcular cual es la partición que contiene dicho KEY
             int particion = calcularParticion(key, meta);
 
+            free(meta);
+
             //4. Obtengo los bloques de la particion
             char *nombreArchivoParticion = obtenerNombreArchivoParticion(particion);
             char *bloquesParticion = obtenerStringBloquesDeArchivo(nombreTabla, nombreArchivoParticion);
+
+            free(nombreArchivoParticion);
 
             //5. Obtengo los bloques de los archivos temporales
             char *bloquesTemporales = obtenerStringBloquesSegunExtension(nombreTabla, ".tmp");
@@ -1159,7 +1163,16 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             }
 
             char **bloques = convertirStringDeBloquesAArray(todosLosBloques);
-            char *mayorLinea = string_duplicate(obtenerLineaMasReciente(bloques, key));
+
+            free(bloquesParticion);
+            free(bloquesTemporales);
+            free(bloquesTemporalesCompactacion);
+            free(todosLosBloques);
+
+            char *lineaReciente = obtenerLineaMasReciente(bloques, key);
+            char *mayorLinea = string_duplicate(lineaReciente);
+            free(bloques);
+            free(lineaReciente);
 
             //7. Escaneo la memoria temporal de la tabla
             pthread_mutex_lock(mutexMemtable);
@@ -1183,6 +1196,8 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
                             } else {
                                 mayorLinea = elemento;
                             }
+                            freeArrayDeStrings(lineaPartida);
+                            freeArrayDeStrings(lineaPartida2);
                         }
                     }
                 }

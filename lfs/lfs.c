@@ -734,6 +734,7 @@ char **obtenerLineasDeBloques(char **bloques) {
         pthread_mutex_unlock(semArchivo);
     }
     if (!string_is_empty(stringDeLineas)) {
+        free(stringDeLineas);
         stringDeLineas = string_substring_until(stringDeLineas, strlen(stringDeLineas) - 1);
 
         if (blockPath != NULL) free(blockPath);
@@ -794,6 +795,7 @@ void* compactacion(void *parametrosThread) {
                 t_metadata *meta = obtenerMetadata(nombreTabla);
                 crearBinarios(nombreTabla, meta->partitions);
                 freeArrayDeStrings(lineasMaximas);
+                free(meta->consistency);
                 free(meta);
             }
             free(bloquesBin);
@@ -990,6 +992,8 @@ void lfsInsertCompactacion(char *nombreTabla, char *key, char *valor, unsigned l
         char *linea = armarLinea(key, valor, timestamp);
         t_metadata *meta = obtenerMetadata(nombreTabla);
         int particion = calcularParticion(key, meta);
+        free(meta->consistency);
+        free(meta);
         char *nombreArchivo;
         char *p = string_itoa(particion);
         char *tablePath = obtenerPathTabla(nombreTabla, configuracion.puntoMontaje);
@@ -1137,6 +1141,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
             //3. Calcular cual es la partición que contiene dicho KEY
             int particion = calcularParticion(key, meta);
 
+            free(meta->consistency);
             free(meta);
 
             //4. Obtengo los bloques de la particion
@@ -1171,7 +1176,7 @@ t_response *lfsSelect(char *nombreTabla, char *key) {
 
             char *lineaReciente = obtenerLineaMasReciente(bloques, key);
             char *mayorLinea = string_duplicate(lineaReciente);
-            free(bloques);
+            freeArrayDeStrings(bloques);
             free(lineaReciente);
 
             //7. Escaneo la memoria temporal de la tabla
@@ -1515,8 +1520,10 @@ t_metadata *obtenerMetadata(char *tabla) {
         if (rmdir(pathTabla) != 0) {
             printf("El File System se esta restaurando a un estado consistente. Reinicie el proceso.");
             fflush(stdout);
+            free(pathTabla);
             return NULL;
         }
+        free(pathTabla);
     } else {
 
         t_metadata *metadata = (t_metadata *) malloc(sizeof(t_metadata));

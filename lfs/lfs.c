@@ -394,7 +394,6 @@ t_response *lfsDescribe(char *nombreTabla) {
             fclose(metadataTabla);
             pthread_mutex_unlock(semMetadata);
             string[fsize] = 0;
-            free(pathMetadata);
             retorno->tipoRespuesta = RESPUESTA;
             retorno->valor = string;
         } else {
@@ -402,6 +401,7 @@ t_response *lfsDescribe(char *nombreTabla) {
             retorno->tipoRespuesta = ERR;
             retorno->valor = concat(3, "No se encontro la Metadata de la tabla ", nombreTabla, ".");
         }
+        free(pathMetadata);
     } else {
         retorno->tipoRespuesta = ERR;
         retorno->valor = concat(3, "La tabla ", nombreTabla, " no existe.");
@@ -725,6 +725,7 @@ char **obtenerLineasDeBloques(char **bloques) {
                 } else {
                     lineaContinuaEnOtroArchivo = true;
                 }
+                freeArrayDeStrings(palabras);
             }
         }
 //        if(tamanioDeArrayDeStrings(palabras)) freeArrayDeStrings(palabras);
@@ -881,7 +882,7 @@ char **filtrarKeyMax(char **listaLineas) {
         for (int i = 0; i < tamanioArray; i++) {
             char *listaLineasString = string_duplicate(listaLineas[i]);
             char **linea = desarmarLinea(listaLineasString);
-            char *key = linea[1];
+            char *key = string_duplicate(linea[1]);
             unsigned long long timestamp = strtoull(linea[0], NULL, 10);
             if (strcmp(keyD, key) == 0 && timestamp >= mayorTimestamp) {
                 vaciarString(&mayorLinea);
@@ -889,6 +890,7 @@ char **filtrarKeyMax(char **listaLineas) {
                 string_append(&mayorLinea, listaLineas[i]);
             }
             free(listaLineasString);
+            freeArrayDeStrings(linea);
         }
         if(!string_is_empty(mayorLinea)){
             lineasSinRepetir[tamanioDeArrayDeStrings(lineasSinRepetir)] = string_duplicate(mayorLinea);
@@ -1339,7 +1341,7 @@ char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext) {
         archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
         free(bloquesDeArchivo);
     }
-    free(nombreArchivoTemporal);
+    //free(nombreArchivoTemporal);
     free(archivoTemporalPath);
     if (!string_is_empty(bloques)) {
         bloques = string_substring_until(bloques, strlen(bloques) - 1);

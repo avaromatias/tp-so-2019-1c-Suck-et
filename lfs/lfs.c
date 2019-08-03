@@ -302,6 +302,7 @@ void* lfsDump() {
                 char *nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
                 char *nombreArchivo = obtenerPathArchivo(nombreTabla, nombreDump);
                 while (existeElArchivo(nombreArchivo)) {
+                    free(nombreDump);
                     free(nombreArchivo);
                     nroDump++;
                     nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
@@ -320,13 +321,13 @@ void* lfsDump() {
                         fclose(archivoDump);
                         pthread_mutex_unlock(semArchivo);*/
                         escribirEnBloque(linea, nombreDump, -1, nombreArchivo);
-                        list_remove(listaDeRegistros, index);
                     }
                     list_iterate(listaDeRegistros, (void *)_dumpRegistro);
-
+                    list_destroy_and_destroy_elements(listaDeRegistros, free);
                 }
                 dictionary_iterator(tablaDeKeys, (void *)_dumpKey);
                 pthread_mutex_unlock(sem);
+                free(nombreDump);
                 free(nombreArchivo);
             }
             pthread_mutex_lock(mutexMemtable);
@@ -358,10 +359,11 @@ t_response *lfsDescribeAll() {
         for (int i = 0; i < cantidadDeTablas; i++) {
             char *nombreTabla = string_duplicate(tablas[i]);
             t_response *retornoTabla = lfsDescribe(nombreTabla);
-            char *respuestaTabla;
-            respuestaTabla = concat(4, "-----------------\nTABLE=", string_duplicate(nombreTabla), "\n",
-                                    string_duplicate(retornoTabla->valor));
+            char *valor = string_duplicate(retornoTabla->valor);
+            char *respuestaTabla = concat(4, "-----------------\nTABLE=", nombreTabla, "\n", valor);
             string_append(&respuesta, respuestaTabla);
+            free(nombreTabla);
+            free(valor);
             free(retornoTabla->valor);
             free(retornoTabla);
         }

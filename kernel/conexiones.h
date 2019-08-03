@@ -71,6 +71,7 @@ typedef struct {
     pthread_mutex_t* mutexDatosConfiguracion;
     t_dictionary* diccionarioDePID;
     pthread_mutex_t* mutexDiccionarioDePID;
+    pthread_mutex_t* mutexEstrucSupervisorHilos;
 } parametros_thread_k;
 
 //Estructura necesaria para manejar las consistencias y la metadata
@@ -122,6 +123,7 @@ typedef struct {
     t_list* memoriasConocidas;
     t_dictionary* diccionarioDePID;
     pthread_mutex_t* mutexDiccionarioDePID;
+    pthread_mutex_t* mutexEstrucSupervisorHilos;
 } p_planificacion;
 
 //Estructura necesaria para refrescar la Metadata del Kernel
@@ -152,7 +154,7 @@ p_planificacion *paramPlanificacionGeneral;
 
 //Conexión con Memoria
 //crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion);
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios, t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion, t_dictionary* diccionarioDePID, pthread_mutex_t* mutexDiccionarioDePID);
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios, t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion, t_dictionary* diccionarioDePID, pthread_mutex_t* mutexDiccionarioDePID, pthread_mutex_t* mutexEstrucSupervisorHilos);
 
 void *atenderConexiones(void *parametrosThread);
 

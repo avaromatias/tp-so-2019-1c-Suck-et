@@ -10,17 +10,20 @@
 #include "kernel.h"
 
 int main(int argc, char* argv[]) {
-    //char *nombrePruebaDebug = string_duplicate("prueba-lfs");
-    //char *rutaConfig = string_from_format("../../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
-    char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
-    //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
-    char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
+    char *nombrePruebaDebug = string_duplicate("prueba-kernel");
+    char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
+    //char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
+    char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
+    //char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
 
     t_log *logger = log_create(rutaLogger, "kernel", false, LOG_LEVEL_INFO);
     printf("Iniciando el proceso Kernel.\n");
     log_info(logger, "Iniciando el proceso Kernel");
 
     t_dictionary *supervisorDeHilos = dictionary_create();//Va a tener como KEY el PID, y la data el SEMÁFORO de c/hilo
+    pthread_mutex_t* mutexEstrucSupervisorHilos = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+    int initMutexSupHilos = pthread_mutex_init(mutexEstrucSupervisorHilos, NULL);
+
     int contadorPIDs = 0;
     int memoriasUtilizables = 0;
 
@@ -53,8 +56,6 @@ int main(int argc, char* argv[]) {
     pthread_mutex_t *mutexDatosConfiguracion= malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutexDatosConfiguracion, NULL);
 
-    mutexEstrucSupervisorHilos = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
-    int initMutexSupHilos = pthread_mutex_init(mutexEstrucSupervisorHilos, NULL);
 
     mutexMetadataTablas = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
     int initMutexMetadata = pthread_mutex_init(mutexMetadataTablas, NULL);
@@ -71,7 +72,8 @@ int main(int argc, char* argv[]) {
     t_dictionary *tablaDeMemoriasConCriterios = dictionary_create();//tendremos por cada criterio una lista de memorias
     t_dictionary* diccionarioDePID = dictionary_create();
 
-    pthread_mutex_t* mutexDiccionarioDePID = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t*));
+    pthread_mutex_t* mutexDiccionarioDePID = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(mutexDiccionarioDePID, NULL);
 
     t_list *listaDeCriteriosSC = list_create();
     t_list *listaDeCriteriosSHC = list_create();
@@ -95,7 +97,7 @@ int main(int argc, char* argv[]) {
     pthread_mutex_unlock(mutexMemoriasConocidas);
     nodoMemoriaPrincipal->fdNodoMemoria = fdMemoriaPrincipal;
 
-    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion, diccionarioDePID, mutexDiccionarioDePID);
+    pthread_t *hiloRespuestas = crearHiloConexiones(misConexiones, logger, tablaDeMemoriasConCriterios, metadataTablas, mutexJournal, supervisorDeHilos, memoriasConocidas, mutexColaDeNew, colaDeNew, cantidadProcesosEnNew, datosConfiguracion, mutexDatosConfiguracion, diccionarioDePID, mutexDiccionarioDePID, mutexEstrucSupervisorHilos);
 
     p_consola_kernel *pConsolaKernel = (p_consola_kernel *) malloc(sizeof(p_consola_kernel));
 
@@ -145,6 +147,7 @@ int main(int argc, char* argv[]) {
     paramPlanificacionGeneral->memoriasConocidas = memoriasConocidas;
     paramPlanificacionGeneral->diccionarioDePID  = diccionarioDePID;
     paramPlanificacionGeneral->mutexDiccionarioDePID = mutexDiccionarioDePID;
+    paramPlanificacionGeneral->mutexEstrucSupervisorHilos = mutexEstrucSupervisorHilos;
 
     //pthread_t *hiloMetricas = crearHiloMetricas(paramPlanificacionGeneral);
 
@@ -462,6 +465,7 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
     int fdMemoria;
     int respuesta;
     t_log *logger = pConsolaKernel->logger;
+    pthread_mutex_t* mutexEstrucSupervisorHilos = (pthread_mutex_t*)paramPlanifGeneral->mutexEstrucSupervisorHilos;
     //Diccionario con key fd que contiene colas;
     //Cola de pids
     //Diccionario de semaforos con key PID
@@ -473,10 +477,14 @@ int gestionarRequestPrimitivas(t_comando requestParseada, p_planificacion *param
 
     if (paramPlanifGeneral->memoriasUtilizables > 0) {
 
-//        pthread_mutex_lock(mutexEstrucSupervisorHilos);
         pthread_mutex_lock(mutexDeHiloRequest);
+        pthread_mutex_lock(mutexEstrucSupervisorHilos);
         dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
-//        pthread_mutex_unlock(mutexEstrucSupervisorHilos);
+        printf("Guardo el mutex con PID %s\n", PIDCasteado);
+        fflush(stdout);
+        pthread_mutex_unlock(mutexEstrucSupervisorHilos);
+
+
 
         switch (requestParseada.tipoRequest) { //Analizar si cada gestionar va a tener que encolar en NEW, en lugar de enviarPaquete
             case SELECT:
@@ -803,14 +811,20 @@ void enviarJournal(int fdMemoria, p_planificacion *paramPlanifGeneral, int PID) 
     //int PID = getUltimoValorPID(paramPlanifGeneral->parametrosPLP);
     //paramPlanifGeneral->parametrosPLP->contadorPID++;
 
+    pthread_mutex_t* mutexEstrucSupervisorHilos = (pthread_mutex_t*) paramPlanifGeneral->mutexEstrucSupervisorHilos;
+
     char *PIDCasteado = string_itoa(PID);
     pthread_mutex_t *mutexDeHiloRequest;
+
+    //mutexSupervisor
+    pthread_mutex_lock(mutexEstrucSupervisorHilos);
     if (dictionary_has_key(paramPlanifGeneral->supervisorDeHilos, PIDCasteado)) {
         mutexDeHiloRequest = dictionary_get(paramPlanifGeneral->supervisorDeHilos, PIDCasteado);
     } else {
         mutexDeHiloRequest = paramPlanificacionGeneral->parametrosPCP->mutexSemaforoHilo;
         dictionary_put(paramPlanifGeneral->supervisorDeHilos, PIDCasteado, mutexDeHiloRequest);
     }
+    pthread_mutex_unlock(mutexEstrucSupervisorHilos);
     enviarPaquete(fdMemoria, REQUEST, JOURNAL, "JOURNAL", PID);
     pthread_mutex_lock(mutexDeHiloRequest);
 }

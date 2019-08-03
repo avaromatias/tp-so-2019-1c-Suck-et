@@ -5,7 +5,7 @@
 #include "conexiones.h"
 #include "kernel.h"
 
-pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios, t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion, t_dictionary* diccionarioDePID, pthread_mutex_t* mutexDiccionarioDePID) {
+pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_dictionary *tablaDeMemoriasConCriterios, t_dictionary *metadataTabla, pthread_mutex_t *mutexJournal, t_dictionary *visorDeHilos, t_list* memoriasConocidas, sem_t *semaforo_colaDeNew, t_queue *colaDeNew, sem_t* cantidadProcesosEnNew, t_datos_configuracion* datosConfiguracion, pthread_mutex_t* mutexDatosConfiguracion, t_dictionary* diccionarioDePID, pthread_mutex_t* mutexDiccionarioDePID, pthread_mutex_t* mutexEstrucSupervisorHilos) {
     pthread_t *hiloConexiones = malloc(sizeof(pthread_t));
 
     parametros_thread_k *parametros = (parametros_thread_k *) malloc(sizeof(parametros_thread_k));
@@ -24,6 +24,7 @@ pthread_t *crearHiloConexiones(GestorConexiones *unaConexion, t_log *logger, t_d
     parametros->mutexDatosConfiguracion = mutexDatosConfiguracion;
     parametros->diccionarioDePID = diccionarioDePID;
     parametros->mutexDiccionarioDePID = mutexDiccionarioDePID;
+    parametros->mutexEstrucSupervisorHilos = mutexEstrucSupervisorHilos ;
 
     pthread_create(hiloConexiones, NULL, &atenderConexiones, parametros);
 
@@ -43,6 +44,7 @@ void *atenderConexiones(void *parametrosThread) {
     pthread_mutex_t* mutexDatosConfiguracion = (pthread_mutex_t*)parametros->mutexDatosConfiguracion;
     t_dictionary* diccionarioDePID = (t_dictionary*) parametros->diccionarioDePID;
     pthread_mutex_t* mutexDiccionarioDePID = (pthread_mutex_t*) parametros->mutexDiccionarioDePID;
+    pthread_mutex_t* mutexEstrucSupervisorHilos = (pthread_mutex_t*) parametros->mutexEstrucSupervisorHilos;
 
 
     sem_t* semaforo_colaDeNew= (sem_t*)parametros->semaforo_colaDeNew;
@@ -81,14 +83,14 @@ void *atenderConexiones(void *parametrosThread) {
                             header.fdRemitente = fdConectado;
                             int pesoMensaje = header.tamanioMensaje * sizeof(char);
                             char *mensaje = (char *) malloc(pesoMensaje);
-                            bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_DONTWAIT);
+                            bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_WAITALL);
                             if (bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)   {
                                 desconectarCliente(fdConectado, unaConexion, logger);
                                 pthread_mutex_lock(mutexJournal);
                                 eliminarFileDescriptorDeTablasDeMemoriasYDeMemoriasConocidas(fdConectado, tablaDeMemoriasConCriterios, mutexJournal, logger);
                                 eliminarFileDescriptorDeNodosMemoriaConocidas(fdConectado, memoriasConocidas, logger);
                                 forzarJournalingEnTodasLasMemorias(unaConexion, semaforo_colaDeNew, colaDeNew, cantidadProcesosEnNew, logger);
-                                desbloquearSemaforoQueEsperabaRespuesta(diccionarioDePID, supervisorDeHilos, header.fdRemitente, mutexDiccionarioDePID);
+                                desbloquearSemaforoQueEsperabaRespuesta(diccionarioDePID, supervisorDeHilos, header.fdRemitente, mutexDiccionarioDePID, mutexEstrucSupervisorHilos);
                                 pthread_mutex_unlock(mutexJournal);
                             } else {
                                 switch (header.tipoMensaje) {
@@ -122,19 +124,20 @@ void *atenderConexiones(void *parametrosThread) {
                                         agregarMemoriasRecibidas(mensaje, memoriasConocidas, logger);
                                         break;
                                     case ERR:;
-                                        char *PID = string_itoa(header.pid);
+                                        //char *PID = string_itoa(header.pid);
 //                                        pthread_mutex_lock(mutexEstrucSupervisorHilos);
                                         //t_semaforo_y_pid* unSemaforoYUnFd = (t_semaforo_y_pid*)dictionary_get(supervisorDeHilos, string_itoa(header.fdRemitente));
 //                                        pthread_mutex_unlock(mutexEstrucSupervisorHilos);
                                         //pthread_mutex_unlock(unSemaforoYUnFd->semaforo);
                                         pthread_mutex_lock(mutexJournal);
-                                        pthread_mutex_t* semaforo = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PID);
-                                        pthread_mutex_unlock(semaforo);
+                                        desbloquearSemaforoQueEsperabaRespuesta(diccionarioDePID, supervisorDeHilos, header.fdRemitente, mutexDiccionarioDePID, mutexEstrucSupervisorHilos);
+                                        //pthread_mutex_t* semaforo = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PID);
+                                        //pthread_mutex_unlock(semaforo);
                                         //desbloquearSemaforoQueEsperabaRespuesta(diccionarioDePID, supervisorDeHilos, header.fdRemitente);
                                         pthread_mutex_unlock(mutexJournal);
 
                                         //printf(mensaje);
-                                        free(PID);
+//                                        free(PID);
                                         break;
                                 }
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
@@ -281,6 +284,7 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
 
     char *PIDCasteado = string_itoa(pid);
     pthread_mutex_t *semaforoADesbloquear;
+    //mutexSupervisorDeHilos
     if (dictionary_has_key(supervisorDeHilos, PIDCasteado)) {
         semaforoADesbloquear = (pthread_mutex_t *) dictionary_get(supervisorDeHilos, PIDCasteado);
     } else {
@@ -295,6 +299,7 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
         pthread_mutex_lock(semaforoADesbloquear);
         dictionary_put(supervisorDeHilos, PIDCasteado, semaforoADesbloquear);
     }
+    //mutexSupervisorDeHilos
 
     switch (tipoRequest) {
         case SELECT:
@@ -341,6 +346,8 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
             log_info(logger, "Memoria (socket %i) | Respuesta recibida: %s\n", fdMemoria, mensaje);
             break;
     }
+    printf("Desbloqueo el mutex con PID %s\n", PIDCasteado);
+    fflush(stdout);
     pthread_mutex_unlock(semaforoADesbloquear);
 
     pthread_mutex_lock(mutexDiccionarioDePID);
@@ -351,10 +358,7 @@ void gestionarRespuesta(int fdMemoria, int pid, TipoRequest tipoRequest, t_dicti
             if(strcmp(unPID, PIDCasteado) != 0){
                 queue_push(unaColaDePID, unPID);
                 //printf("No era ese");
-            }else{
-                //printf("Era era ese");
             }
-
         }
     }
     pthread_mutex_unlock(mutexDiccionarioDePID);
@@ -543,10 +547,14 @@ void forzarJournalingEnTodasLasMemorias(GestorConexiones* misConexiones, sem_t *
 
 }
 
-void desbloquearSemaforoQueEsperabaRespuesta(t_dictionary* diccionarioDePID, t_dictionary* supervisorDeHilos, int fdDesconectado, pthread_mutex_t* mutexDiccionarioDePID){
+void desbloquearSemaforoQueEsperabaRespuesta(t_dictionary* diccionarioDePID, t_dictionary* supervisorDeHilos, int fdDesconectado, pthread_mutex_t* mutexDiccionarioDePID, pthread_mutex_t* mutexEstrucSupervisorHilos){
     char* elFdDesconectado = string_itoa(fdDesconectado);
     pthread_mutex_t* semaforoADesbloquear;
+
+
+    pthread_mutex_lock(mutexEstrucSupervisorHilos);
     pthread_mutex_lock(mutexDiccionarioDePID);
+
     if (dictionary_has_key(diccionarioDePID, elFdDesconectado )) {
         t_queue* colaDePID = (t_queue*)dictionary_get(diccionarioDePID, elFdDesconectado);
         while (!queue_is_empty(colaDePID)){
@@ -559,6 +567,7 @@ void desbloquearSemaforoQueEsperabaRespuesta(t_dictionary* diccionarioDePID, t_d
         printf("Parece que la memoria que se desconectó no bloqueaba ningún semáforo\n");
     }
     pthread_mutex_unlock(mutexDiccionarioDePID);
+    pthread_mutex_unlock(mutexEstrucSupervisorHilos);
 }
 
 //Inotify

@@ -10,8 +10,8 @@
 #include "kernel.h"
 
 int main(int argc, char* argv[]) {
-    //char *nombrePruebaDebug = string_duplicate("prueba-kernel");
-    //char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
+    //char *nombrePruebaDebug = string_duplicate("stress");
+    //char *rutaConfig = string_from_format("/home/utnso/pruebas/%s/kernel/kernel.cfg", nombrePruebaDebug); //Para debuggear
     char *rutaConfig = string_from_format("../pruebas/%s/kernel/kernel.cfg", argv[1]); //Para ejecutar
     //char *rutaLogger = string_from_format("%s.log", nombrePruebaDebug); //Para debuggear
     char *rutaLogger = string_from_format("%s.log", argv[1]); //Para ejecutar
@@ -162,12 +162,12 @@ int main(int argc, char* argv[]) {
     pthread_join(*hiloRespuestas, NULL);
     pthread_join(*hiloGossiping, NULL);
     pthread_join(*hiloPlanificadorLargoPlazo, NULL);
-    //pthread_join(*hiloMonitor, NULL);
+    pthread_join(*hiloMonitor, NULL);
 
     pthread_detach(*hiloRespuestas);
     pthread_detach(*hiloGossiping);
     pthread_detach(*hiloPlanificadorLargoPlazo);
-    //pthread_detach(*hiloMonitor);
+    pthread_detach(*hiloMonitor);
 
     //free(nombrePruebaDebug); //TODO: Si se esta ejecutando comentar esta linea
     free(rutaConfig);
@@ -1198,7 +1198,7 @@ void planificarRequest(p_planificacion *paramPlanifGeneral, t_archivoLQL *archiv
                 time(&infoRequest->instanteInicio);
                 gestionarRequestPrimitivas(*comando, paramPlanifGeneral, mutexDeHiloRequest, infoRequest,
                                            semConcurrenciaMetricas, unLQL->PID);
-                //sleep(retardoEjecucion);
+                sleep(retardoEjecucion/1000);
             } else { //Si es 0 es comando de Kernel
                 gestionarRequestKernel(*comando, paramPlanifGeneral, archivoLQL->nombreLQL);
             }

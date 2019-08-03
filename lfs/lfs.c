@@ -31,7 +31,7 @@ t_configuracion cargarConfiguracion(char *pathArchivoConfiguracion, t_log *logge
     }
 
     if (!existenTodasLasClavesObligatorias(archivoConfig, configuracion)) {
-        //log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
+        log_error(logger, "Alguna de las claves obligatorias no están setteadas en el archivo de configuración.");
         printf("Alguna de las claves obligatorias no están setteadas en el archivo de configuración.\n");
         fflush(stdout);
         exit(1); // settear algún código de error para cuando falte alguna key
@@ -266,7 +266,7 @@ void retardo() {
     int retardo = configuracion.retardo;
     if (retardo != NULL) {
         if (retardo < 0) {
-            //log_error(logger, "El retardo no esta seteado en el archivo de configuracion o es invalido.");
+            log_error(logger, "El retardo no esta seteado en el archivo de configuracion o es invalido.");
             printf("El retardo no esta seteado en el archivo de configuracion o es invalido.\n");
             fflush(stdout);
             return;
@@ -282,14 +282,14 @@ void* lfsDump() {
         int tiempoDump = configuracion.tiempoDump;
         if (tiempoDump != NULL) {
             if (tiempoDump < 0) {
-                //log_error(logger, "El tiempo dump no esta seteado en el archivo de configuracion o es invalido.");
+                log_error(logger, "El tiempo dump no esta seteado en el archivo de configuracion o es invalido.");
                 printf("El tiempo dump no esta seteado en el archivo de configuracion o es invalido.\n");
                 fflush(stdout);
                 continue;
             }
             tiempoDump = tiempoDump / 1000;
             sleep(tiempoDump);
-            //log_info(logger,"Iniciando Proceso de Dump.");
+            log_info(logger,"Iniciando Proceso de Dump.");
             void* dumpTabla(char *nombreTabla, t_dictionary *tablaDeKeys) {
                 int nroDump = 0;
                 char *nombreDump = string_from_format("%s%i%s", nombreTabla, nroDump, ".tmp");
@@ -330,7 +330,7 @@ void* lfsDump() {
 
             pthread_mutex_unlock(mutexMemtable);
         } else {
-            //log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
+            log_error(logger, "El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.");
             printf("El TIEMPO_DUMP no esta seteado en el Archivo de Configuracion.\n");
             fflush(stdout);
             continue;
@@ -647,7 +647,7 @@ void* compactacion(void *parametrosThread) {
     int tiempoCompactacion = atoi(parametros->tiempoCompactacion) / 1000;
     while (1) {
         sleep(tiempoCompactacion);
-        //log_info(logger,"Iniciando Proceso de Compactacion de tabla %s.",nombreTabla);
+        log_info(logger,"Iniciando Proceso de Compactacion de tabla %s.",nombreTabla);
         pthread_mutex_lock(mutexTablasEnUso);
         pthread_mutex_t *sem = dictionary_get(tablasEnUso, nombreTabla);
         pthread_mutex_unlock(mutexTablasEnUso);
@@ -697,7 +697,7 @@ void* compactacion(void *parametrosThread) {
         pthread_mutex_unlock(sem);
         end1 = clock();
         total = (double) (end1 - start1);
-        //log_info(logger, "La tabla %s estuvo bloqueada por %f segundos.", nombreTabla,(double) (total / CLOCKS_PER_SEC));
+        log_info(logger, "La tabla %s estuvo bloqueada por %f segundos.", nombreTabla,(double) (total / CLOCKS_PER_SEC));
     }
     free(nombreTabla);
 }
@@ -899,7 +899,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
         bloque = obtenerBloqueDisponible(nombreTabla, particion);
         if (bloque == -1) {
             //pthread_mutex_unlock(mutexAsignacionBloques);
-            //log_error(logger, "No hay bloques disponibles.");
+            log_error(logger, "No hay bloques disponibles.");
             printf("No hay bloques disponibles.\n");
             fflush(stdout);
             deleteFile(nombreArchivo);
@@ -917,7 +917,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
                 longitudArchivo++;
                 indice++;
             }
-            //log_info(logger,"Se escribio en el archivo de bloque %s.bin",bloqueString);
+            log_info(logger,"Se escribio en el archivo de bloque %s.bin",bloqueString);
             fclose(f);
             pthread_mutex_unlock(semBloque);
             free(bloqueString);
@@ -942,7 +942,7 @@ void escribirEnBloque(char *linea, char *nombreTabla, int particion, char *nombr
         char *tamanioString = string_itoa(tamanio);
         char *contenido = generarContenidoParaParticion(tamanioString, bloquesAsignadosAParticion);
         fwrite(contenido, sizeof(char) * strlen(contenido), 1, fParticion);
-        //log_info(logger,"Se escribio en el archivo %s.",nombreArchivo);
+        log_info(logger,"Se escribio en el archivo %s.",nombreArchivo);
         fclose(fParticion);
         pthread_mutex_unlock(semArchivo);
         free(contenido);
@@ -969,7 +969,7 @@ int renombrarTemporales(char *nombreTabla) {
                 pthread_mutex_lock(semTmp);
                 if (rename(pathArchivo, newPathArchivo) == 0 && seRenombraron == 0) {
                     seRenombraron = 1;
-                    //log_info(logger,"Se renombro el archivo %s a %sc.",nombreArchivo,nombreArchivo);
+                    log_info(logger,"Se renombro el archivo %s a %sc.",nombreArchivo,nombreArchivo);
                 }
                 pthread_mutex_unlock(semTmp);
             }
@@ -1376,7 +1376,7 @@ t_metadata *obtenerMetadata(char *tabla) {
 
     if (config == NULL) {
         char *pathTabla = obtenerPathTabla(tabla, configuracion.puntoMontaje);
-        //log_error(logger, "No se pudo obtener el archivo Metadata de la tabla %s", tabla);
+        log_error(logger, "No se pudo obtener el archivo Metadata de la tabla %s", tabla);
         borrarContenidoDeDirectorio(pathTabla);
         if (rmdir(pathTabla) != 0) {
             printf("El File System se esta restaurando a un estado consistente. Reinicie el proceso.");
@@ -1574,7 +1574,7 @@ void cargarBloquesAsignados(char *path) {
                                 free(contenido);
                                 free(bloqueDisponible);
                             } else {
-                                //log_error(logger, "No se pudo escribir en la particion %i", particion);
+                                log_error(logger, "No se pudo escribir en la particion %i", particion);
                             }
                         }
                         free(pathArchivo);

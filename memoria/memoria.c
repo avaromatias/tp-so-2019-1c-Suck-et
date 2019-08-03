@@ -1097,7 +1097,7 @@ int main(int argc, char* argv[]) {
 
     t_retardos_memoria* retardos = almacenarRetardosDeMemoria(configuracion);
 
-    char* directorioAMonitorear = configuracion.directorioConfiguracion;
+//    char* directorioAMonitorear = configuracion.directorioConfiguracion;
     //monitorearDirectorio("/home/utnso/tp-2019-1c-Suck-et/memoria/", nombreArchivoConfiguracionConExtension, logger, retardos);
 
     t_control_conexion conexionKernel = {.fd = 0, .semaforo = (sem_t*) malloc(sizeof(sem_t))};

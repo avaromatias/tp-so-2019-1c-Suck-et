@@ -734,7 +734,6 @@ char **obtenerLineasDeBloques(char **bloques) {
         pthread_mutex_unlock(semArchivo);
     }
     if (!string_is_empty(stringDeLineas)) {
-        free(stringDeLineas);
         stringDeLineas = string_substring_until(stringDeLineas, strlen(stringDeLineas) - 1);
 
         if (blockPath != NULL) free(blockPath);
@@ -1952,16 +1951,19 @@ void *atenderConexiones(void *parametrosThread) {
                             int pesoMensaje = header.tamanioMensaje * sizeof(char);
                             void *mensaje = (void *) malloc(pesoMensaje);
                             bytesRecibidos = recv(fdConectado, mensaje, pesoMensaje, MSG_WAITALL);
-                            if (bytesRecibidos == -1 || bytesRecibidos < pesoMensaje)
+                            if (bytesRecibidos == -1 || bytesRecibidos < pesoMensaje) {
                                 desconectarCliente(fdConectado, unaConexion, logger);
-                            else {
+                                free(mensaje);
+                            } else {
                                 // acá cada uno setea una maravillosa función que hace cada uno cuando le llega un nuevo mensaje
                                 // nombre_maravillosa_funcion();
                                 if (header.tipoMensaje == HANDSHAKE) {
                                     Componente componente = (Componente) atoi(mensaje);
                                     atenderHandshake(header, componente, parametros);
+                                    free(mensaje);
                                 } else {
                                     pthread_t *hiloRequest = crearHiloRequest(header, mensaje);
+                                    free(mensaje);
                                 }
                             }
                             break;

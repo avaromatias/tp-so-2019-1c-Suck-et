@@ -166,6 +166,7 @@ void crearBinarios(char *nombreTabla, int particiones) {
             free(bloquesAsignadosAParticion);
             fclose(file);
             pthread_mutex_unlock(semArchivo);
+            freeArrayDeStrings(arrayBlock);
             free(pathArchivo);
             free(nombreArchivo);
             free(bloqueString);
@@ -781,12 +782,14 @@ void* compactacion(void *parametrosThread) {
                     free(keyString);
                     free(valorString);
                     free(timestampString);
+                    freeArrayDeStrings(linea);
                 }
                 eliminarArchivosSegunExtension(nombreTabla, ".tmpc");
                 eliminarArchivosSegunExtension(nombreTabla, ".bin");
                 t_metadata *meta = obtenerMetadata(nombreTabla);
                 crearBinarios(nombreTabla, meta->partitions);
                 freeArrayDeStrings(lineasMaximas);
+                free(meta);
             }
             free(bloquesBin);
             free(bloquesTemp);
@@ -886,6 +889,7 @@ char **filtrarKeyMax(char **listaLineas) {
         if(!string_is_empty(mayorLinea)){
             lineasSinRepetir[tamanioDeArrayDeStrings(lineasSinRepetir)] = string_duplicate(mayorLinea);
         }
+        free(mayorLinea);
     }
     dictionary_iterator(keys, (void *)obtenerMaxTimestamp);
     lineasSinRepetir[tamanioDeArrayDeStrings(lineasSinRepetir)] = NULL;
@@ -1073,6 +1077,8 @@ int renombrarTemporales(char *nombreTabla) {
                     log_info(logger,"Se renombro el archivo %s a %sc.",nombreArchivo,nombreArchivo);
                 }
                 pthread_mutex_unlock(semTmp);
+                free(pathArchivo);
+                free(newPathArchivo);
             }
             free(nombreArchivo);
         }
@@ -1329,6 +1335,7 @@ char *obtenerStringBloquesSegunExtension(char *nombreTabla, char *ext) {
         archivoTemporalPath = obtenerPathArchivo(nombreTabla, nombreArchivoTemporal);
         free(bloquesDeArchivo);
     }
+    free(nombreArchivoTemporal);
     free(archivoTemporalPath);
     if (!string_is_empty(bloques)) {
         bloques = string_substring_until(bloques, strlen(bloques) - 1);
